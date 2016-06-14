@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This script is called by (almost) everyone to set up the environment.
 # just checks the environment for dot_profile, sixjobs etc
 # imports the dot_profile subroutines
@@ -10,28 +10,25 @@
 # and was the technique used by run_results anyway.)
 # It will NOT handle a deleted study NOR a new study.
 # It must be called by . ./dot_env so that values are available to the caller.
-export sixdeskhostname=`hostname`
-export sixdeskname=`basename $0`
-export sixdeskroot=`basename $PWD`
-export sixdeskwhere=`dirname $PWD`
-# Set up some temporary values until we execute sixdeskenv/sysenv
-# Don't issue lock/unlock debug text (use 2 for that)
-export sixdesklogdir=""
+
+# ------------------------------------------------------------------------------
+# preliminary to any action
+# ------------------------------------------------------------------------------
 export sixdesklevel=1
-export sixdeskhome="."
-export sixdeskecho="yes!"
-if test "$sixdeskroot" != "sixjobs"
-then
-  echo "This script must be run in the directory sixjobs!!!"
-  exit 1
-fi
-if test ! -s dot_profile
-then
+# - get path to calling script and normalise it
+SCRIPTDIR=`dirname $0`
+SCRIPTDIR="`cd "${SCRIPTDIR}";pwd`"
+# - load dot_profile
+if [ ! -s ${SCRIPTDIR}/dot_profile ] ; then
   echo "dot_profile is missing!!!"
   exit 1
 fi
-. ./dot_profile
-# and make sure we have a studies directory!
+source ${SCRIPTDIR}/dot_profile
+# - load some defaults
+sixdeskdefaults
+# ------------------------------------------------------------------------------
+
+# make sure we have a studies directory!
 if test ! -d studies
 then
   mymess "There is no studies directory in sixjobs!!!"
@@ -43,12 +40,12 @@ then
 
 fi
 # and the environment files
-if test ! -s sixdeskenv -o ! -s sysenv
+if test ! -s ${studyConfigFileName} -o ! -s ${sysConfigFileName}
 then
 
-#MACRO mymess 0 sixjobs does not have a sixdeskenv or sysenv!!!
+#MACRO mymess 0 sixjobs does not have a ${studyConfigFileName} or ${sysConfigFileName}!!!
   sixdeskmesslevel=0
-  sixdeskmess="sixjobs does not have a sixdeskenv or sysenv!!!"
+  sixdeskmess="sixjobs does not have a ${studyConfigFileName} or ${sysConfigFileName}!!!"
   sixdeskmess
 #MACRO mymess
 
@@ -59,46 +56,20 @@ then
 #MACRO myexit
 
 fi
-# Verify we are in the correct workspace
-cworkspace=`basename $sixdeskwhere`
-aline=`egrep "^ *export *workspace=" sixdeskenv | tail -1`
-workspace=`echo "$aline" | sed -e 's/\(.*=\)\([^ ]*\)\(.*\)/\2/'`
-if test "$workspace" != "$cworkspace"
-then
 
-#MACRO mymess 0 Workspace mismatch /$workspace/$cworkspace/!!!
-  sixdeskmesslevel=0
-  sixdeskmess="Workspace mismatch /$workspace/$cworkspace/!!!"
-  sixdeskmess
-#MACRO mymess
-
-
-#MACRO mymess 0 Check the workspace definition in sixdeskenv.
-  sixdeskmesslevel=0
-  sixdeskmess="Check the workspace definition in sixdeskenv."
-  sixdeskmess
-#MACRO mymess
-
-
-#MACRO myexit 2
-  sixdeskexitparam=2
-  sixdeskexit
-#MACRO myexit
-
-fi
 # get the current study
 # Now check for optional parameters $1 and $2 and set
 # them as newLHCDescrip and newplatform  
 newLHCDescrip=""
 newplatform=""
-aline=`egrep "^ *export *LHCDescrip=" sixdeskenv | tail -1`
+aline=`egrep "^ *export *LHCDescrip=" ${studyConfigFileName} | tail -1`
 mystudy=`echo "$aline" | sed -e 's/\(.*=\)\([^ ]*\)\(.*\)/\2/'`
 if test "$mystudy" = ""
 then
 
-#MACRO mymess 0 Couldn't find an LHCDescrip in sixdeskenv!!!
+#MACRO mymess 0 Couldn't find an LHCDescrip in ${studyConfigFileName}!!!
   sixdeskmesslevel=0
-  sixdeskmess="Couldn't find an LHCDescrip in sixdeskenv!!!"
+  sixdeskmess="Couldn't find an LHCDescrip in ${studyConfigFileName}!!!"
   sixdeskmess
 #MACRO mymess
 
@@ -136,12 +107,12 @@ then
 #MACRO myexit
 
   fi
-  if test ! -s studies/$newLHCDescrip/sixdeskenv -o ! -s studies/$newLHCDescrip/sysenv
+  if test ! -s studies/$newLHCDescrip/${studyConfigFileName} -o ! -s studies/$newLHCDescrip/${sysConfigFileName}
   then
 
-#MACRO mymess 0 studies/$newLHCDescrip does not have sixdeskenv/sysenv!!!
+#MACRO mymess 0 studies/$newLHCDescrip does not have ${studyConfigFileName}/${sysConfigFileName}!!!
     sixdeskmesslevel=0
-    sixdeskmess="studies/$newLHCDescrip does not have sixdeskenv/sysenv!!!"
+    sixdeskmess="studies/$newLHCDescrip does not have ${studyConfigFileName}/${sysConfigFileName}!!!"
     sixdeskmess
 #MACRO mymess
 
@@ -152,14 +123,14 @@ then
 #MACRO myexit
 
   fi
-  aline=`egrep "^ *export *LHCDescrip=" studies/$newLHCDescrip/sixdeskenv | tail -1`
+  aline=`egrep "^ *export *LHCDescrip=" studies/$newLHCDescrip/${studyConfigFileName} | tail -1`
   newstudy=`echo "$aline" | sed -e 's/\(.*=\)\([^ ]*\)\(.*\)/\2/'`
   if test "$newstudy" = ""
   then
 
-#MACRO mymess 0 Couldn't find an LHCDescrip in studies/$newLHCDescrip/sixdeskenv!!!
+#MACRO mymess 0 Couldn't find an LHCDescrip in studies/$newLHCDescrip/${studyConfigFileName}!!!
     sixdeskmesslevel=0
-    sixdeskmess="Couldn't find an LHCDescrip in studies/$newLHCDescrip/sixdeskenv!!!"
+    sixdeskmess="Couldn't find an LHCDescrip in studies/$newLHCDescrip/${studyConfigFileName}!!!"
     sixdeskmess
 #MACRO mymess
 
@@ -219,15 +190,15 @@ then
   sixdesklock
 #MACRO mylock
 
-  . ./sixdeskenv
-  . ./sysenv
+  source ${studyConfigFileName}
+  source ${sysConfigFileName}
   # We now call update_sixjobs in case there were changes
   # and to create for example the logfile directories
-  . ./update_sixjobs
+  source ./update_sixjobs
   # and now we can check 
-  . ./check_envs
+  source ./check_envs
   # and save the env files
-  cp sixdeskenv sysenv studies/$LHCDescrip
+  cp ${studyConfigFileName} ${sysConfigFileName} studies/$LHCDescrip
 
 #MACRO myunlock studies
   sixdesklockdir=studies
@@ -237,8 +208,8 @@ then
 else
   # We are just USING the newLHCDescrip study without changes
   # and will NOT modify sixjobs
-  . ./studies/$newLHCDescrip/sixdeskenv
-  . ./studies/$newLHCDescrip/sysenv
+  source studies/$newLHCDescrip/${studyConfigFileName}
+  source studies/$newLHCDescrip/${sysConfigFileName}
 fi
 PTEXT="["$sixdeskplatform"]"
 if test "$newplatform" != ""

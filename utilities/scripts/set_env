@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This script is called to set up, modify, or check the 
 # environment or to create a new study, or to undelete it. 
 # It can just be called for checking/updating  e.g. set_env
@@ -6,74 +6,44 @@
 # to switch studies and update sixjobs, or to create, a new study.
 # It basically imitates dot_env.
 # It locks the workspace.
-export sixdeskhostname=`hostname`
-export sixdeskname=`basename $0`
-export sixdeskroot=`basename $PWD`
-export sixdeskwhere=`dirname $PWD`
-# Set up some temporary values until we execute sixdeskenv/sysenv
-# Don't issue lock/unlock debug text (use 2 for that)
-export sixdesklogdir=""
+
+# ------------------------------------------------------------------------------
+# preliminary to any action
+# ------------------------------------------------------------------------------
 export sixdesklevel=1
-export sixdeskhome="."
-export sixdeskecho="yes!"
-if test "$sixdeskroot" != "sixjobs"
-then
-  echo "This script must be run in the directory sixjobs!!!"
-  exit 1
-fi
-if test ! -s dot_profile
-then
+# - get path to calling script and normalise it
+SCRIPTDIR=`dirname $0`
+SCRIPTDIR="`cd "${SCRIPTDIR}";pwd`"
+# - load dot_profile
+if [ ! -s ${SCRIPTDIR}/dot_profile ] ; then
   echo "dot_profile is missing!!!"
   exit 1
 fi
-. ./dot_profile
-# and make sure we have a studies directory!
+source ${SCRIPTDIR}/dot_profile
+# - load some defaults
+sixdeskdefaults
+# ------------------------------------------------------------------------------
+
+# make sure we have a studies directory!
 if test ! -d studies
 then
   mkdir studies
 fi
-cworkspace=`basename $sixdeskwhere`
-aline=`egrep "^ *export *workspace=" sixdeskenv | tail -1`
-workspace=`echo "$aline" | sed -e 's/\(.*=\)\([^ ]*\)\(.*\)/\2/'`
-if test "$workspace" != "$cworkspace"
-then
 
-#MACRO mymess 0 Workspace mismatch /$workspace/$cworkspace/!!!
-  sixdeskmesslevel=0
-  sixdeskmess="Workspace mismatch /$workspace/$cworkspace/!!!"
-  sixdeskmess
-#MACRO mymess
-
-
-#MACRO mymess 0 Check the workspace definition in sixdeskenv.
-  sixdeskmesslevel=0
-  sixdeskmess="Check the workspace definition in sixdeskenv."
-  sixdeskmess
-#MACRO mymess
-
-
-#MACRO myexit 2
-  sixdeskexitparam=2
-  sixdeskexit
-#MACRO myexit
-
-fi
-# and lock the workspace
-
-#MACRO mylock 
+# lock work directory
+#MACRO lock 
 sixdesklockdir=
 sixdesklock
-#MACRO mylock
+#MACRO lock
 
-# Get the LHCDescrip defined in the local sixdeskenv
-aline=`egrep "^ *export *LHCDescrip=" sixdeskenv | tail -1`
+# Get the LHCDescrip defined in the local ${studyConfigFileName}
+aline=`egrep "^ *export *LHCDescrip=" ${studyConfigFileName} | tail -1`
 LHCDescrip=`echo "$aline" | sed -e 's/\(.*=\)\([^ ]*\)\(.*\)/\2/'`
 # We have three possibilities (or an error!)
 NEW=""
 SWITCH=""
 UPDATE=""
-# Now check for optional parameter $1 and set
-# it as newLHCDescrip
+# Now check for terminal line argument $1 and set it as newLHCDescrip
 newLHCDescrip=""
 if test $# -gt 1
 then
@@ -122,9 +92,9 @@ then
 #MACRO mymess
 
 
-#MACRO mymess 0 The sixdeskenv LHCDescrip /$LHCDescrip/ does not correspond!!!
+#MACRO mymess 0 The ${studyConfigFileName} LHCDescrip /$LHCDescrip/ does not correspond!!!
       sixdeskmesslevel=0
-      sixdeskmess="The sixdeskenv LHCDescrip /$LHCDescrip/ does not correspond!!!"
+      sixdeskmess="The ${studyConfigFileName} LHCDescrip /$LHCDescrip/ does not correspond!!!"
       sixdeskmess
 #MACRO mymess
 
@@ -165,14 +135,14 @@ then
   sixdeskmess
 #MACRO mymess
 
-  aline=`egrep "^ *export *LHCDescrip=" studies/$newLHCDescrip/sixdeskenv | tail -1`
+  aline=`egrep "^ *export *LHCDescrip=" studies/$newLHCDescrip/${studyConfigFileName} | tail -1`
   studyLHCDescrip=`echo "$aline" | sed -e 's/\(.*=\)\([^ ]*\)\(.*\)/\2/'`
   if test "$studyLHCDescrip" = ""
   then
 
-#MACRO mymess 0 Couldn't find an LHCDescrip in studies/$newLHCDescrip/sixdeskenv!!!
+#MACRO mymess 0 Couldn't find an LHCDescrip in studies/$newLHCDescrip/${studyConfigFileName}!!!
     sixdeskmesslevel=0
-    sixdeskmess="Couldn't find an LHCDescrip in studies/$newLHCDescrip/sixdeskenv!!!"
+    sixdeskmess="Couldn't find an LHCDescrip in studies/$newLHCDescrip/${studyConfigFileName}!!!"
     sixdeskmess
 #MACRO mymess
 
@@ -223,8 +193,8 @@ then
 #MACRO myexit
 
   fi
-  cp studies/$newLHCDescrip/sixdeskenv .
-  cp studies/$newLHCDescrip/sysenv .
+  cp studies/$newLHCDescrip/${studyConfigFileName} .
+  cp studies/$newLHCDescrip/${sysConfigFileName} .
 fi
 if test "$NEW" != "" -o "$UPDATE" != ""
 then
@@ -239,16 +209,16 @@ then
 
   else
 
-#MACRO mymess 0 Updating sixdeskenv/sysenv for $LHCDescrip
+#MACRO mymess 0 Updating ${studyConfigFileName}/${sysConfigFileName} for $LHCDescrip
     sixdeskmesslevel=0
-    sixdeskmess="Updating sixdeskenv/sysenv for $LHCDescrip"
+    sixdeskmess="Updating ${studyConfigFileName}/${sysConfigFileName} for $LHCDescrip"
     sixdeskmess
 #MACRO mymess
 
   fi
   mkdir -p studies/$newLHCDescrip
-  cp sixdeskenv studies/$newLHCDescrip
-  cp sysenv studies/$newLHCDescrip
+  cp ${studyConfigFileName} studies/$newLHCDescrip
+  cp ${sysConfigFileName} studies/$newLHCDescrip
 else
   if test "$SWITCH" = ""
   then
@@ -289,7 +259,7 @@ sixdesklockdir=studies
 sixdeskunlock
 #MACRO myunlock
 
-. ./dot_env 
+source ${SCRIPTDIR}/dot_env 
 # Now clear the deleted flag (if set)
 if test -e "$sixdeskstudy"/deleted
 then

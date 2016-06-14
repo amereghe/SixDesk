@@ -1,5 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 # A set of Subroutines called by Macros for the SixDesk environment
+# additional default variables
 sixdeskmess()
 {
   if test "$sixdeskmesslevel" -le "$sixdesklevel"
@@ -602,4 +603,13 @@ sixdeskrundir()
   else
     rundirname=`echo $runnamename | sed -e's?%?\/?g'`
   fi
+}
+sixdeskdefaults()
+{
+    # - configuration files
+    export studyConfigFileName="sixdeskenv"
+    export sysConfigFileName="sysenv"
+    # - get working dir and normalise it
+    WORKDIR=$PWD
+    export WORKDIR="`cd "${WORKDIR}";pwd`"
 }
