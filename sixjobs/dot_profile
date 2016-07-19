@@ -375,14 +375,23 @@ sixdesktunes(){
     local __ideltax=`echo "$__deltax" | cut -d\. -f1`
     local __fdeltax=`echo "$__deltax" | cut -d\. -f2`
     # - get longest fractional part (meaningful!)
-    local xlen=`printf "$__ftunex\n$__ftunex1\n$__fdeltax\n" | awk '{print (length($1))}' | sort -g | tail -n1`
+    xlen=`printf "$__ftunex\n$__ftunex1\n$__fdeltax\n" | awk '{print (length($1))}' | sort -g | tail -n1`
     # - get integer algebra
-    local __llen=`echo "$__ftunex $xlen" | awk '{print ($2-$1)}'`
-    itunex="$__itunex$__ftunex`printf "0%.0s" {1..$__llen}`"
-    local __llen=`echo "$__ftunex1 $xlen" | awk '{print ($2-$1)}'`
-    itunex1="$__itunex1$__ftunex1`printf "0%.0s" {1..$__llen}`"
-    local __llen=`echo "$__fdeltax $xlen" | awk '{print ($2-$1)}'`
-    ideltax="$__ideltax$__fdeltax`printf "0%.0s" {1..$__llen}`"
+    local  __llen=`echo "$__ftunex $xlen" | awk '{print ($2-length($1))}'`
+    itunex="$__itunex$__ftunex"
+    if [ $__llen -gt 0 ] ; then
+	itunex="$itunex`printf "0%.0s" $( seq 1 $__llen)`"
+    fi
+    local __llen=`echo "$__ftunex1 $xlen" | awk '{print ($2-length($1))}'`
+    itunex1="$__itunex1$__ftunex1"
+    if [ $__llen -gt 0 ] ; then
+	itunex1="$itunex1`printf "0%.0s" $( seq 1 $__llen)`"
+    fi
+    local __llen=`echo "$__fdeltax $xlen" | awk '{print ($2-length($1))}'`
+    ideltax="$__ideltax$__fdeltax"
+    if [ $__llen -gt 0 ] ; then
+	ideltax="$ideltax`printf "0%.0s" $( seq 1 $__llen)`"
+    fi
 
     # y plane
     # - strip away useless 0s
@@ -397,14 +406,23 @@ sixdesktunes(){
     local __ideltay=`echo "$__deltay" | cut -d\. -f1`
     local __fdeltay=`echo "$__deltay" | cut -d\. -f2`
     # - get longest fractional part (meaningful!)
-    local ylen=`printf "$__ftuney\n$__ftuney1\n$__fdeltay\n" | awk '{print (length($1))}' | sort -g | tail -n1`
+    ylen=`printf "$__ftuney\n$__ftuney1\n$__fdeltay\n" | awk '{print (length($1))}' | sort -g | tail -n1`
     # - get integer algebra
-    local __llen=`echo "$__ftuney $ylen" | awk '{print ($2-$1)}'`
-    ituney="$__ituney$__ftuney`printf "0%.0s" {1..$__llen}`"
-    local __llen=`echo "$__ftuney1 $ylen" | awk '{print ($2-$1)}'`
-    ituney1="$__ituney1$__ftuney1`printf "0%.0s" {1..$__llen}`"
-    local __llen=`echo "$__fdeltay $ylen" | awk '{print ($2-$1)}'`
-    ideltay="$__ideltay$__fdeltay`printf "0%.0s" {1..$__llen}`"
+    local  __llen=`echo "$__ftuney $ylen" | awk '{print ($2-length($1))}'`
+    ituney="$__ituney$__ftuney"
+    if [ $__llen -gt 0 ] ; then
+	ituney="$ituney`printf "0%.0s" $( seq 1 $__llen)`"
+    fi
+    local __llen=`echo "$__ftuney1 $ylen" | awk '{print ($2-length($1))}'`
+    ituney1="$__ituney1$__ftuney1"
+    if [ $__llen -gt 0 ] ; then
+	ituney1="$ituney1`printf "0%.0s" $( seq 1 $__llen)`"
+    fi
+    local __llen=`echo "$__fdeltay $ylen" | awk '{print ($2-length($1))}'`
+    ideltay="$__ideltay$__fdeltay"
+    if [ $__llen -gt 0 ] ; then
+	ideltay="$ideltay`printf "0%.0s" $( seq 1 $__llen)`"
+    fi
 
     # some consistency checks
     if [ $itunex1 -lt $itunex ] ; then
@@ -438,8 +456,8 @@ sixdesktunes(){
 sixdeskPrepareTunes(){
     # by A.Mereghetti, 2016-07-19
     # converts itunexx/ituneyy into tunexx/tuneyy
-    tunexx=`echo "$itunexx" | awk -v "flen=$xlen" '{lstring=length($1); fpart=substr($1,lstring-flen+1,flen); ipart=substr($1,1,lstring-flen); print ($1,lstring,ipart,fpart)}' | sed -e's?0*$??' | sed -e's?^0??'`
-    tuneyy=`echo "$ituneyy" | awk -v "flen=$ylen" '{lstring=length($1); fpart=substr($1,lstring-flen+1,flen); ipart=substr($1,1,lstring-flen); print ($1,lstring,ipart,fpart)}' | sed -e's?0*$??' | sed -e's?^0??'`
+    tunexx=`echo "$itunexx" | awk -v "flen=$xlen" '{lstring=length($1); fpart=substr($1,lstring-flen+1,flen); ipart=substr($1,1,lstring-flen); print (ipart"."fpart)}' | sed -e's?0*$??' | sed -e's?^0??'`
+    tuneyy=`echo "$ituneyy" | awk -v "flen=$ylen" '{lstring=length($1); fpart=substr($1,lstring-flen+1,flen); ipart=substr($1,1,lstring-flen); print (ipart"."fpart)}' | sed -e's?0*$??' | sed -e's?^0??'`
 }
 sixdeskinttunes()
 {
