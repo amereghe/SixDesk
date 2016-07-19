@@ -165,12 +165,9 @@ do
   fi
   while test "$itunexx" -le "$itunex1" -o "$ituneyy" -le "$ituney1"
   do
-    tunexx=`echo "$itunexx" | cut -c1-2`"."`echo "$itunexx" | cut -c3-6`
-    tunexx=`echo "$tunexx" | sed -e's/0*$//'`
-    tunexx=`echo "$tunexx" | sed -e's/^0//'`
-    tuneyy=`echo "$ituneyy" | cut -c1-2`"."`echo "$ituneyy" | cut -c3-6`
-    tuneyy=`echo "$tuneyy" | sed -e's/0*$//'`
-    tuneyy=`echo "$tuneyy" | sed -e's/^0//'`
+    # returns tunexx/tuneyy, computed from itunexx/ituneyy,
+    #    using xlen/ylen
+    sixdeskPrepareTunes
     sixdesktunes=$tunexx"_"$tuneyy
 
 #MACRO mymess 0 Tunescan $sixdesktunes
