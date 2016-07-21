@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # A set of Subroutines called by Macros for the SixDesk environment
 sixdeskmess()
 {
@@ -376,26 +376,26 @@ sixdesktunes(){
     tunex1=$(sixdeskFixZerosFloat $tunex1)
     deltax=$(sixdeskFixZerosFloat $deltax)
     # - get fractional and integer parts of tunes
-    local __itunex=`echo "$tunex" | cut -d\. -f1`
-    local __ftunex=`echo "$tunex" | cut -d\. -f2`
-    local __itunex1=`echo "$tunex1" | cut -d\. -f1`
-    local __ftunex1=`echo "$tunex1" | cut -d\. -f2`
-    local __ideltax=`echo "$deltax" | cut -d\. -f1`
-    local __fdeltax=`echo "$deltax" | cut -d\. -f2`
+    __itunex=`echo "$tunex" | cut -d\. -f1`
+    __ftunex=`echo "$tunex" | cut -d\. -f2`
+    __itunex1=`echo "$tunex1" | cut -d\. -f1`
+    __ftunex1=`echo "$tunex1" | cut -d\. -f2`
+    __ideltax=`echo "$deltax" | cut -d\. -f1`
+    __fdeltax=`echo "$deltax" | cut -d\. -f2`
     # - get longest fractional part (meaningful!)
     xlen=`printf "$__ftunex\n$__ftunex1\n$__fdeltax\n" | awk '{print (length($1))}' | sort -g | tail -n1`
     # - get integer algebra
-    local  __llen=`echo "$__ftunex $xlen" | awk '{print ($2-length($1))}'`
+     __llen=`echo "$__ftunex $xlen" | awk '{print ($2-length($1))}'`
     itunex="$__itunex$__ftunex"
     if [ $__llen -gt 0 ] ; then
 	itunex="$itunex`printf "0%.0s" $( seq 1 $__llen)`"
     fi
-    local __llen=`echo "$__ftunex1 $xlen" | awk '{print ($2-length($1))}'`
+    __llen=`echo "$__ftunex1 $xlen" | awk '{print ($2-length($1))}'`
     itunex1="$__itunex1$__ftunex1"
     if [ $__llen -gt 0 ] ; then
 	itunex1="$itunex1`printf "0%.0s" $( seq 1 $__llen)`"
     fi
-    local __llen=`echo "$__fdeltax $xlen" | awk '{print ($2-length($1))}'`
+    __llen=`echo "$__fdeltax $xlen" | awk '{print ($2-length($1))}'`
     ideltax="$__ideltax$__fdeltax"
     if [ $__llen -gt 0 ] ; then
 	ideltax="$ideltax`printf "0%.0s" $( seq 1 $__llen)`"
@@ -411,26 +411,26 @@ sixdesktunes(){
     tuney1=$(sixdeskFixZerosFloat $tuney1)
     deltay=$(sixdeskFixZerosFloat $deltay)
     # - get fractional and integer parts of tunes
-    local __ituney=`echo "$tuney" | cut -d\. -f1`
-    local __ftuney=`echo "$tuney" | cut -d\. -f2`
-    local __ituney1=`echo "$tuney1" | cut -d\. -f1`
-    local __ftuney1=`echo "$tuney1" | cut -d\. -f2`
-    local __ideltay=`echo "$deltay" | cut -d\. -f1`
-    local __fdeltay=`echo "$deltay" | cut -d\. -f2`
+    __ituney=`echo "$tuney" | cut -d\. -f1`
+    __ftuney=`echo "$tuney" | cut -d\. -f2`
+    __ituney1=`echo "$tuney1" | cut -d\. -f1`
+    __ftuney1=`echo "$tuney1" | cut -d\. -f2`
+    __ideltay=`echo "$deltay" | cut -d\. -f1`
+    __fdeltay=`echo "$deltay" | cut -d\. -f2`
     # - get longest fractional part (meaningful!)
     ylen=`printf "$__ftuney\n$__ftuney1\n$__fdeltay\n" | awk '{print (length($1))}' | sort -g | tail -n1`
     # - get integer algebra
-    local  __llen=`echo "$__ftuney $ylen" | awk '{print ($2-length($1))}'`
+     __llen=`echo "$__ftuney $ylen" | awk '{print ($2-length($1))}'`
     ituney="$__ituney$__ftuney"
     if [ $__llen -gt 0 ] ; then
 	ituney="$ituney`printf "0%.0s" $( seq 1 $__llen)`"
     fi
-    local __llen=`echo "$__ftuney1 $ylen" | awk '{print ($2-length($1))}'`
+    __llen=`echo "$__ftuney1 $ylen" | awk '{print ($2-length($1))}'`
     ituney1="$__ituney1$__ftuney1"
     if [ $__llen -gt 0 ] ; then
 	ituney1="$ituney1`printf "0%.0s" $( seq 1 $__llen)`"
     fi
-    local __llen=`echo "$__fdeltay $ylen" | awk '{print ($2-length($1))}'`
+    __llen=`echo "$__fdeltay $ylen" | awk '{print ($2-length($1))}'`
     ideltay="$__ideltay$__fdeltay"
     if [ $__llen -gt 0 ] ; then
 	ideltay="$ideltay`printf "0%.0s" $( seq 1 $__llen)`"
@@ -480,15 +480,15 @@ sixdeskPrepareTunes(){
 sixdeskAddDotFloat(){
     # by A.Mereghetti, 2016-07-20
     # add trailing "." in case it is not there
-    local __input="$1"
-    local __result=`echo "$__input" | awk '{lstring=length($1); dpos=index($1,"."); if (dpos==0) print ($1"."); else print ($1);}'`
+    __input="$1"
+    __result=`echo "$__input" | awk '{lstring=length($1); dpos=index($1,"."); if (dpos==0) print ($1"."); else print ($1);}'`
     echo "$__result"
 }
 sixdeskFixZerosFloat(){
     # by A.Mereghetti, 2016-07-20
     # remove useless trailing/heading "0", but leave one before/after "." in case this is first/last char
-    local __input="$1"
-    local __result=`echo "$__input" | sed -e's?0*$??' | sed -e's?^0??' | awk '{lstring=length($1); dpos=index($1,"."); if (dpos==1) print("0"$1); else print($1);}' | awk '{lstring=length($1); dpos=index($1,"."); if (dpos==lstring) print($1"0"); else print($1);}'`
+    __input="$1"
+    __result=`echo "$__input" | sed -e's?0*$??' | sed -e's?^0??' | awk '{lstring=length($1); dpos=index($1,"."); if (dpos==1) print("0"$1); else print($1);}' | awk '{lstring=length($1); dpos=index($1,"."); if (dpos==lstring) print($1"0"); else print($1);}'`
     echo "$__result"
 }
 sixdeskinttunes()
