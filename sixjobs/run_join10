@@ -110,11 +110,6 @@ while [ i -le iend ] ;do
   echo "Processing Seed $i"
   itunexx=$itunex
   ituneyy=$ituney
-  if test "$ideltax" -eq 0 -a "$ideltay" -eq 0
-  then
-    ideltax=1000000
-    ideltay=1000000
-  fi
   while test "$itunexx" -le "$itunex1" -a "$ituneyy" -le "$ituney1"
   do
     # returns tunexx/tuneyy, computed from itunexx/ituneyy,

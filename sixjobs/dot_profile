@@ -361,19 +361,27 @@ sixdesktunes(){
 	tuney1=$tuney
 	deltay=0.0
     fi
+    if [ "$deltax" == "0.0" ] && [ "$deltay" == "0.0" ] ; then
+	deltax=$tunex
+	deltay=$tuney
+    fi
 
     # x plane
-    # - strip away useless 0s
-    tunex=`echo "$tunex" | sed -e's?0*$??' | sed -e's?^0??'`
-    tunex1=`echo "$tunex1" | sed -e's?0*$??' | sed -e's?^0??'`
+    # - sanity checks (ie absence of "." or "." being first/last char):
+    tunex=$(sixdeskAddDotFloat $tunex)
+    tunex1=$(sixdeskAddDotFloat $tunex1)
+    deltax=$(sixdeskAddDotFloat $deltax)
+    # - strip away useless "0" chars
+    tunex=$(sixdeskFixZerosFloat $tunex)
+    tunex1=$(sixdeskFixZerosFloat $tunex1)
+    deltax=$(sixdeskFixZerosFloat $deltax)
     # - get fractional and integer parts of tunes
     local __itunex=`echo "$tunex" | cut -d\. -f1`
     local __ftunex=`echo "$tunex" | cut -d\. -f2`
     local __itunex1=`echo "$tunex1" | cut -d\. -f1`
     local __ftunex1=`echo "$tunex1" | cut -d\. -f2`
-    local __deltax=`echo "$deltax" | sed -e's?0*$??'`
-    local __ideltax=`echo "$__deltax" | cut -d\. -f1`
-    local __fdeltax=`echo "$__deltax" | cut -d\. -f2`
+    local __ideltax=`echo "$deltax" | cut -d\. -f1`
+    local __fdeltax=`echo "$deltax" | cut -d\. -f2`
     # - get longest fractional part (meaningful!)
     xlen=`printf "$__ftunex\n$__ftunex1\n$__fdeltax\n" | awk '{print (length($1))}' | sort -g | tail -n1`
     # - get integer algebra
@@ -394,17 +402,21 @@ sixdesktunes(){
     fi
 
     # y plane
-    # - strip away useless 0s
-    local tuney=`echo "$tuney" | sed -e's?0*$??' | sed -e's?^0??'`
-    local tuney1=`echo "$tuney1" | sed -e's?0*$??' | sed -e's?^0??'`
+    # - sanity checks (ie absence of "." or "." being first/last char):
+    tuney=$(sixdeskAddDotFloat $tuney)
+    tuney1=$(sixdeskAddDotFloat $tuney1)
+    deltay=$(sixdeskAddDotFloat $deltay)
+    # - strip away useless "0" chars
+    tuney=$(sixdeskFixZerosFloat $tuney)
+    tuney1=$(sixdeskFixZerosFloat $tuney1)
+    deltay=$(sixdeskFixZerosFloat $deltay)
     # - get fractional and integer parts of tunes
     local __ituney=`echo "$tuney" | cut -d\. -f1`
     local __ftuney=`echo "$tuney" | cut -d\. -f2`
     local __ituney1=`echo "$tuney1" | cut -d\. -f1`
     local __ftuney1=`echo "$tuney1" | cut -d\. -f2`
-    local __deltay=`echo "$deltay" | sed -e's?0*$??'`
-    local __ideltay=`echo "$__deltay" | cut -d\. -f1`
-    local __fdeltay=`echo "$__deltay" | cut -d\. -f2`
+    local __ideltay=`echo "$deltay" | cut -d\. -f1`
+    local __fdeltay=`echo "$deltay" | cut -d\. -f2`
     # - get longest fractional part (meaningful!)
     ylen=`printf "$__ftuney\n$__ftuney1\n$__fdeltay\n" | awk '{print (length($1))}' | sort -g | tail -n1`
     # - get integer algebra
@@ -445,10 +457,12 @@ sixdesktunes(){
     fi
 
     # notify user
-    if [ $ideltax -eq 0 ] && [ $ideltay -eq 0 ] ; then
+    if [ $ideltax -eq $itunex ] && [ $ideltay -eq $ituney ] ; then
+	# only one point
 	sixdeskmess="sixdesktunes: Tune ${tunex}_${tuney}"
 	sixdeskmess
     else
+	# full scan
 	sixdeskmess="sixdesktunes: Tunescan (${tunex},${tuney}) to (${tunex1},${tuney1}) by (${deltax}, ${deltay})"
 	sixdeskmess
     fi
@@ -456,8 +470,26 @@ sixdesktunes(){
 sixdeskPrepareTunes(){
     # by A.Mereghetti, 2016-07-19
     # converts itunexx/ituneyy into tunexx/tuneyy
-    tunexx=`echo "$itunexx" | awk -v "flen=$xlen" '{lstring=length($1); fpart=substr($1,lstring-flen+1,flen); ipart=substr($1,1,lstring-flen); print (ipart"."fpart)}' | sed -e's?0*$??' | sed -e's?^0??'`
-    tuneyy=`echo "$ituneyy" | awk -v "flen=$ylen" '{lstring=length($1); fpart=substr($1,lstring-flen+1,flen); ipart=substr($1,1,lstring-flen); print (ipart"."fpart)}' | sed -e's?0*$??' | sed -e's?^0??'`
+    tunexx=$(sixdeskAddDotFloat $tunexx)
+    tuneyy=$(sixdeskAddDotFloat $tuneyy)
+    tunexx=`echo "$itunexx" | awk -v "flen=$xlen" '{lstring=length($1); fpart=substr($1,lstring-flen+1,flen); ipart=substr($1,1,lstring-flen); print (ipart"."fpart)}'`
+    tuneyy=`echo "$ituneyy" | awk -v "flen=$ylen" '{lstring=length($1); fpart=substr($1,lstring-flen+1,flen); ipart=substr($1,1,lstring-flen); print (ipart"."fpart)}'`
+    tunexx=$(sixdeskFixZerosFloat $tunexx)
+    tuneyy=$(sixdeskFixZerosFloat $tuneyy)
+}
+sixdeskAddDotFloat(){
+    # by A.Mereghetti, 2016-07-20
+    # add trailing "." in case it is not there
+    local __input="$1"
+    local __result=`echo "$__input" | awk '{lstring=length($1); dpos=index($1,"."); if (dpos==0) print ($1"."); else print ($1);}'`
+    echo "$__result"
+}
+sixdeskFixZerosFloat(){
+    # by A.Mereghetti, 2016-07-20
+    # remove useless trailing/heading "0", but leave one before/after "." in case this is first/last char
+    local __input="$1"
+    local __result=`echo "$__input" | sed -e's?0*$??' | sed -e's?^0??' | awk '{lstring=length($1); dpos=index($1,"."); if (dpos==1) print("0"$1); else print($1);}' | awk '{lstring=length($1); dpos=index($1,"."); if (dpos==lstring) print($1"0"); else print($1);}'`
+    echo "$__result"
 }
 sixdeskinttunes()
 {
