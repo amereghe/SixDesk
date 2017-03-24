@@ -120,30 +120,49 @@ function correct_db_entries(){
  
     get_jobname
 
-    if grep -q "${job}" work/completed_cases; then
-	sed -i "/${job}/d" work/completed_cases
-	correctionq=true
+    if ${taskids_correct} && [ ! -e ${dir}/fort.10.gz ]; then
+	if grep -q "${job}" work/completed_cases; then
+	    sed -i "/${job}/d" work/completed_cases
+	    correctionq=true
+	fi
+
+	if ! grep -q "${job}" work/incomplete_cases; then
+	    echo ${job} >> work/incomplete_cases
+	    correctionq=true	
+	fi
+
+	if grep -q "${job}" work/mycompleted_cases; then
+	    sed -i "/${job}/d" work/mycompleted_cases
+	    correctionq=true	
+	fi    
+
+	if ! grep -q "${job}" work/myincomplete_cases; then
+	    echo ${job} >> work/myincomplete_cases
+	    correctionq=true	
+	fi    
+
+	if ${correctionq}; then
+	    echo "Corrected: ${job}"
+	fi
+
+    elif ! ${taskids_correct}; then
+
+	if [ -e ${dir}/fort.10.gz ]; then
+	    echo "--> Complete:     ${job}"
+	    echo ${job} >> work/completed_cases
+	    echo ${job} >> work/mycompleted_cases
+	else
+	    echo "--> Incomplete:   ${job}"	    
+	    echo ${job} >> work/incomplete_cases
+	    echo ${job} >> work/myincomplete_cases
+	fi
+
+	if [ -e work/old_taskids ] && grep -q ${job} work/old_taskids; then
+	    grep ${job} work/old_taskids | head -n 1 >> work/taskids
+	else    
+	    echo ${job} >> work/taskids
+	fi
     fi
-
-    if ! grep -q "${job}" work/incomplete_cases; then
-	echo ${job} >> work/incomplete_cases
-	correctionq=true	
-    fi
-
-    if grep -q "${job}" work/mycompleted_cases; then
-	sed -i "/${job}/d" work/mycompleted_cases
-	correctionq=true	
-    fi    
-
-    if ! grep -q "${job}" work/myincomplete_cases; then
-	echo ${job} >> work/myincomplete_cases
-	correctionq=true	
-    fi    
-
-    if ${correctionq}; then
-	echo "Corrected: ${job}"
-    fi
-    
     
     }
 
@@ -161,17 +180,17 @@ function correct_corrupted_database(){
 	rm work/*_cases
 	cat work/taskids | awk '{print $1}' > work/completed_cases
 	cat work/taskids | awk '{print $1}' > work/mycompleted_cases
+    elif ! ${taskids_correct}; then
+	rm work/*_cases
+	mv work/taskids work/old_taskids
     fi
 
-    for i in track/*/simul/*/*/e5/*; do # Whitespace-safe but not recursive.
-	if [ ! -e ${i}/fort.10.gz ]; then
-	    dir=${i}
-	    if ! ${backedupq}; then
-		backup_db
-	    fi
-	    correct_db_entries
-    fi
-done
+
+    
+
+    for dir in track/*/simul/*/*/e5/*; do 
+	correct_db_entries	
+    done
     
     
 }
