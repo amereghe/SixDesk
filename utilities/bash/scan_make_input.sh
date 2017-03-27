@@ -66,7 +66,7 @@ set_env_to_mask(){
   #  #
 #    mv sixdeskenv.new sixdeskenv
     
-    ${SixDeskDev}/set_env.sh -d ${mask} > /dev/null 2>&1
+    ${SixDeskDev}/set_env.sh -d ${mask} >> output.${mask}
 }
 
 
@@ -485,10 +485,12 @@ if ${submit}; then
     elif ${scan_masks}; then
 	sixdeskmess="Preparing input for the following studies:"
 	sixdeskmess
-	sixdeskmess="${mask_names}"
-	sixdeskmess
-	for mask_prefix in ${mask_names}; do
-	    mask=${mask_prefix}
+	for NAME in ${mask_names}; do
+	    sixdeskmess="${NAME}"
+	    sixdeskmess
+	done
+	echo 
+	for mask in ${mask_names}; do	    
 	    set_env_to_mask
 	    run_new_mad6t	    
 	done
@@ -525,10 +527,10 @@ if ${progress}; then
 	   done
        done
     elif ${scan_masks}; then
-       for mask in ${mask_names}; do
-           sixdeskmess="Progress for study: ${mask}"
-	   sixdeskmess
-           get_progress
+	for mask in ${mask_names}; do
+	    sixdeskmess="Progress for study  : ${mask}"	    
+	    sixdeskmess
+            get_progress
        done
     fi
 	
