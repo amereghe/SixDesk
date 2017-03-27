@@ -71,14 +71,6 @@ EOF
 
 function initialize_scan(){
 
-    if ! ${scan_qx}; then
-	SCAN_QX="0.0"
-    fi
-
-    if ! ${scan_qy}; then
-	SCAN_QY="0.0"
-    fi
-
     if ! ${scan_chroma}; then
 	SCAN_QP="0.0"
     fi
@@ -135,14 +127,6 @@ function get_mask_name(){
     if ${scan_octupoles}; then
 	mask="${mask}-OC-${oc}"
     fi
-
-    if ${scan_qx}; then
-	mask="${mask}-QX-${qx}"
-    fi
-    
-    if ${scan_qy}; then
-	mask="${mask}-QY-${qy}"
-    fi
     
 }
 
@@ -186,7 +170,7 @@ function scan_loop() {
 	    done	    
 	done
 	
-    elif ${scan_chroma} || ${scan_octupoles} || ${scan_qx} || ${scan_qy}; then
+    elif ${scan_chroma} || ${scan_octupoles} ; then
 	
         initialize_scan
 	
@@ -194,24 +178,18 @@ function scan_loop() {
         do
 	    for oc in ${SCAN_OC}
 	    do
-	        for qx in ${SCAN_QX}
-	        do
-	 	   for qy in ${SCAN_QY}
-	 	   do		   
-		       get_mask_name
-		       study=${mask}
-		       if ! ${skipenv}; then
-			   set_env_to_mask >> output.${study}
-		       fi
+	       get_mask_name
+	       study=${mask}
+	       if ! ${skipenv}; then
+		   set_env_to_mask >> output.${study}
+	       fi
 		       
-		       for var in "$@"
-		       do
-			   $var
-		       done
+	       for var in "$@"
+	       do
+		   $var
+	       done
 		       
-		   done
-	        done
-	    done
+	   done
         done
     fi
 

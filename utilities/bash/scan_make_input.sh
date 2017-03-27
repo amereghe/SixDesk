@@ -72,14 +72,6 @@ set_env_to_mask(){
 
 function initialize_scan(){
 
-    if ! ${scan_qx}; then
-	SCAN_QX="0.0"
-    fi
-
-    if ! ${scan_qy}; then
-	SCAN_QY="0.0"
-    fi
-
     if ! ${scan_chroma}; then
 	SCAN_QP="0.0"
     fi
@@ -102,14 +94,6 @@ get_mask_name(){
     if ${scan_octupoles}; then
 	mask="${mask}-OC-${oc}"
     fi
-
-    if ${scan_qx}; then
-	mask="${mask}-QX-${qx}"
-    fi
-    
-    if ${scan_qy}; then
-	mask="${mask}-QY-${qy}"
-    fi
     
 }
 
@@ -117,13 +101,11 @@ generate_mask_file(){
 
     get_mask_name
     
-    if ${scan_chroma} || ${scan_octupoles} || ${scan_qx} || ${scan_qy}
+    if ${scan_chroma} || ${scan_octupoles} 
     then
 	cat mask/${mask_prefix}.mask |\
 	    sed -e 's/%QPV/'${qp}'/g' |\
-	    sed -e 's/%OCV/'${oc}'/g' |\
-	    sed -e 's/%QXV/'${qp}'/g' |\
-	    sed -e 's/%OYV/'${oc}'/g' >  "mask/${mask}.mask"
+	    sed -e 's/%OCV/'${oc}'/g' >  "mask/${mask}.mask"
     fi
     
 
@@ -159,7 +141,7 @@ function find_missing_seed() {
     sixdeskmess
     sixdeskmess="Workspace      ${workspace}"
 
-    MADdir="${MADbasedir}/${workspace}/${study}"
+    MADdir="${sixtrack_input}"
     sixdeskmess="Input in dir   ${MADdir}"
 
     local rerunQ=false
@@ -306,36 +288,6 @@ check_mask_file(){
 	    mask_integrity_error_message
 	fi	
     fi
-
-    if ${scan_qx}; then
-	if grep -q "%QXV" "mask/${mask_prefix}.mask"; then
-	    sixdeskmess="Tune scan         mask file contains QXV"
-	    sixdeskmess
-	else
-	    sixdeskmess="Tune scan         WARNING for raw mask file ${mask_prefix}.mask!"
-	    sixdeskmess
-	    sixdeskmess="Chroma scan       mask file not containing %QXV"
-	    sixdeskmess
-	    sixdeskmess="Chroma scan       Continue? [y/n]"
-	    sixdeskmess
-	    mask_integrity_error_message
-	fi	
-    fi    
-
-    if ${scan_qy}; then
-	if grep -q "%QYV" "mask/${mask_prefix}.mask"; then
-	    sixdeskmess="Tune scan         mask file contains QYV"
-	    sixdeskmess
-	else
-	    sixdeskmess="Tune scan         WARNING for raw mask file ${mask_prefix}.mask!"
-	    sixdeskmess
-	    sixdeskmess="Chroma scan       mask file not containing %QYV"
-	    sixdeskmess
-	    sixdeskmess="Chroma scan       Continue? [y/n]"
-	    sixdeskmess
-	    mask_integrity_error_message
-	fi	
-    fi    
 
     
     if ${scan_octupoles}; then
@@ -490,21 +442,15 @@ if ${findmissing}; then
 	for study in ${mask_names}; do
 	    find_missing_seed
 	done
-    elif ${scan_chroma} || ${scan_octupoles} || ${scan_qx} || ${scan_qy}; then
+    elif ${scan_chroma} || ${scan_octupoles} ; then
        initialize_scan
        for qp in ${SCAN_QP}
        do
 	   for oc in ${SCAN_OC}
 	   do
-	       for qx in ${SCAN_QX}
-	       do
-		   for qy in ${SCAN_QY}
-		   do		   
-		       get_mask_name
-		       study=${mask}
-		       find_missing_seed
-		   done
-	       done
+	       get_mask_name
+	       study=${mask}
+	       find_missing_seed
 	   done
        done
     fi
@@ -520,29 +466,22 @@ if ${submit}; then
     sixdeskmess="SUBMIT MADX JOBS TO PRODUCE SIXTRACK INPUT"
     sixdeskmess
     echo 
-    if ${scan_chroma} || ${scan_octupoles} || ${scan_qx} || ${scan_qy}
+    if ${scan_chroma} || ${scan_octupoles}
     then
        initialize_scan
        for qp in ${SCAN_QP}
        do
 	   for oc in ${SCAN_OC}
 	   do
-	       for qx in ${SCAN_QX}
-	       do
-		   for qy in ${SCAN_QY}
-		   do
-		       get_mask_name
-		       sixdeskmess="STUDY             ${mask}"
-		       sixdeskmess		       		       
-		       check_mask_file
-		       generate_mask_file
-		       set_env_to_mask
-		       run_new_mad6t
-		   done
-		done
-	    done
-        done
-
+	       get_mask_name
+	       sixdeskmess="STUDY             ${mask}"
+	       sixdeskmess		       		       
+	       check_mask_file
+	       generate_mask_file
+	       set_env_to_mask
+	       run_new_mad6t
+	   done
+	done
     elif ${scan_masks}; then
 	sixdeskmess="Preparing input for the following studies:"
 	sixdeskmess
@@ -562,41 +501,27 @@ fi
 
 if ${progress}; then
     echo 
-    if ${scan_chroma} || ${scan_octupoles} || ${scan_qx} || ${scan_qy} ; then
+    if ${scan_chroma} || ${scan_octupoles} ; then
        initialize_scan
        for qp in ${SCAN_QP}
        do
 	   for oc in ${SCAN_OC}
 	   do
-	       for qx in ${SCAN_QX}
-	       do
-		   for qy in ${SCAN_QY}
-		   do	
-		       get_mask_name
+	       get_mask_name
+	       
+	       sixdeskmess="Progress for study  : ${mask}"
+	       sixdeskmess
 		       
-		       sixdeskmess="Progress for study  : ${mask}"
-		       sixdeskmess
-		       
-		       if ${scan_chroma}; then
-			   sixdeskmess="CHROMATICITY        : ${qp}"
-			   sixdeskmess
-		       fi
-		       if ${scan_octupoles}; then
-			   sixdeskmess="OCTUPOLE STRENGTH   : ${oc}"
-			   sixdeskmess			   
-		       fi
-		       if ${scan_qx}; then
-			   sixdeskmess="HORIZONTAL TUNE     : ${qx}"
-			   sixdeskmess
-		       fi
-		       if ${scan_qy}; then
-			   sixdeskmess="VERTICAL TUNE       : ${qx}"			   
-			   sixdeskmess
-		       fi		       
-		       echo 
-		       get_progress
-		   done
-	       done
+	       if ${scan_chroma}; then
+		   sixdeskmess="CHROMATICITY        : ${qp}"
+		   sixdeskmess
+	       fi
+	       if ${scan_octupoles}; then
+		   sixdeskmess="OCTUPOLE STRENGTH   : ${oc}"
+		   sixdeskmess			   
+	       fi
+	       echo 
+	       get_progress
 	   done
        done
     elif ${scan_masks}; then
