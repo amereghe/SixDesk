@@ -70,7 +70,7 @@ set_env_to_mask(){
 }
 
 
-initialize_scan(){
+function initialize_scan(){
 
     if ! ${scan_qx}; then
 	SCAN_QX="0.0"

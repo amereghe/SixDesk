@@ -4,6 +4,35 @@ source ./scan_definitions
 source ./sixdeskenv
 
 
+# ------------------------------------------------------------------------------
+# preparatory steps
+# ------------------------------------------------------------------------------
+
+export sixdeskhostname=`hostname`
+export sixdeskname=`basename $0`
+export sixdeskroot=`basename $PWD`
+export sixdeskwhere=`dirname $PWD`
+# Set up some temporary values until we execute sixdeskenv/sysenv
+# Don't issue lock/unlock debug text (use 2 for that)
+export sixdesklogdir=""
+export sixdesklevel=1
+export sixdeskhome="."
+export sixdeskecho="yes!"
+if [ ! -s ${SixDeskDev}/dot_profile ] ; then
+    echo "${SixDeskDev}"
+    echo "dot_profile is missing!!!"
+    exit 1
+fi
+
+sixdeskmessleveldef=0
+sixdeskmesslevel=$sixdeskmessleveldef
+
+# - load environment
+source ${SixDeskDev}/dot_profile
+
+kinit -R 
+
+
 
 
 function how_to_use() {
@@ -11,25 +40,23 @@ function how_to_use() {
    `basename $0` [action] [option]
 
     actions
-    -u      list unfinished jobs from BOINC
     -f      correct directory structure
     -i      run incomplete cases on LSF for all cases defined in scan_definitions
     -s      submit jobs to BOINC for all cases defined in scan_definitions
     -l      unlock all for all studies
-    -a      run run_results for all cases defined in scan_definitions
+    -R      retreive results for all jobs listed in scan_definitions. can be combined with -c and -w
+    -O      Overview: show submission status for all jobs in scan
+    -T      show status of simulations in scan
+            will give information about jobs in queue, finished but unretrieved jobs and retrieved jobs
 
     options
     -c      perform action only for the specific study given as argument
-
-    -r      retreive results for jobs listed in the given file
-
     -P      retrieve in parallel
-    -w      perform periodically; works for actions -a, -T
-    -b      back up retreived results to /afs/work/
-    -T      show status of simulations in scan
-            will give information about jobs in queue, finished but unretrieved jobs and retrieved jobs
+    -w      repeat periodically; works for actions -a, -T
     -S      selective submission [see man of run_six.sh]
     -q      quiet mode; parses output to different files
+
+
 
 
 EOF
@@ -39,112 +66,168 @@ EOF
 ### DEFINE FUNCTIONS
 
 
-function check_BOINC_results() {
 
-    echo 
-    echo "--> CHECKING ${USER}'s jobs in /afs/cern.ch/work/b/boinc/boinc/"
-    
-    if [ ! ${qcase} ]; then
-	local SEARCHDIR=/afs/cern.ch/work/b/boinc/boinc/*
-    else
-	local SEARCHDIR=/afs/cern.ch/work/b/boinc/boinc/$jobstring
+
+
+function initialize_scan(){
+
+    if ! ${scan_qx}; then
+	SCAN_QX="0.0"
     fi
-  
 
-    for DIRNME in $SEARCHDIR
-    do
-        
-	UNM=$(ls -ld ${DIRNME} | awk {'print $3'})
-	DIR=${DIRNME%/*}
-	BDI=$(basename $DIRNME)
-	if [ $UNM = ${USER} ]                                                                                                           
-	then
-	    NRES=$(ls $DIRNME/results/ | wc -l)
-	    NPEN=$(ls $DIRNME/work/    | wc -l)
-	    echo 
-	    echo "--> NAME         $BDI"
-	    echo "--> PENDING      $NPEN" 	    
-	    echo "--> COMPLETED    $NRES"
-	fi
-    done 
+    if ! ${scan_qy}; then
+	SCAN_QY="0.0"
+    fi
 
-}
+    if ! ${scan_chroma}; then
+	SCAN_QP="0.0"
+    fi
 
-
-
-function runincomplete() {
-
-    if ${scan_chroma} && ${scan_octupoles}
-    then
-        for x in $SCAN_QP
-	do
-	    for y in $SCAN_OC
-	    do
-		mask="${mask_prefix}-${x}-${y}"
-		echo "-->  Running incomplete cases for: $mask"		
-		set_env_to_mask
-		${SixDeskDev}/run_incomplete_cases_lsf	    		
-		
-	    done
-        done
-	
-    elif ${scan_masks} && ! ${qcase}; then
-	for mask in ${mask_names}; do
-	    echo "-->  Running incomplete cases for: $mask"
-	    set_env_to_mask
-	    ${SixDeskDev}/run_incomplete_cases_lsf	    
-	done
-	
-    elif ${qcase}; then
-	mask=${jobstring}
-	echo "-->  Running incomplete cases for: $mask"
-	set_env_to_mask
-	${SixDeskDev}/run_incomplete_cases_lsf
+    if ! ${scan_octupoles}; then
+	SCAN_OC="0.0"
     fi    
 
 }
 
 
-function retrieve_all() {
+function do_submit(){
 
+    flags="-a"
 
-    if ${scan_chroma} && ${scan_octupoles}
-    then
-        for x in $SCAN_QP
-	do
-	    for y in $SCAN_OC
-	    do
-		kinit -R
-		mask="${mask_prefix}-${x}-${y}"
-		echo "-->  run_results for: $mask"
-		echo "-->  CHROMA: ${x}"
-		echo "-->  IMO   : ${y}"
-		if ${parallel}; then
-		    ${SixDeskDev}/control.sh -w ${workspacedir} -R -s ${mask}  &
-		else 
-		    ${SixDeskDev}/control.sh -w ${workspacedir} -R -s ${mask}  
-		fi
-		echo		
-	    done
-        done
-	
-    elif ${scan_masks} && ! ${qcase}; then
-	for mask in ${mask_names}; do
-	    echo "-->  run_results for: $mask"
-	    if ${parallel}; then
-		${SixDeskDev}/control.sh -w ${workspacedir} -R -s ${mask}  &
-	    else 
-		${SixDeskDev}/control.sh -w ${workspacedir} -R -s ${mask}  
-	    fi
-	    echo			    
-	done
-	
-    elif ${qcase}; then
-	mask=${jobstring}
-	echo "-->  run_results for: $mask"
-    fi   
+    if ${quiet} || ${parallel}; then
+	flags="${flags} -q"
+    fi
+
+    if ${selective}; then
+	flags="${flags} -S"
+    fi
+
+    if ! ${parallel}; then
+	$SixDeskDev/run_six.sh ${flags}
+    else
+	echo "Parallel submission launched for ${study}"
+	$SixDeskDev/run_six.sh ${flags} > output.${study} &
+	echo "waiting 60s"
+	sleep 60	
+    fi
+
 
     }
+
+function submit_status(){
+    echo "--------------------------------"
+    echo "Study: ${study}"
+    tail -n 1 output.${study}
+    echo "--------------------------------"    
+}
+
+
+
+
+function get_mask_name(){
+
+    mask=${mask_prefix}
+
+    if ${scan_chroma}; then
+	mask="${mask}-QP-${qp}"
+    fi
+    
+    if ${scan_octupoles}; then
+	mask="${mask}-OC-${oc}"
+    fi
+
+    if ${scan_qx}; then
+	mask="${mask}-QX-${qx}"
+    fi
+    
+    if ${scan_qy}; then
+	mask="${mask}-QY-${qy}"
+    fi
+    
+}
+
+function retrieve_job(){
+    kinit -R
+    echo "-->  Workspace for retrieving:  ${workspace}" 
+    echo "-->  Retrieving for targetjob:  ${study}"
+    ${SixDeskDev}/run_results
+}
+
+
+function scan_loop() {
+
+
+    if [[ $# -eq 0 ]] ; then
+	echo 'ERROR: no argument given to scan_loop'
+	exit 1
+    fi
+   
+    
+    if ${qcase}; then
+	study=${jobstring}
+	if ! ${skipenv}; then
+	    set_env_to_mask >> output.${study}
+	fi
+	for var in "$@"
+	do
+	    $var
+	done
+	
+    elif ${scan_masks};then
+	for study in ${mask_names}; do
+
+	    if ! ${skipenv}; then
+		set_env_to_mask >> output.${study}
+	    fi
+	    
+	    for var in "$@"
+	    do
+		$var
+	    done	    
+	done
+	
+    elif ${scan_chroma} || ${scan_octupoles} || ${scan_qx} || ${scan_qy}; then
+	
+        initialize_scan
+	
+        for qp in ${SCAN_QP}
+        do
+	    for oc in ${SCAN_OC}
+	    do
+	        for qx in ${SCAN_QX}
+	        do
+	 	   for qy in ${SCAN_QY}
+	 	   do		   
+		       get_mask_name
+		       study=${mask}
+		       if ! ${skipenv}; then
+			   set_env_to_mask >> output.${study}
+		       fi
+		       
+		       for var in "$@"
+		       do
+			   $var
+		       done
+		       
+		   done
+	        done
+	    done
+        done
+    fi
+
+
+
+
+    }
+
+
+
+
+
+
+
+
+
 
 
 function get_status(){
@@ -204,16 +287,9 @@ function list_status() {
 
 
 
-function set_env_to_mask(){
-    
-    echo "-->  Setting sixdeskenv to ${mask}"
-    
-    cat sixdeskenv |\
-	sed -e 's/export LHCDescrip=.*/export LHCDescrip='$mask'/' > sixdeskenv.new
-    
-    mv sixdeskenv.new sixdeskenv
-    
-    ${SixDeskDev}/set_env >> scan_out.dat
+
+function set_env_to_mask(){   
+    ${SixDeskDev}/set_env.sh -d ${study} #> /dev/null 2>&1
 }
 
 
@@ -222,7 +298,9 @@ function set_env_to_mask(){
 
 
 
-list_unfinished=false
+
+
+
 sear_string=false
 submit=false
 fix=false
@@ -230,28 +308,28 @@ unlock=false
 retrieve=false
 incomplete=false
 qcase=false
-retrieveall=false
-backup=false
 parallel=false
 quiet=false
 progress=false
 status=false
+substatus=false
 repeat=false
 #jobstringQ=false
+skipenv=false
 selective=false
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  "fhwlPc:iuqTSasr:b" opt ; do
+while getopts  "fhwlPc:iqTOSsRb" opt ; do
     case $opt in
-	u)
-	    list_unfinished=true
-	    ;;
         f)
             fix=true
             ;;
         q)
             quiet=true
             ;;
+        O)
+            substatus=true
+            ;;	
         S)
             selective=true
             ;;	
@@ -265,21 +343,14 @@ while getopts  "fhwlPc:iuqTSasr:b" opt ; do
         P)
             parallel=true
             ;;	
-        a)
-            retrieveall=true
-            ;;
         i)
             incomplete=true
             ;;
-        b)
-            backup=true
-            ;;	
         w)
             repeat=true
             ;;	
-        r)
+        R)
             retrieve=true
-	    jobstring=${OPTARG}
             ;;
 	
         l)
@@ -343,179 +414,78 @@ if ${status}; then
 fi
 
 
+
+
 if ${incomplete}; then
-    runincomplete
+    scan_loop ${SixDeskDev}/run_incomplete_cases_lsf	    		
 fi
 
 
 
-
-if ${retrieveall}; then
-  
-    workspacedir=$(pwd)
-
-
-    if ${repeat}; then
-	while true; do
-
-
-	    
-	    retrieve_all
-
-	    kinit -R 
-
-
-
-
-	    
-	    list_status
-
-	    
-	    dte=$(date)
-	    echo "--> ${dte}"
-	    echo "--> Waiting 1 minute"
-	    
-
-	    sleep 60
-	    
-	    
-
-	done
-    else 
-	retrieve_all
-    fi
-
-    exit
-fi
 
 
 if ${retrieve}; then
-
-    kinit -R
-    
-    workspace=$(pwd)
-    targetjob=${jobstring}
-    
-    backupsrc="${workspace}/../track/${targetjob}"
-    backuptar="/afs/cern.ch/work/p/phermes/private/170202_sixdesk/track"
-    
-    echo "-->  Workspace for retrieving:  ${workspace}" 
-    echo "-->  Retrieving for targetjob:  ${targetjob}"
-
-    ${SixDeskDev}/control.sh -w ${workspace} -R -s ${targetjob} 
-    wait
-    if ${backup}; then
-	echo "-->  Backup source ${backupsrc}"
-	echo "-->  Backup target ${backuptar}"
-	mv ${backupsrc} ${backuptar}
+    if ${qcase}; then
+	study=${jobstring}
+	retrieve_job
+    else
+        while true; do
+	    scan_loop retrieve_job
+	    if ${repeat}; then
+		echo "Waiting 60s"
+		sleep 60
+	    else
+		exit
+	    fi
+	done
     fi
-    
-    exit
 fi
 
-
-
-
-
-
-if $list_unfinished; then
-    check_BOINC_results
-fi
-
-
-
+   
 
 if ${submit}; then
-    if ${scan_chroma} && ${scan_octupoles}
-    then
-        for x in $SCAN_QP
-	do
-	    for y in $SCAN_OC
-	    do
-		echo "-->  CHROMA: ${x}"
-		echo "-->  IMO   : ${y}"
-		mask="${mask_prefix}-${x}-${y}"
-		echo "-->  Submitting study: $mask"
-		
-		set_env_to_mask
+    scan_loop do_submit 
 
-		if ${selective} && ${quiet}; then
-		    $SixDeskDev/run_six.sh -a -S -q
-		elif ${quiet}; then
-		    $SixDeskDev/run_six.sh -a -q
-		fi
-		
-		echo		
-	    done
-        done
-	
-    elif ${scan_masks} && ! ${qcase}; then
-	for mask in ${mask_names}; do
-	    set_env_to_mask
-	    echo "-->  Submitting study: $mask"
-	    if ${selective} && ${quiet}; then
-		$SixDeskDev/run_six.sh -a -S -q
-	    elif ${quiet}; then
-		$SixDeskDev/run_six.sh -a -q
-	    fi	    
+    
+    if ${parallel}; then
+	echo "Submission Status"
+	while true; do
+	    scan_loop submit_status 
+	    wait 1
 	done
-	
-    elif ${qcase}; then
-	mask=${jobstring}
-	set_env_to_mask
-	echo "-->  Submitting SELECTED study: $mask"
-	if ${selective} && ${quiet}; then
-	    $SixDeskDev/run_six.sh -a -S -q
-	elif ${quiet}; then
-	    $SixDeskDev/run_six.sh -a -q
-	fi
-	
-    fi    
+    fi
+fi
 
+
+if ${unlock}; then
+    echo "Option unlock all"
+    scan_loop ./unlock_all
 fi
 
 
 
-if ${unlock}; then  
-    for x in $SCAN_QP
-    do
-	for y in $SCAN_OC
-	do
-
-	    echo "-->  Submitting study: $mask"
-	    echo "-->  CHROMA: ${x}"
-	    echo "-->  IMO   : ${y}"
-	    mask="${mask_prefix}-${x}-${y}"
-	    set_env_to_mask
-
-	    ./unlock_all
-	    
-	    echo
-	    
-	done
-    done
-fi
 
 
 if ${fix}; then  
-    for x in $SCAN_QP
-    do
-	for y in $SCAN_OC
-	do
+    scan_loop $SixDeskDev/run_six.sh -f 
+fi
 
-	    echo "-->  Submitting study: $mask"
-	    echo "-->  CHROMA: ${x}"
-	    echo "-->  IMO   : ${y}"
-	    mask="${mask_prefix}-${x}-${y}"
-	    set_env_to_mask
-
-	    $SixDeskDev/run_six.sh -f 
-	    
-	    echo
-	    
-	done
+if ${substatus}; then
+    skipenv=true
+    while true; do
+	clear
+	echo "Submission Status"
+	echo
+	scan_loop submit_status
+	sleep 1
     done
 fi
+
+
+
+
+
+
 
 
 
