@@ -17,7 +17,9 @@ sixdeskmess()
     sixdeskname=`echo $sixdeskname | cut -b 1-15`
     if test "$sixdeskecho" != "" -o "$__sixdeskmesslevel" -eq 0
     then
-      echo "$sixdeskday $sixdeskdate $sixdesktime ""$sixdeskname"" $sixdeskmess" 
+	if test "$__sixdeskmesslevel" -ne 5; then
+	    echo "$sixdeskday $sixdeskdate $sixdesktime ""$sixdeskname"" $sixdeskmess"
+	fi
     fi
     if test "$sixdesklogdir" != ""
     then
@@ -778,7 +780,7 @@ sixdeskCheckNFieldsFromJobName(){
     local __lerr=0
     local __Nfields
     sixdeskGetNFieldsFromJobName "${__Runnam}" __NFields
-    if [ ${NFields} -ne 7 ] ; then
+    if [ ${__NFields} -ne 7 ] ; then
 	sixdeskmess="Not valid format of point in scan; ${__Runnam}"
 	sixdeskmess
 	sixdeskmess="It should be made up of 7 fields separated by a '%' char"
