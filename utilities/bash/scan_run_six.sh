@@ -86,7 +86,7 @@ function do_submit(){
 
     flags="-a"
 
-    if ${quiet} || ${parallel}; then
+    if ${quiet}; then
 	flags="${flags} -q"
     fi
 
@@ -97,9 +97,11 @@ function do_submit(){
     if ! ${parallel}; then
 	$SixDeskDev/run_six.sh ${flags}
     else
-	echo "Parallel submission launched for ${study}"
-	$SixDeskDev/run_six.sh ${flags} > output.${study} &
-	echo "waiting 60s"
+	sixdeskmess="Parallel submission launched for ${study}"
+	sixdeskmess
+	$SixDeskDev/run_six.sh -q ${flags} > output.${study} &
+	sixdeskmess="waiting 60s"
+	sixdeskmess
 	sleep 60	
     fi
 
@@ -107,10 +109,14 @@ function do_submit(){
     }
 
 function submit_status(){
-    echo "--------------------------------"
-    echo "Study: ${study}"
-    tail -n 1 output.${study}
-    echo "--------------------------------"    
+    sixdeskmess="--------------------------------"
+    sixdeskmess
+    sixdeskmess="Study: ${study}"
+    sixdeskmess
+#    tail -n 1 output.${study}
+    grep 'Point in scan' output.${study} | tail -n 1
+    sixdeskmess="--------------------------------"
+    sixdeskmess
 }
 
 
@@ -132,8 +138,10 @@ function get_mask_name(){
 
 function retrieve_job(){
     kinit -R
-    echo "-->  Workspace for retrieving:  ${workspace}" 
-    echo "-->  Retrieving for targetjob:  ${study}"
+    sixdeskmess="-->  Workspace for retrieving:  ${workspace}"
+    sixdeskmess
+    sixdeskmess="-->  Retrieving for targetjob:  ${study}"
+    sixdeskmess
     ${SixDeskDev}/run_results
 }
 
@@ -142,7 +150,8 @@ function scan_loop() {
 
 
     if [[ $# -eq 0 ]] ; then
-	echo 'ERROR: no argument given to scan_loop'
+	sixdeskmess='ERROR: no argument given to scan_loop'
+	sixdeskmess
 	exit 1
     fi
    
@@ -219,16 +228,25 @@ function get_status(){
 
     if ${quiet}; then
 
-	echo "--> NAME         ${mask}" >> ${OUTFILE}
-	echo "--> PENDING      $NPEN"   >> ${OUTFILE} 	    
-	echo "--> COMPLETED    $NRES"   >> ${OUTFILE}
-	echo "--> RECIEVED     $NREC"   >> ${OUTFILE}
-	echo ""                         >> ${OUTFILE}
+	sixdeskmess="--> NAME         ${mask}" >> ${OUTFILE}
+	sixdeskmess
+	sixdeskmess="--> PENDING      $NPEN"   >> ${OUTFILE}
+	sixdeskmess
+	sixdeskmess="--> COMPLETED    $NRES"   >> ${OUTFILE}
+	sixdeskmess
+	sixdeskmess="--> RECIEVED     $NREC"   >> ${OUTFILE}
+	sixdeskmess
+	sixdeskmess=""                         >> ${OUTFILE}
+	sixdeskmess
     else
-	echo "--> NAME         ${mask}"
-	echo "--> PENDING      $NPEN" 	    
-	echo "--> COMPLETED    $NRES"
-	echo "--> RECIEVED     $NREC"
+	sixdeskmess="--> NAME         ${mask}"
+	sixdeskmess
+	sixdeskmess="--> PENDING      $NPEN"
+	sixdeskmess
+	sixdeskmess="--> COMPLETED    $NRES"
+	sixdeskmess
+	sixdeskmess="--> RECIEVED     $NREC"
+	sixdeskmess
 	echo 
     fi
     
@@ -343,12 +361,14 @@ while getopts  "fhwlPc:iqTOSsRb" opt ; do
 	    ;;
 	:)
 	    how_to_use
-	    echo "Option -$OPTARG requires an argument."
+	    sixdeskmess="Option -$OPTARG requires an argument."
+	    sixdeskmess
 	    exit 1
 	    ;;
 	\?)
 	    how_to_use
-	    echo "Invalid option: -$OPTARG"
+	    sixdeskmess="Invalid option: -$OPTARG"
+	    sixdeskmess
 	    exit 1
 	    ;;
     esac
@@ -374,8 +394,10 @@ if ${status}; then
     DTETIME=$(date)
 
     if ${quiet}; then
-	echo "--> DATE: ${DTETIME}" >> ${OUTFILE}
-	echo " "                    >> ${OUTFILE}
+	sixdeskmess="--> DATE: ${DTETIME}" >> ${OUTFILE}
+	sixdeskmess
+	sixdeskmess=" "                    >> ${OUTFILE}
+	sixdeskmess
     fi
 
 
@@ -386,7 +408,8 @@ if ${status}; then
 	else
 	    echo " "
 	    sleep 60
-	    echo "--> DATE         ${DTETIME}"
+	    sixdeskmess="--> DATE         ${DTETIME}"
+	    sixdeskmess
 	fi
     done
 fi
@@ -410,7 +433,8 @@ if ${retrieve}; then
         while true; do
 	    scan_loop retrieve_job
 	    if ${repeat}; then
-		echo "Waiting 60s"
+		sixdeskmess="Waiting 60s"
+		sixdeskmess
 		sleep 60
 	    else
 		exit
@@ -424,19 +448,25 @@ fi
 if ${submit}; then
     scan_loop do_submit 
 
-    
+    clear
     if ${parallel}; then
-	echo "Submission Status"
+	sixdeskmess="Submission Status"
+	sixdeskmess
 	while true; do
-	    scan_loop submit_status 
-	    wait 1
+	    clear
+	    sixdeskmess="Submission Status"
+	    sixdeskmess
+	    echo
+	    scan_loop submit_status
+	    sleep 2	    
 	done
     fi
 fi
 
 
 if ${unlock}; then
-    echo "Option unlock all"
+    sixdeskmess="Option unlock all"
+    sixdeskmess
     scan_loop ./unlock_all
 fi
 
@@ -452,10 +482,11 @@ if ${substatus}; then
     skipenv=true
     while true; do
 	clear
-	echo "Submission Status"
+	sixdeskmess="Submission Status"
+	sixdeskmess
 	echo
 	scan_loop submit_status
-	sleep 1
+	sleep 2
     done
 fi
 

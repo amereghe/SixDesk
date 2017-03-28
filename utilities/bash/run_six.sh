@@ -1035,7 +1035,9 @@ function dot_boinc(){
 	else
 	    sixdeskmess="Submitting WU to BOINC as taskid ${sixdesktaskid}"
 	fi
-	sixdeskmess
+	if ! ${lquiet}; then
+	    sixdeskmess
+	fi
     fi
 
     if [ ${__lerr} -eq 0 ] ; then

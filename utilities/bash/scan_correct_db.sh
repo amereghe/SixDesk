@@ -17,7 +17,7 @@ myincompcasesfile="work/myincomplete_cases"
 
 backedupq=false
 taskids_correct=false
-
+startq=true
 complete_errors=false
 
 
@@ -29,7 +29,7 @@ function initialize(){
     let "njobs=${nseeds}*${nampls}*${angles}"
 
     db_status
-
+    startq=false
 
 }
 
@@ -92,12 +92,21 @@ function backup_db(){
 
 function db_status(){
 
+    
     ntaskids=$(less ${taskidfile} | wc -l)    
     ncompl1=$(less work/completed_cases | wc -l)
     ncompl2=$(less work/mycompleted_cases | wc -l)
     nincom1=$(less work/incomplete_cases | wc -l)
     nincom2=$(less work/myincomplete_cases | wc -l)
 
+    if ${startq}; then
+	ntaskids_start=${ntaskids}
+	ncompl1_start=${ncompl1}
+	ncompl2_start=${ncompl2}
+	nincom1_start=${nincom1}
+	nincom2_start=${nincom2}
+    fi
+    
     echo
     echo "FILE                 LINES       "
     echo "---------------------------------"    
@@ -106,7 +115,7 @@ function db_status(){
     echo "completed_cases      ${ncompl1}"
     echo "incomplete_cases     ${nincom1}"
     echo "---------------------------------"    
-#    echo
+
     echo "mycompleted_cases    ${ncompl2}"
     echo "myincompleted_cases  ${nincom2}"
     echo "---------------------------------"
@@ -163,6 +172,8 @@ function correct_db_entries(){
 	    echo ${job} >> work/taskids
 	fi
     fi
+
+    
     
     }
 
@@ -203,6 +214,29 @@ initialize
 check_ntasks
 
 correct_corrupted_database
+
+echo "BEFORE"
+echo
+echo "FILE                 LINES       "
+echo "---------------------------------"    
+echo "taskids              ${start_ntaskids}"
+echo "---------------------------------"
+echo "completed_cases      ${start_ncompl1}"
+echo "incomplete_cases     ${start_nincom1}"
+echo "---------------------------------"    
+
+echo "mycompleted_cases    ${start_ncompl2}"
+echo "myincompleted_cases  ${start_nincom2}"
+echo "---------------------------------"
+echo
+echo "AFTER"
+echo 
+
+
+db_status
+
+
+
 
 exit
 

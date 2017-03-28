@@ -41,7 +41,8 @@ function how_to_use() {
     -s      submit MAD jobs to LSF
     -p      progress of MAD input
     -m      find missing seeds in study 
-    -r      rerun missing seeds in study
+    -r      rerun missing seeds in study / remove faulty output
+
     options
     -c      specify the name of the study to use. Argument: study name. 
             Otherwise the operation will be performed for all elements of the scan.
@@ -61,12 +62,12 @@ set_env_to_mask(){
     
 #    echo "--> Setting sixdeskenv to ${mask}"
     
-#    cat sixdeskenv |\
-#	sed -e 's/export LHCDescrip=.*/export LHCDescrip='$mask'/' > sixdeskenv.new
-  #  #
-#    mv sixdeskenv.new sixdeskenv
+    cat sixdeskenv |\
+	sed -e 's/export LHCDescrip=.*/export LHCDescrip='$mask'/' > sixdeskenv.new
+
+    mv sixdeskenv.new sixdeskenv
     
-    ${SixDeskDev}/set_env.sh -d ${mask} >> output.${mask}
+    ${SixDeskDev}/set_env.sh -s 
 }
 
 
@@ -136,17 +137,19 @@ function find_missing_seed() {
 
     echo
     sixdeskmess="Find missing seeds"
-    sixdeskemss
+    sixdeskmess
     sixdeskmess="Study          ${study}"
     sixdeskmess
     sixdeskmess="Workspace      ${workspace}"
+    sixdeskmess
 
-    MADdir="${sixtrack_input}"
+    MADdir="${sixtrack_input}/../${study}"
     sixdeskmess="Input in dir   ${MADdir}"
+    sixdeskmess
 
     local rerunQ=false
 
-    seeds=$(seq 1 60) # later we could get them from 
+    seeds=$(seq 1 ${iendmad}) 
 
     for i in ${seeds}; do
 
@@ -176,8 +179,7 @@ function find_missing_seed() {
 		redo_mad
 	    fi
 	fi
-        
-	    	
+        	
     done
 
 }
@@ -373,16 +375,62 @@ run_new_mad6t() {
 
 function get_progress(){
 
-	    NF2=$(ls ../../sixtrack_input/${workspace}/${mask}/fort.2* | wc -l)
-	    NF1=$(ls ../../sixtrack_input/${workspace}/${mask}/fort.16* | wc -l)
+	    NF1=$(find ../../sixtrack_input/${workspace}/${mask}/ -type f -name fort.16* | wc -l)
+	    NF2=$(find ../../sixtrack_input/${workspace}/${mask}/ -type f -name fort.2* | wc -l)
+	    NF8=$(find ../../sixtrack_input/${workspace}/${mask}/ -type f -name fort.8* | wc -l)
+	    
 	    sixdeskmess="fort.2 files        : ${NF2}"
 	    sixdeskmess
-	    sixdeskmess="fort.16 files       : ${NF2}"
+	    sixdeskmess="fort.8 files        : ${NF8}"
+	    sixdeskmess	    
+	    sixdeskmess="fort.16 files       : ${NF1}"
 	    sixdeskmess
+
+	    if [ ${NF1} -eq ${iendmad} ] && [ ${NF2} -eq ${iendmad} ] && [ ${NF8} -eq ${iendmad} ]; then
+		sixdeskmess="STATUS              : READY"
+		sixdeskmess
+	    else
+		sixdeskmess="STATUS              : NOT READY"
+		sixdeskmess				
+	    fi
+
+	    
+	    if [ ${NF2} -gt ${iendmad} ] || [ ${NF1} -gt ${iendmad} ]; then
+		echo 
+		sixdeskmess="WARNING! TOO MANY OUTPUT FILES!"
+		sixdeskmess
+		echo 
+		sixdeskmess="The following files are too much"
+		sixdeskmess		
+
+		find ../../sixtrack_input/${workspace}/${mask}/ -type f -name fort*_* ! -name '*.gz'
+
+		echo
+		sixdeskmess="Remove these files? [yY/nN]"
+		sixdeskmess
+
+		read yn
+		case $yn in
+		    [Yy]* ) removeQ=true  ;;
+		    [Nn]* ) removeQ=false ;;
+		    * ) sixdeskmess="Please answer yes or no."; sixdeskmess;;
+		esac
+		
+
+		if $removeQ; then
+		    sixdeskmess="REMOVING"
+		    sixdeskmess
+		    find ../../sixtrack_input/${workspace}/${mask}/ -type f -name fort*_* ! -name '*.gz' -delete
+		else
+		    sixdeskmess="NOT REMOVING"
+		    sixdeskmess		    
+		fi
+		
+	    fi
+	    
 	    echo
 
     }
-
 
 
 
@@ -490,7 +538,8 @@ if ${submit}; then
 	    sixdeskmess
 	done
 	echo 
-	for mask in ${mask_names}; do	    
+	for maskname in ${mask_names}; do
+	    mask=${maskname}
 	    set_env_to_mask
 	    run_new_mad6t	    
 	done
