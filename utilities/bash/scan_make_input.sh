@@ -67,18 +67,27 @@ set_env_to_mask(){
 
     mv sixdeskenv.new sixdeskenv
     
-    ${SixDeskDev}/set_env.sh -s 
+    ${SixDeskDev}/set_env.sh -s
+    
 }
 
 
 function initialize_scan(){
 
-    if ! ${scan_chroma}; then
-	SCAN_QP="0.0"
+    if ! ${lscan_var1}; then
+	scan_var1_vals="0.0"
     fi
 
-    if ! ${scan_octupoles}; then
-	SCAN_OC="0.0"
+    if ! ${lscan_var2}; then
+	scan_var2_vals="0.0"
+    fi
+
+    if ! ${lscan_var3}; then
+	scan_var3_vals="0.0"
+    fi
+
+    if ! ${lscan_var4}; then
+	scan_var4_vals="0.0"
     fi    
 
 }
@@ -88,27 +97,39 @@ get_mask_name(){
 
     mask=${mask_prefix}
 
-    if ${scan_chroma}; then
-	mask="${mask}-QP-${qp}"
+    if ${lscan_var1}; then
+	mask="${mask}_${scan_var1}_${va}"
     fi
-    
-    if ${scan_octupoles}; then
-	mask="${mask}-OC-${oc}"
+
+    if ${lscan_var2}; then
+	mask="${mask}_${scan_var2}_${vb}"
     fi
+
+    if ${lscan_var3}; then
+	mask="${mask}_${scan_var3}_${vc}"
+    fi
+
+    if ${lscan_var4}; then
+	mask="${mask}_${scan_var4}_${vd}"
+    fi        
     
 }
+
 
 generate_mask_file(){
 
     get_mask_name
+
+    get_mask_variables
     
-    if ${scan_chroma} || ${scan_octupoles} 
+    if ${lscan_var1} || ${lscan_var2} || ${lscan_var3} || ${lscan_var4} 
     then
 	cat mask/${mask_prefix}.mask |\
-	    sed -e 's/%QPV/'${qp}'/g' |\
-	    sed -e 's/%OCV/'${oc}'/g' >  "mask/${mask}.mask"
+	    sed -e "s/${MASKV1}/${va}/g" |\
+	    sed -e "s/${MASKV2}/${vb}/g" |\
+	    sed -e "s/${MASKV3}/${vc}/g" |\
+	    sed -e "s/${MASKV4}/${vd}/g"     >  "mask/${mask}.mask"
     fi
-    
 
 }
 
@@ -271,44 +292,58 @@ mask_integrity_error_message(){
 	esac	    
 }
 
+get_mask_variables(){
+    MASKV1="%${scan_var1}V"
+    MASKV2="%${scan_var2}V"
+    MASKV3="%${scan_var3}V"
+    MASKV4="%${scan_var4}V"
+}
+
+check_mask_file_vars(){
+    MASKVG=$1
+    SCANVG=$2
+
+    if grep -q "${MASKVG}" "mask/${mask_prefix}.mask"; then
+	sixdeskmess="Scan Variable ${SCANVG}       mask file contains ${MASKV1}"
+	sixdeskmess
+    else
+	sixdeskmess="Scan Variable ${SCANVG}       WARNING for raw mask file ${mask_prefix}.mask!"
+	sixdeskmess
+	sixdeskmess="Scan Variable ${SCANVG}       String ${MASKVG} not found in mask file"
+	sixdeskmess
+	sixdeskmess="Scan Variable ${SCANVG}       Continue? [y/n]"	    
+	sixdeskmess
+	mask_integrity_error_message
+    fi	
+
+}
+
 
 check_mask_file(){
 
     # this part is still dirty and should be optimized
 #    echo 
 #    sixdeskmess="Checking mask file for integrity"
-#    sixdeskmess
+    #    sixdeskmess
+    get_mask_variables
     
-    if ${scan_chroma}; then
-	if grep -q "%QPV" "mask/${mask_prefix}.mask"; then
-	    sixdeskmess="Chroma scan       mask file contains %QPV"
-	    sixdeskmess
-	else
-	    sixdeskmess="Chroma scan       WARNING for raw mask file ${mask_prefix}.mask!"
-	    sixdeskmess="Chroma scan       mask file not containing %QPV"
-	    sixdeskmess="Chroma scan       Continue? [y/n]"
-	    mask_integrity_error_message
-	fi	
+    if ${lscan_var1}; then
+	check_mask_file_vars ${MASKV1} ${scan_var1}
     fi
+    if ${lscan_var2}; then
+	check_mask_file_vars ${MASKV2} ${scan_var2}
+    fi
+    if ${lscan_var3}; then
+	check_mask_file_vars ${MASKV3} ${scan_var3}
+    fi
+    if ${lscan_var4}; then
+	check_mask_file_vars ${MASKV4} ${scan_var4}
+    fi
+    
+
 
     
-    if ${scan_octupoles}; then
-	if grep -q "%OCV" "mask/${mask_prefix}.mask"; then
-	    sixdeskmess="Octupole scan     mask file contains %OCV"
-	    sixdeskmess
-	else
-	    sixdeskmess="Octupole scan     WARNING for raw mask file ${mask_prefix}.mask!"
-	    sixdeskmess
-	    sixdeskmess="Octupole scan     mask file not containing %OCV"
-	    sixdeskmess
-	    sixdeskmess="Octupole scan     Continue? [y/n]"
-	    sixdeskmess
-	    mask_integrity_error_message
-	fi		
-    fi
     if grep -q "%SEEDRAN" "mask/${mask_prefix}.mask"; then
-	sixdeskmess="Octupole scan     mask file contains %OCV"
-	sixdeskmess
 	sixdeskmess="Random seed       mask file contains %SEEDRAN"
 	sixdeskmess
     else
@@ -318,6 +353,7 @@ check_mask_file(){
 	sixdeskmess
 	mask_integrity_error_message
     fi
+    
     }
 
 
@@ -490,15 +526,21 @@ if ${findmissing}; then
 	for study in ${mask_names}; do
 	    find_missing_seed
 	done
-    elif ${scan_chroma} || ${scan_octupoles} ; then
+    elif ${lscan_var1} || ${lscan_var2} || ${lscan_var3} || ${lscan_var4} ; then
        initialize_scan
-       for qp in ${SCAN_QP}
+       for va in ${scan_var1_vals}
        do
-	   for oc in ${SCAN_OC}
+	   for vb in ${scan_var2_vals}
 	   do
-	       get_mask_name
-	       study=${mask}
-	       find_missing_seed
+	       for vc in ${scan_var3_vals}
+	       do
+		   for vd in ${scan_var4_vals}
+		   do	       		   
+		       get_mask_name
+		       study=${mask}
+		       find_missing_seed
+		   done
+	       done
 	   done
        done
     fi
@@ -514,20 +556,26 @@ if ${submit}; then
     sixdeskmess="SUBMIT MADX JOBS TO PRODUCE SIXTRACK INPUT"
     sixdeskmess
     echo 
-    if ${scan_chroma} || ${scan_octupoles}
+    if ${lscan_var1} || ${lscan_var2} || ${lscan_var3} || ${lscan_var4}
     then
-       initialize_scan
-       for qp in ${SCAN_QP}
-       do
-	   for oc in ${SCAN_OC}
-	   do
-	       get_mask_name
-	       sixdeskmess="STUDY             ${mask}"
-	       sixdeskmess		       		       
-	       check_mask_file
-	       generate_mask_file
-	       set_env_to_mask
-	       run_new_mad6t
+	initialize_scan
+	for va in ${scan_var1_vals}
+	do
+	    for vb in ${scan_var2_vals}
+	    do
+		for vc in ${scan_var3_vals}
+		do
+		    for vd in ${scan_var4_vals}
+		    do	       		   	
+			get_mask_name
+			sixdeskmess="STUDY             ${mask}"
+			sixdeskmess		       		       
+			check_mask_file
+			generate_mask_file
+			set_env_to_mask
+			run_new_mad6t
+		    done
+		done
 	   done
 	done
     elif ${scan_masks}; then
@@ -554,25 +602,40 @@ if ${progress}; then
     echo 
     if ${scan_chroma} || ${scan_octupoles} ; then
        initialize_scan
-       for qp in ${SCAN_QP}
-       do
-	   for oc in ${SCAN_OC}
-	   do
-	       get_mask_name
-	       
-	       sixdeskmess="Progress for study  : ${mask}"
-	       sixdeskmess
-		       
-	       if ${scan_chroma}; then
-		   sixdeskmess="CHROMATICITY        : ${qp}"
-		   sixdeskmess
-	       fi
-	       if ${scan_octupoles}; then
-		   sixdeskmess="OCTUPOLE STRENGTH   : ${oc}"
-		   sixdeskmess			   
-	       fi
-	       echo 
-	       get_progress
+	for va in ${scan_var1_vals}
+	do
+	    for vb in ${scan_var2_vals}
+	    do
+		for vc in ${scan_var3_vals}
+		do
+		    for vd in ${scan_var4_vals}
+		    do	           
+			get_mask_name
+			
+			sixdeskmess="Progress for study  : ${mask}"
+			sixdeskmess
+			
+			if ${lscan_var1}; then
+			    sixdeskmess="${scan_var1}                  : ${va}"
+			    sixdeskmess
+			fi
+			if ${lscan_var2}; then
+			    sixdeskmess="${scan_var2}                  : ${vb}"
+			    sixdeskmess
+			fi
+			if ${lscan_var3}; then
+			    sixdeskmess="${scan_var3}                  : ${vc}"
+			    sixdeskmess
+			fi
+			if ${lscan_var4}; then
+			    sixdeskmess="${scan_var4}                  : ${vd}"
+			    sixdeskmess
+			fi			
+
+			echo 
+			get_progress
+		    done
+		done
 	   done
        done
     elif ${scan_masks}; then

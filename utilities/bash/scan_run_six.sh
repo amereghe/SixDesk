@@ -44,7 +44,7 @@ function how_to_use() {
     -i      run incomplete cases on LSF for all cases defined in scan_definitions
     -s      submit jobs to BOINC for all cases defined in scan_definitions
     -l      unlock all for all studies
-    -R      retreive results for all jobs listed in scan_definitions. can be combined with -c and -w
+    -R      retrieve results for all jobs listed in scan_definitions. can be combined with -c and -w
     -O      Overview: show submission status for all jobs in scan
     -T      show status of simulations in scan
             will give information about jobs in queue, finished but unretrieved jobs and retrieved jobs
@@ -67,19 +67,26 @@ EOF
 
 
 
-
-
 function initialize_scan(){
 
-    if ! ${scan_chroma}; then
-	SCAN_QP="0.0"
+    if ! ${lscan_var1}; then
+	scan_var1_vals="0.0"
     fi
 
-    if ! ${scan_octupoles}; then
-	SCAN_OC="0.0"
+    if ! ${lscan_var2}; then
+	scan_var2_vals="0.0"
+    fi
+
+    if ! ${lscan_var3}; then
+	scan_var3_vals="0.0"
+    fi
+
+    if ! ${lscan_var4}; then
+	scan_var4_vals="0.0"
     fi    
 
 }
+
 
 
 function do_submit(){
@@ -122,19 +129,33 @@ function submit_status(){
 
 
 
-function get_mask_name(){
+get_mask_name(){
 
     mask=${mask_prefix}
 
-    if ${scan_chroma}; then
-	mask="${mask}-QP-${qp}"
+    if ${lscan_var1}; then
+	mask="${mask}_${scan_var1}_${va}"
     fi
-    
-    if ${scan_octupoles}; then
-	mask="${mask}-OC-${oc}"
+
+    if ${lscan_var2}; then
+	mask="${mask}_${scan_var2}_${vb}"
     fi
+
+    if ${lscan_var3}; then
+	mask="${mask}_${scan_var3}_${vc}"
+    fi
+
+    if ${lscan_var4}; then
+	mask="${mask}_${scan_var4}_${vd}"
+    fi        
     
 }
+
+
+
+
+
+
 
 function retrieve_job(){
     kinit -R
@@ -151,6 +172,8 @@ function scan_loop() {
 
     if [[ $# -eq 0 ]] ; then
 	sixdeskmess='ERROR: no argument given to scan_loop'
+	sixdeskmess
+	sixdeskmess='ERROR: this error should not be triggered, there could be a bug in scan_run_six.sh'
 	sixdeskmess
 	exit 1
     fi
@@ -179,31 +202,32 @@ function scan_loop() {
 	    done	    
 	done
 	
-    elif ${scan_chroma} || ${scan_octupoles} ; then
+    elif ${lscan_var1} || ${lscan_var2} || ${lscan_var3} || ${lscan_var4} ; then
 	
         initialize_scan
-	
-        for qp in ${SCAN_QP}
-        do
-	    for oc in ${SCAN_OC}
-	    do
-	       get_mask_name
-	       study=${mask}
-	       if ! ${skipenv}; then
-		   set_env_to_mask >> output.${study}
-	       fi
-		       
-	       for var in "$@"
+       for va in ${scan_var1_vals}
+       do
+	   for vb in ${scan_var2_vals}
+	   do
+	       for vc in ${scan_var3_vals}
 	       do
-		   $var
-	       done
+		   for vd in ${scan_var4_vals}
+		   do	       		
+		       get_mask_name
+		       study=${mask}
+		       if ! ${skipenv}; then
+			   set_env_to_mask >> output.${study}
+		       fi
 		       
+		       for var in "$@"
+		       do
+			   $var
+		       done
+		   done
+	       done
 	   done
         done
     fi
-
-
-
 
     }
 
@@ -250,34 +274,6 @@ function get_status(){
 	echo 
     fi
     
-    }
-
-
-function list_status() {
-
-    if ${scan_chroma} && ${scan_octupoles}
-    then
-        for x in $SCAN_QP
-	do
-	    for y in $SCAN_OC
-	    do
-		kinit -R 
-		mask="${mask_prefix}-${x}-${y}"
-		get_status
-	    done
-        done
-	
-    elif ${scan_masks} && ! ${qcase}; then
-	for mask in ${mask_names}; do
-	    get_status
-	done
-	
-    elif ${qcase}; then
-	mask=${jobstring}
-	get_status
-    fi    	    
-
-	    
     }
 
 
@@ -402,7 +398,8 @@ if ${status}; then
 
 
     while true; do
-	list_status
+	scan_loop get_status    
+	
 	if ! ${repeat}; then
 	    exit
 	else

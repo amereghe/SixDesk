@@ -29,7 +29,6 @@ function initialize(){
     let "njobs=${nseeds}*${nampls}*${angles}"
 
     db_status
-    startq=false
 
 }
 
@@ -99,27 +98,50 @@ function db_status(){
     nincom1=$(less work/incomplete_cases | wc -l)
     nincom2=$(less work/myincomplete_cases | wc -l)
 
+
+    
+    
     if ${startq}; then
 	ntaskids_start=${ntaskids}
 	ncompl1_start=${ncompl1}
 	ncompl2_start=${ncompl2}
 	nincom1_start=${nincom1}
 	nincom2_start=${nincom2}
-    fi
     
-    echo
-    echo "FILE                 LINES       "
-    echo "---------------------------------"    
-    echo "taskids              ${ntaskids}"
-    echo "---------------------------------"
-    echo "completed_cases      ${ncompl1}"
-    echo "incomplete_cases     ${nincom1}"
-    echo "---------------------------------"    
+    
+	echo
+	echo "FILE                 LINES       "
+	echo "---------------------------------"    
+	echo "taskids              ${ntaskids}"
+	echo "---------------------------------"
+	echo "completed_cases      ${ncompl1}"
+	echo "incomplete_cases     ${nincom1}"
+	echo "---------------------------------"    
 
-    echo "mycompleted_cases    ${ncompl2}"
-    echo "myincompleted_cases  ${nincom2}"
-    echo "---------------------------------"
-    echo
+	echo "mycompleted_cases    ${ncompl2}"
+	echo "myincompleted_cases  ${nincom2}"
+	echo "---------------------------------"
+	echo
+
+	
+	
+	startq=false
+	
+    else
+	echo
+	printf "FILE                 BEFORE   AFTER  \n"
+	echo "------------------------------------------------------"    	
+	printf "taskids              %4d      %4d    \n" "${ntaskids_start}" "${ntaskids}"		
+	echo "------------------------------------------------------"    	
+	printf "completed_cases      %4d      %4d \n" "${ncompl1_start}" "${ncompl1}"
+	printf "incomplete_cases     %4d      %4d \n" "${nincom1_start}" "${nincom1}"	
+	echo "------------------------------------------------------"
+	printf "mycompleted_cases    %4d      %4d \n" "${ncompl2_start}" "${ncompl2}"
+	printf "myincompleted_cases  %4d      %4d \n" "${nincom2_start}" "${nincom2}"			
+	echo "------------------------------------------------------"	
+    fi
+
+    
 }
 
 
@@ -157,7 +179,7 @@ function correct_db_entries(){
     elif ! ${taskids_correct}; then
 
 	if [ -e ${dir}/fort.10.gz ]; then
-	    echo "--> Complete:     ${job}"
+	    #echo "--> Complete:     ${job}"
 	    echo ${job} >> work/completed_cases
 	    echo ${job} >> work/mycompleted_cases
 	else
@@ -214,23 +236,6 @@ initialize
 check_ntasks
 
 correct_corrupted_database
-
-echo "BEFORE"
-echo
-echo "FILE                 LINES       "
-echo "---------------------------------"    
-echo "taskids              ${start_ntaskids}"
-echo "---------------------------------"
-echo "completed_cases      ${start_ncompl1}"
-echo "incomplete_cases     ${start_nincom1}"
-echo "---------------------------------"    
-
-echo "mycompleted_cases    ${start_ncompl2}"
-echo "myincompleted_cases  ${start_nincom2}"
-echo "---------------------------------"
-echo
-echo "AFTER"
-echo 
 
 
 db_status
