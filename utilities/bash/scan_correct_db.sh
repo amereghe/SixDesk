@@ -190,8 +190,11 @@ function correct_db_entries(){
 
 	if [ -e work/old_taskids ] && grep -q ${job} work/old_taskids; then
 	    grep ${job} work/old_taskids | head -n 1 >> work/taskids
-	else    
-	    echo ${job} >> work/taskids
+	elif grep -q ${job} work/boincjobs/tasks; then
+	    grep ${job} work/boincjobs/tasks | tail -n 1 >> work/taskids
+	    #	    echo ${job} >> work/taskids
+	else
+	    echo "--> WARNING! TASKID NOT FOUND IN BOINCJOB OR OLD_TASKIDS"
 	fi
     fi
 

@@ -600,8 +600,8 @@ fi
 
 if ${progress}; then
     echo 
-    if ${scan_chroma} || ${scan_octupoles} ; then
-       initialize_scan
+    if ${lscan_var1} || ${lscan_var2} || ${lscan_var3} || ${lscan_var4}; then
+        initialize_scan
 	for va in ${scan_var1_vals}
 	do
 	    for vb in ${scan_var2_vals}
@@ -639,6 +639,7 @@ if ${progress}; then
 	   done
        done
     elif ${scan_masks}; then
+	echo "scan_masks true"
 	for mask in ${mask_names}; do
 	    sixdeskmess="Progress for study  : ${mask}"	    
 	    sixdeskmess
