@@ -17,7 +17,9 @@ sixdeskmess()
     sixdeskname=`echo $sixdeskname | cut -b 1-15`
     if test "$sixdeskecho" != "" -o "$__sixdeskmesslevel" -eq 0
     then
-      echo "$sixdeskday $sixdeskdate $sixdesktime ""$sixdeskname"" $sixdeskmess" 
+	if test "$__sixdeskmesslevel" -ne 5; then
+	    echo "$sixdeskday $sixdeskdate $sixdesktime ""$sixdeskname"" $sixdeskmess"
+	fi
     fi
     if test "$sixdesklogdir" != ""
     then
