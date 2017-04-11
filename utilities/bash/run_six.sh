@@ -15,9 +15,12 @@ function how_to_use() {
                for submission on the required platform
            NB: this is done by default after preparation and before submission,
                but this action can be triggered on its own
-   -f      fix compromised directory structure
-           similar to -g, but it fixes folders which miss any of the input files
+   -f      fix either compromised directory structure or corrupted database
+           ./run_six.sh -f DIR 
+              similar to -g, but it fixes folders which miss any of the input files
               (i.e. the fort.*.gz) - BOINC .zip/.desc files are not re-generated;
+           ./run_six.sh -f DB
+              checks the consistency of the database and corrects it if necessary
    -C      clean .zip/.desc after submission in boinc
            NB: this is done by default in case of submission to boinc
    -t      report the current status of simulations
@@ -954,6 +957,59 @@ function checkDirAlreadyRun(){
 
 }
 
+
+function db_status(){
+
+    sixdeskmess -1 "Summary of database of study $LHCDescrip:"
+
+    
+    
+    cases=$(cat ${sixdeskwork}/taskids           | wc -l)
+    icases=$(cat ${sixdeskwork}/incomplete_cases | wc -l)
+    ccases=$(cat ${sixdeskwork}/completed_cases  | wc -l)
+    micases=$(cat ${sixdeskwork}/myincomplete_cases | wc -l)
+    mccases=$(cat ${sixdeskwork}/mycompleted_cases  | wc -l)    
+    
+
+    echo
+    sixdeskmess -1 "FILE                 LINES      "
+    sixdeskmess -1 "--------------------------"    
+    message=$(printf "%-21s %4s" "taskids" "${cases}")
+    sixdeskmess -1 "${message}"
+    message=$(printf "%-21s %4s" "completed_cases" "${ccases}")
+    sixdeskmess -1 "${message}"
+    message=$(printf "%-21s %4s" "incomplete_cases" "${icases}")
+    sixdeskmess -1 "${message}"    
+    sixdeskmess -1 "--------------------------"    
+    message=$(printf "%-21s %4s" "mycompleted_cases" "${mccases}")
+    sixdeskmess -1 "${message}"
+    message=$(printf "%-21s %4s" "myincomplete_cases" "${micases}")
+    sixdeskmess -1 "${message}"        
+    sixdeskmess -1 "--------------------------"    
+
+#    exit
+    
+#    touch $sixdeskwork/completed_cases
+#    touch $sixdeskwork/completed_cases
+#    touch $sixdeskwork/mycompleted_cases
+#    touch $sixdeskwork/incomplete_cases
+#    touch $sixdeskwork/myincomplete_cases
+#    touch $sixdeskwork/taskids
+
+
+
+    
+ #   if [ "$sixdeskplatform" == "lsf" ] ; then#
+#	touch $sixdeskjobs/jobs#
+#	touch $sixdeskjobs/incomplete_jobs
+#    elif [ "$sixdeskplatform" == "boinc" ] ; then#
+#	touch $sixdeskjobs/tasks
+#	touch $sixdeskjobs/incomplete_tasks
+#    fi
+    
+}
+
+
 function dot_bsub(){
 
     # temporary variables
@@ -1115,7 +1171,7 @@ function updateTaskIdsCases(){
 
 function treatShort(){
 
-    if ${lgenerate} || ${lfix} ; then
+    if ${lgenerate} || [ ${lfix} && ${lfixdir} ] ; then
 	if [ $sussix -eq 1 ] ; then
 	    # and now we get fractional tunes to plug in qx/qy
             qx=`gawk 'END{qx='$fhtune'-int('$fhtune');print qx}' /dev/null`
@@ -1207,15 +1263,20 @@ function treatShort(){
 	if ${lfix} ; then
 	# ----------------------------------------------------------------------
 
-	    sixdeskmess -1 "Analysing and fixing dir $RundirFullPath"
-	    # fix dir
-	    fixDir $RundirFullPath $actualDirNameFullPath
-	    # finalise generation of fort.3
-	    submitCreateFinalFort3Short $kk
-	    # fix input files
-	    fixInputFiles $RundirFullPath
-	    let NsuccessFix+=1
-	    
+	    if ${lfixdir}; then
+		sixdeskmess -1 "Analysing and fixing dir $RundirFullPath"
+		# fix dir
+		fixDir $RundirFullPath $actualDirNameFullPath
+		# finalise generation of fort.3
+		submitCreateFinalFort3Short $kk
+		# fix input files
+		fixInputFiles $RundirFullPath
+		let NsuccessFix+=1
+	    elif ${lfixdb}; then
+		sixdeskmess -1 "Analyzing and fixing DB entry ${RundirFullPath}"
+	    fi
+
+		
 	# ----------------------------------------------------------------------
 	elif ${lstatus} ; then
         # ----------------------------------------------------------------------
@@ -1412,20 +1473,23 @@ function treatLong(){
 		echo ""
 	    fi
 	    sixdeskmess  1 "Point in scan $Runnam $Rundir, k"
-	    sixdeskmess -1 "Submitting - ${LHCDescrip} - Job: ${NsuccessSub} - Seed: $iMad/$iend - Ampl: $Ampl - Angle: $Angle"
 	    
 	    # ----------------------------------------------------------------------
 	    if ${lfix} ; then
             # ----------------------------------------------------------------------
 
+		if ${lfixdir}; then
 		# fix dir
-		fixDir $RundirFullPath $actualDirNameFullPath
+		    fixDir $RundirFullPath $actualDirNameFullPath
 		# finalise generation of fort.3
-		submitCreateFinalFort3Long
+		    submitCreateFinalFort3Long
 		# fix input files
-		fixInputFiles $RundirFullPath
-		let NsuccessFix+=1
-	    
+		    fixInputFiles $RundirFullPath
+		    let NsuccessFix+=1
+		elif ${lfixdb}; then
+		    sixdeskmess -1 "Analyzing and fixing DB entry ${RundirFullPath}"	    
+		fi
+
 	    # ----------------------------------------------------------------------
 	    elif ${lstatus} ; then
             # ----------------------------------------------------------------------
@@ -1509,6 +1573,7 @@ function treatLong(){
 	        if ${lsubmit} ; then
 	        # ------------------------------------------------------------------
 	            if ${__lSubmit} ; then
+			sixdeskmess -1 "Submitting - ${LHCDescrip} - Job: ${NsuccessSub} - Seed: $iMad/$iend - Ampl: $Ampl - Angle: $Angle"
 	        	if [ "$sixdeskplatform" == "lsf" ] ; then
 	        	    dot_bsub
 			    local __exStatus=$?
@@ -1675,6 +1740,8 @@ lmegazip=false
 loutform=false
 lbackcomp=true
 lverbose=false
+lfixdb=false
+lfixdir=false
 lrestart=false
 restartPoint=""
 currPlatform=""
@@ -1684,7 +1751,7 @@ optArgCurrPlatForm=""
 verbose=""
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  ":hgo:sctakfvBSCMd:p:R:" opt ; do
+while getopts  ":hgo:sctakf:vBSCMd:p:R:" opt ; do
     case $opt in
 	a)
 	    # do everything
@@ -1731,6 +1798,14 @@ while getopts  ":hgo:sctakfvBSCMd:p:R:" opt ; do
 	f)
 	    # fix directories
 	    lfix=true
+	    
+	    if [ ${OPTARG} == 'DB' ]; then
+		# correct the database
+		lfixdb=true
+	    elif [ ${OPTARG} == 'DIR' ]; then
+		# correct the directory structure
+	        lfixdir=true
+	    fi
 	    ;;
 	C)
 	    # the user requests to delete .zip/.desc files
@@ -1811,12 +1886,19 @@ trap "sixdeskexit 1" EXIT
 echo ""
 if ${lfix} ; then
     #
-    sixdeskmess -1 "Fixing sixtrack input files for study $LHCDescrip"
-    #
     lockingDirs=( "$sixdeskstudy" "$sixdeskjobs_logs" )
     #
-    sixdeskmess  2 "Using sixtrack_input ${sixtrack_input}"
-    sixdeskmess  2 "Using ${sixdeskjobs_logs}"
+    if ${lfixdir}; then
+	sixdeskmess -1 "Fixing sixtrack input files for study $LHCDescrip"    
+	sixdeskmess  2 "Using sixtrack_input ${sixtrack_input}"
+	sixdeskmess  2 "Using ${sixdeskjobs_logs}"
+    fi
+
+    # initialize the correction of the SixDesk database
+    if ${lfixdb}; then
+	sixdeskmess -1 "User selected fixing the SixDesk database"
+	db_status
+    fi
 fi
 if ${lgenerate} ; then
     #
@@ -1857,6 +1939,7 @@ if ${lstatus} ; then
     # - actually found:
     nFound=( 0 0 0 0 0 0 )
     foundNames=( 'dirs' 'fort.2.gz' 'fort.3.gz' 'fort.8.gz' 'fort.16.gz' 'fort.10.gz' )
+
 fi
 NsuccessFix=0
 NsuccessGen=0
@@ -1933,7 +2016,7 @@ trap "printSummary 11 ; sixdeskCleanExit 1" SIGSEGV
 trap "printSummary  8 ; sixdeskCleanExit 1" SIGFPE
 
 # preparation to main loop
-if ${lgenerate} || ${lfix} ; then
+if ${lgenerate} || ${lfixdir} ; then
     # - check that all the necessary MadX input is ready
     if [ -n "${currStudy}" ] ; then
 	${SCRIPTDIR}/bash/mad6t.sh -c ${optArgCurrStudy}
@@ -2136,13 +2219,16 @@ if ${lrestart} ; then
 else
     iMadStart=${ista}
 fi
-# main loop
+
+##################################### MAIN LOOP ###########################################
+###########################################################################################
+
 for (( iMad=${iMadStart}; iMad<=$iend; iMad++ )) ; do
     echo ""
     echo ""
     echo ""
     sixdeskmess -1 "MADX seed $iMad"
-    if ${lgenerate} || ${lfix} ; then
+    if ${lgenerate} || ${lfixdir} ; then
 	iForts="2 8 16"
 	if [ "$fort_34" != "" ] ; then
 	    iForts="${iForts} 34"
@@ -2195,7 +2281,7 @@ for (( iMad=${iMadStart}; iMad<=$iend; iMad++ )) ; do
 	    fi
 	    # - beta values?
 	    if [ $short -eq 1 ] || [ $long -eq 1 ] ; then
-	        if ${lgenerate} || ${lfix} ; then
+	        if ${lgenerate} || ${lfixdir}; then
 	    	    if [ ! -s ${RundirFullPath}/betavalues ] ; then
 	    		[ -d $RundirFullPath ] || mkdir -p $RundirFullPath
 	    		cd $sixdeskjobs_logs
@@ -2250,7 +2336,7 @@ for (( iMad=${iMadStart}; iMad<=$iend; iMad++ )) ; do
 	    fi
 	done
     done
-    if ${lgenerate} || ${lfix} ; then
+    if ${lgenerate} || ${lfixdir}  ; then
 	iForts="2 8 16"
 	if [ "$fort_34" != "" ] ; then
 	    iForts="${iForts} 34"
@@ -2410,7 +2496,7 @@ if ${lstatus} ; then
 	if [ ${nFound[$iFound]} == ${nExpected} ] ; then
 	    expectation="AS EXPECTED!"
 	else
-	    expectation="NOT as expected: MIMATCH!"
+	    expectation="NOT as expected: MISMATCH!"
 	fi
 	sixdeskmess -1 "- number of ${foundNames[$iFound]} FOUND: ${nFound[$iFound]} - ${expectation}"
     done

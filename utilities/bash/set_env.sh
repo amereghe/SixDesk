@@ -341,21 +341,22 @@ for tmpDir in ${lockingDirs[@]} ; do
 done
 
 # - kinit, to renew kerberos ticket
-sixdeskmess -1 " --> kinit;"
+sixdeskmess 1 " --> kinit;"
 multipleTrials "kinit -R ; local __exit_status=\$?" "[ \$__exit_status -eq 0 ]"
 if [ $? -gt 0 ] ; then
     sixdeskmess -1 "--> kinit -R failed - AFS/Kerberos credentials expired??? aborting..."
     exit
 else
-    sixdeskmess -1 " --> klist output after kinit -R:"
-    klist
+    sixdeskmess 1 " --> klist output after kinit -R:"
+    tmpLines=$(klist)
+    sixdeskmess 1 "${tmpLines}"
 fi
 
 # - fs listquota
 echo ""
-sixdeskmess -1 " --> fs listquota:"
+sixdeskmess 1 " --> fs listquota:"
 tmpLines=`fs listquota`
-echo "${tmpLines}"
+sixdeskmess 1 "${tmpLines}"
 #   check, and in case raise a warning
 fraction=`echo "${tmpLines}" | tail -1 | awk '{frac=$3/$2*100; ifrac=int(frac); if (frac-ifrac>0.5) {ifrac+=1} print (ifrac)}'`
 if [ ${fraction} -gt 90 ] ; then
