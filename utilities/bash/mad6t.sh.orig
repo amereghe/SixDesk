@@ -111,7 +111,6 @@ function submit(){
     for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
 	
 	# clean away any existing results for this seed
-	echo " MadX seed: $iMad"
 	if ${__lsecond} ; then
 	    sixdeskmess -1 "               Sleeping ${__delay} seconds"
 	    sleep ${__delay}
@@ -141,9 +140,18 @@ function submit(){
 	    cd ../
 	    rm -rf $sixdesktmpdir
 	else
+<<<<<<< HEAD
+#	    bsub -q $madlsfq -o $junktmp/"${LHCDescrip}_mad6t_$iMad".log -J ${workspace}_${LHCDescrip}_mad6t_$iMad mad6t_"$iMad".lsf
+	    read BSUBOUT <<< $(bsub -q $madlsfq -o $junktmp/"${LHCDescrip}_mad6t_$iMad".log -J ${workspace}_${LHCDescrip}_mad6t_$iMad mad6t_"$iMad".lsf)
+	    sixdeskmess="Seed ${iMad}: ${BSUBOUT}"
+	    sixdeskmess
+
+	    
+=======
 	    read BSUBOUT <<< $(bsub -q $madlsfq -o $junktmp/"${LHCDescrip}_mad6t_$iMad".log -J ${workspace}_${LHCDescrip}_mad6t_$iMad mad6t_"$iMad".lsf)
 	    tmpString=$(printf "Seed %2i        %40s\n" ${iMad} "${BSUBOUT}")
 	    sixdeskmess -1 "${tmpString}"
+>>>>>>> origin/quiet_output
 	fi
 	mad6tjob=$lsfFilesPath/mad6t.lsf
 	if ${__lfirst} ; then
@@ -362,13 +370,8 @@ fi
 # NB: workaround to get getopts working properly in sourced script
 OPTIND=1
 source ${SCRIPTDIR}/bash/set_env.sh ${optArgCurrStudy} -e
-if ${loutform} ; then
-    sixdesklevel=${sixdesklevel_option}
-fi
 # build paths
 sixDeskDefineMADXTree ${SCRIPTDIR}
-# sixdeskmess level
-sixdeskmesslevel=0
 
 # define trap
 trap "sixdeskexit 1" EXIT
@@ -406,6 +409,7 @@ else
 fi
 
 # echo that everything went fine
+
 sixdeskmess -1 "               Appears to have completed normally"
 echo 
 # bye bye
