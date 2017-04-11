@@ -243,16 +243,16 @@ function scan_loop() {
 
 function get_status(){
 
-    BOINCNAME="${workspace}_${mask}"
+    BOINCNAME="${workspace}_${study}"
     BOINCDIR=/afs/cern.ch/work/b/boinc/boinc/${BOINCNAME}
     NRES=$(ls ${BOINCDIR}/results/ | wc -l)                                           # ready to recieve
     
     NPEN=$(ls ${BOINCDIR}/work/    | wc -l)	                                      # pending
-    NREC=$(find ../track/${mask}/*/*/*/*/*/*/ -type f -name "*.10.gz" | wc -l)        # recieved
+    NREC=$(find ../track/${study}/*/*/*/*/*/*/ -type f -name "*.10.gz" | wc -l)        # recieved
 
     if ${quiet}; then
 
-	sixdeskmess="--> NAME         ${mask}" >> ${OUTFILE}
+	sixdeskmess="--> NAME         ${study}" >> ${OUTFILE}
 	sixdeskmess
 	sixdeskmess="--> PENDING      $NPEN"   >> ${OUTFILE}
 	sixdeskmess
@@ -263,7 +263,7 @@ function get_status(){
 	sixdeskmess=""                         >> ${OUTFILE}
 	sixdeskmess
     else
-	sixdeskmess="--> NAME         ${mask}"
+	sixdeskmess="--> NAME         ${study}"
 	sixdeskmess
 	sixdeskmess="--> PENDING      $NPEN"
 	sixdeskmess
