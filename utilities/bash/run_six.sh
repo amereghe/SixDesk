@@ -790,12 +790,10 @@ function submitCreateFinalInputs(){
 	sixdeskmess  1 "sixdesktaskid: $sixdesktaskid - $sixdeskTaskId"
 	# - return sixdeskTaskName and workunitName
 	sixdeskDefineWorkUnitName $workspace $Runnam $sixdesktaskid
+	# - generate zip file
+	multipleTrials "zip -j $RundirFullPath/$workunitName.zip $sixdeskjobs_logs/fort.3 $sixtrack_input/fort.2 $sixtrack_input/fort.8 $sixtrack_input/fort.16 > $RundirFullPath/zip.log 2>&1; local __zip_exit_status=\$? ; grep warning $RundirFullPath/zip.log >/dev/null 2>&1 ; local __zip_warnings=\$? ; rm -f $RundirFullPath/zip.log" "[ \${__zip_exit_status} -eq 0 ] && [ \${__zip_warnings} -eq 1 ]" "Failing to generate .zip file for WU ${workunitName}"
 	let __lerr+=$?
 	if [ ${__lerr} -eq 0 ] ; then
-	    # - generate zip file
-	    #   NB: -j option, to store only the files, and not the source paths
-	    multipleTrials "zip -j $RundirFullPath/$workunitName.zip $sixdeskjobs_logs/fort.3 $sixtrack_input/fort.2 $sixtrack_input/fort.8 $sixtrack_input/fort.16 > $RundirFullPath/zip.log 2>&1; local __zip_exit_status=\$? ; grep warning $RundirFullPath/zip.log >/dev/null 2>&1 ; local __zip_warnings=\$? ; rm -f $RundirFullPath/zip.log" "[ \${__zip_exit_status} -eq 0 ] && [ \${__zip_warnings} -eq 1 ]" "Failing to generate .zip file for WU ${workunitName}"
-	    let __lerr+=$?
 	    # - generate the workunit description file
 	    cat > $RundirFullPath/$workunitName.desc <<EOF
 $workunitName
@@ -810,7 +808,7 @@ $errors
 $numIssues
 $resultsWithoutConcensus
 EOF
-	    let __lerr+=$?
+
   	    # - update MegaZip file:
 	    if ${lmegazip} ; then
 		echo "$RundirFullPath/$workunitName.desc" >> ${sixdeskjobs_logs}/megaZipList.txt
@@ -978,7 +976,6 @@ function dot_htcondor(){
 
 function dot_boinc(){
 
-    # temporary variables
     local __lerr=0
     
     # actually submit
@@ -1003,9 +1000,6 @@ function dot_boinc(){
 	updateTaskIdsCases $sixdeskjobs/tasks $sixdeskjobs/incomplete_tasks $sixdesktaskid $Runnam
     fi
 
-    # in case of LSF, this operation is done either by:
-    # - dot_bsub, in case of un-successful submission;
-    # - the job at statup, in case of successful submission;
     rm -f $RundirFullPath/JOB_NOT_YET_STARTED
 
     return $__lerr
@@ -1301,7 +1295,6 @@ function treatLong(){
 	Ampl=${allAmplitudeSteps[${iAmple}]}
 	fampstart=${fAmpStarts[${iAmple}]}
 	fampend=${fAmpEnds[${iAmple}]}
-	
 	if ${lrestart} && ${lrestartAmpli} ; then
 	    if [ "${amplisFromName}" == "${Ampl}" ] ; then
 		lrestartAmpli=false
@@ -1317,28 +1310,53 @@ function treatLong(){
         sixdeskmess -1 "Considering amplitude step: $Ampl"
 	
 	# angles
-	if ${lReduceAngsWithAmplitude} ; then
-	    if [ ${ampstart} -gt ${ampFactor} ] ;then
-		kksLoop=${KKs[@]}
-		anglesLoop=${Angles[@]}
-		kangsLoop=${kAngs[@]}
+	if [ ${lReduceAngsWithAmplitude} -eq 1 ]; then
+            echo 'Reduce Angles with Amplitude flag is ON...'
+            max_amplitude=${fAmpEnds[${#fAmpEnds[@]}-1]}
+            if  (( $(echo "$ampstart > $ampFactor"|bc -l) )) ; then
+                angles_nb=$(printf %.$2f $(echo "`gawk 'END{a=('$fampend'/('$max_amplitude')*('${KKs[${#KKs[@]}-1]}'));print a}' /dev/null`" | bc))
+                kkstep=`gawk 'END{a=90/('$angles_nb'+1);print a}' /dev/null`
+                An=()
+                k_tot=()
+                ksteps=()
+                for (( i=1; i<=$angles_nb; i++ ))
+                do
+                  An+=(`gawk 'END{a='$i'*'$kkstep';print a}' /dev/null` )
+                  k_tot+=($i)
+                  ksteps+=(`gawk 'END{a='$i'*'$kkstep'/'90';print a}' /dev/null` )
+                done
+                kksLoop=${k_tot[@]}
+                anglesLoop=${An[@]}
+                kangsLoop=${ksteps[@]}
 	    else
-		kksLoop=${KKs_reduced[@]}
-		anglesLoop=${Angles_reduced[@]}
-		kangsLoop=${kAngs_reduced[@]}
+                echo 'Reduce Angles with Amplitude flag is ON, set to default 0.3...'
+                angles_nb=$(printf %.$2f $(echo "`gawk 'END{a=(0.3/('$max_amplitude')*('${KKs[${#KKs[@]}-1]}'));print a}' /dev/null`" | bc))
+                kkstep=`gawk 'END{a=90/('$angles_nb'+1);print a}' /dev/null`
+                An=()
+                k_tot=()
+                ksteps=()
+                for (( i=1; i<=$angles_nb; i++ ))
+                do
+                  An+=(`gawk 'END{a='$i'*'$kkstep';print a}' /dev/null` )
+                  k_tot+=($i)
+                  ksteps+=(`gawk 'END{a='$i'*'$kkstep'/'90';print a}' /dev/null` )
+                done
+                kksLoop=${k_tot[@]}
+                anglesLoop=${An[@]}
+                kangsLoop=${ksteps[@]}
 	    fi
 	else
+            echo 'Reduce Angles with Amplitude flag is OFF'
 	    kksLoop=${KKs[@]}
 	    anglesLoop=${Angles[@]}
 	    kangsLoop=${kAngs[@]}
 	fi
-	kksLoop=( ${kksLoop} )
-	anglesLoop=( ${anglesLoop} )
-	kangsLoop=( ${kangsLoop} )
-	
+        kksLoop=( ${kksLoop} )
+        anglesLoop=( ${anglesLoop} )
+        kangsLoop=( ${kangsLoop} )
 	# ======================================================================
 	for (( iAngle=0; iAngle<${#kksLoop[@]}; iAngle++ )) ; do
-	# ======================================================================
+	## ======================================================================
 
 	    # trigger for preparation
 	    local __lGenerate=false
@@ -1351,8 +1369,11 @@ function treatLong(){
 
 	    # kk, Angle and kang
 	    kk=${kksLoop[${iAngle}]}
+            #echo 'kk', $kk
 	    Angle=${anglesLoop[${iAngle}]}
+            #echo 'Angle', $Angle
 	    kang=${kangsLoop[${iAngle}]}
+            #echo 'kang', $kang
 
 	    if ${lrestart} && ${lrestartAngle} ; then
 		if [ "${angleFromName}" == "${Angle}" ] ; then
@@ -1438,10 +1459,10 @@ function treatLong(){
 			fi
 	        	
 	        	if [ "$sixdeskplatform" == "lsf" ] ; then
-	        	    # submission file
+	        	 #   # submission file
 	        	    sed -e 's?SIXJOBNAME?'$Runnam'?g' \
 	        		-e 's?SIXJOBDIR?'$Rundir'?g' \
-	        		-e 's?SIXTRACKDIR?'$sixdesktrack'?g' \
+	         		-e 's?SIXTRACKDIR?'$sixdesktrack'?g' \
 	        		-e 's?SIXTRACKEXE?'$SIXTRACKEXE'?g' \
 	        		-e 's?SIXCASTOR?'$sixdeskcastor'?g' ${SCRIPTDIR}/templates/lsf/${lsfjobtype}.sh > $RundirFullPath/$Runnam.sh
 	        	    chmod 755 $RundirFullPath/$Runnam.sh
@@ -1470,7 +1491,7 @@ function treatLong(){
 	        	__lSubmit=true
 	        	sixdeskmess  1 "$RundirFullPath ready to submit!"
 	            fi
-		    let NsuccessChk+=1
+	            let NsuccessChk+=1
 	        fi
 	        
 	        # ------------------------------------------------------------------
@@ -1507,9 +1528,9 @@ function treatLong(){
 		    fi
 	        fi
 
-	    # ----------------------------------------------------------------------
-	    fi
-	    # ----------------------------------------------------------------------
+	   # ----------------------------------------------------------------------
+	   fi
+	   # ----------------------------------------------------------------------
 	
         done
 	# end of loop over angles
@@ -1610,9 +1631,7 @@ function printSummary(){
     if ${lstatus} ; then
 	sixdeskmess -1 "STATUS LISTED  ${NsuccessSts} jobs"			
     fi
-    if [ $1 -eq 0 ] ; then
-	sixdeskmess -1 "Completed normally."
-    else
+    if [ $1 -ne 0 ] ; then
 	sixdeskmess -1 "Premature end."
 	if [ $1 -eq 11 ] ; then
 	    sixdeskEchoEnvVars /tmp/envs_SIGSEGV.txt

@@ -95,7 +95,7 @@ function setFurtherEnvs(){
     # scan angles:
     export totAngle=90
     export ampFactor=0.3
-    lReduceAngsWithAmplitude=false
+    #lReduceAngsWithAmplitude=false
     # - reduce angles with amplitude
     if [ -n "${reduce_angs_with_aplitude}" ] ; then
 	if [ ${reduce_angs_with_aplitude} -eq 1 ] ; then
