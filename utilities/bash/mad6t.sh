@@ -9,13 +9,25 @@ function how_to_use() {
    actions (mandatory, one of the following):
    -c      check
    -s      submit
-              in this case, madx jobs are submitted to lsf
+              in this case, madx jobs are submitted to lsf/htcondor
+   -w      submit wrong seeds
+              NB: the list of wrong seeds must be generated beforehand,
+                  by a `basename $0` -c run
+   -U      unlock dirs necessary to the script to run
+           PAY ATTENTION when using this option, as no check whether the lock
+              belongs to this script or not is performed, and you may screw up
+              processing of another script
 
    options (optional):
    -i      madx is run interactively (ie on the node you are locally
               connected to, no submission to lsf at all)
-           option available only for submission to lsf
+           option available only for submission, not for checking
    -d      study name (when running many jobs in parallel)
+   -P      python path
+   -o      define output (preferred over the definition of sixdesklevel in sixdeskenv)
+               0: only error messages and basic output 
+               1: full output
+               2: extended output for debugging
 
 EOF
 }
@@ -26,14 +38,12 @@ function preliminaryChecksM6T(){
     
     if [ ! -s $maskFilesPath/$LHCDescrip.mask ] ; then
 	# error: mask file not present
-	sixdeskmess="$LHCDescrip.mask is required in sixjobs/mask !!! "
-	sixdeskmess
+	sixdeskmess -1 "$LHCDescrip.mask is required in sixjobs/mask !!! "
 	let __lerr+=1
     fi
     if [ ! -d "$sixtrack_input" ] ; then
 	# error: $sixtrack_input directory does not exist
-	sixdeskmess="The $sixtrack_input directory does not exist!!!"
-	sixdeskmess
+	sixdeskmess -1 "The $sixtrack_input directory does not exist!!!"
 	let __lerr+=1
     fi
     if test "$beam" = "" -o "$beam" = "b1" -o "$beam" = "B1" ; then
@@ -42,31 +52,38 @@ function preliminaryChecksM6T(){
 	appendbeam='_b2'
     else
 	# error: unrecognised beam option
-	sixdeskmess="Unrecognised beam option $beam : must be null, b1, B1, b2 or B2!!!"
-	sixdeskmess
+	sixdeskmess -1 "Unrecognised beam option $beam : must be null, b1, B1, b2 or B2!!!"
 	let __lerr+=1
     fi
     if [ ${__lerr} -gt 0 ] ; then
-	exit ${__lerr}
+	sixdeskmess -1 "error in preliminaryChecksM6T - error: ${__lerr}"
+	exit
     fi
     
     return $__lerr
 }
 
 function submit(){
-    local __delay=2
-
     # useful echo
     # - madx version and path
-    sixdeskmess="Using madx Version $MADX in $MADX_PATH"
-    sixdeskmess
-    # - Study, Runtype, Seeds
-    sixdeskmess="Study: $LHCDescrip - Runtype: $runtype - Seeds: [$istamad:$iendmad]"
-    sixdeskmess
+    sixdeskmess  1 "Using madx Version $MADX in $MADX_PATH"
+    # - Study, Runtype, Seeds, platform, queue
+    echo
+    sixdeskmess -1 "STUDY          ${LHCDescrip}"
+    sixdeskmess -1 "RUNTYPE        ${runtype}"
+    if ! ${lwrong} ; then
+	sixdeskmess -1 "SEEDS          [${istamad}:${iendmad}]"
+    fi
+    sixdeskmess -1 "PLATFORM       ${sixdeskplatform}"
+    if [ "$sixdeskplatform" == "lsf" ] ; then
+	sixdeskmess -1 "QUEUE          ${madlsfq}"
+    elif [ "$sixdeskplatform" == "htcondor" ] ; then
+	sixdeskmess -1 "QUEUE          ${madHTCq}"
+    fi
+    echo
     # - interactive madx
     if ${linter}  ; then
-	sixdeskmess="Interactive MADX runs"
-	sixdeskmess
+	sixdeskmess 1 "Interactive MADX runs"
     fi
 
     # copy templates...
@@ -83,11 +100,13 @@ function submit(){
     if [ -n "${xing}" ] ; then 
 	# variable is defined
 	xing_rad=`echo "$xing" | awk '{print ($1*1E-06)}'`
-	sixdeskmess=" --> crossing defined: $xing ${xing_rad}"
-	sixdeskmess
+	sixdeskmess  1 " --> crossing defined: $xing ${xing_rad}"
 	sed -i -e 's?%xing?'$xing_rad'?g' \
   	    -e 's?/ bb_ho5b1_0?bb_ho5b1_0?g' \
 	    -e 's?/ bb_ho1b1_0?bb_ho5b1_0?g' $sixtrack_input/fort.3.mother1.tmp
+    else
+	sed -i -e 's?^bb_ho5b1_0?/ bb_ho5b1_0?g' \
+	       -e 's?^bb_ho1b1_0?/ bb_ho5b1_0?g' $sixtrack_input/fort.3.mother1.tmp
     fi
      
     # Clear flags for checking
@@ -95,170 +114,293 @@ function submit(){
 	rm -f $sixtrack_input/$tmpFile
     done
 
-    sixdeskmktmpdir mad $sixtrack_input
-    export junktmp=$sixdesktmpdir
-    sixdeskmess="Using junktmp: $junktmp"
-    sixdeskmess 1
-    
-    cd $junktmp
-    filejob=$LHCDescrip
-    cp $maskFilesPath/$filejob.mask .
+    if ${lwrong} ; then
 
-    # Loop over seeds
-    mad6tjob=$lsfFilesPath/mad6t1.lsf
-    for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
-	
-	# clean away any existing results for this seed
-	echo " MadX seed: $iMad"
-	for f in 2 8 16 34 ; do
-	    rm -f $sixtrack_input/fort.$f"_"$iMad.gz
+	junktmp=`dirname ${lastJobsList}`
+	cd ${junktmp}
+	sixdeskmess 1 "Using junktmp: $junktmp"
+
+	tmpFiles=`cat ${lastJobsList}`
+	tmpFiles=( ${tmpFiles} )
+	for tmpFile in ${tmpFiles[@]} ; do
+	    for extension in .err .log .out ; do
+		rm -f ${tmpFile//.sh/${extension}}
+	    done
 	done
-    
-	sed -e 's?%NPART?'$bunch_charge'?g' \
-	    -e 's?%EMIT_BEAM?'$emit_beam'?g' \
-	    -e 's?%SEEDSYS?'$iMad'?g' \
-	    -e 's?%SEEDRAN?'$iMad'?g' $filejob.mask > $filejob."$iMad"
-	sed -e 's?%SIXJUNKTMP%?'$junktmp'?g' \
-	    -e 's?%SIXI%?'$iMad'?g' \
-	    -e 's?%SIXFILEJOB%?'$filejob'?g' \
-	    -e 's?%CORR_TEST%?'$CORR_TEST'?g' \
-	    -e 's?%FORT_34%?'$fort_34'?g' \
-	    -e 's?%MADX_PATH%?'$MADX_PATH'?g' \
-	    -e 's?%MADX%?'$MADX'?g' \
-	    -e 's?%SIXTRACK_INPUT%?'$sixtrack_input'?g' $mad6tjob > mad6t_"$iMad".lsf
-	chmod 755 mad6t_"$iMad".lsf
-        sixdeskmess="Sleeping ${__delay} seconds"
-        sixdeskmess
-	sleep ${__delay}
 	
-	if ${linter} ; then
-	    sixdeskmktmpdir batch ""
-	    cd $sixdesktmpdir
-	    ../mad6t_"$iMad".lsf | tee $junktmp/"${LHCDescrip}_mad6t_$iMad".log 2>&1
-	    cd ../
-	    rm -rf $sixdesktmpdir
-	else
-	    bsub -q $madlsfq -o $junktmp/"${LHCDescrip}_mad6t_$iMad".log -J ${workspace}_${LHCDescrip}_mad6t_$iMad mad6t_"$iMad".lsf
+    else
+
+	sixdeskmktmpdir mad $sixtrack_input
+	export junktmp=$sixdesktmpdir
+	sixdeskmess 1 "Using junktmp: $junktmp"
+	
+	cd $junktmp
+	filejob=$LHCDescrip
+	cp $maskFilesPath/$filejob.mask .
+
+	# remove any previous list of jobs
+	if [ "$sixdeskplatform" == "htcondor" ] ; then
+	    rm -f jobs.list
 	fi
-	mad6tjob=$lsfFilesPath/mad6t.lsf
-    done
+
+	# Loop over seeds
+	mad6tjob=$lsfFilesPath/mad6t1.sh
+	for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
+	    
+	    # clean away any existing results for this seed
+	    for f in 2 8 16 34 ; do
+		rm -f $sixtrack_input/fort.$f"_"$iMad.gz
+	    done
+	    
+	    sed -e 's?%NPART?'$bunch_charge'?g' \
+		-e 's?%EMIT_BEAM?'$emit_beam'?g' \
+		-e 's?%SEEDSYS?'$iMad'?g' \
+		-e 's?%SEEDRAN?'$iMad'?g' $filejob.mask > $filejob."$iMad"
+	    sed -e 's?%SIXJUNKTMP%?'$junktmp'?g' \
+		-e 's?%SIXI%?'$iMad'?g' \
+		-e 's?%SIXFILEJOB%?'$filejob'?g' \
+		-e 's?%CORR_TEST%?'$CORR_TEST'?g' \
+		-e 's?%FORT_34%?'$fort_34'?g' \
+		-e 's?%MADX_PATH%?'$MADX_PATH'?g' \
+		-e 's?%MADX%?'$MADX'?g' \
+		-e 's?%SIXTRACK_INPUT%?'$sixtrack_input'?g' $mad6tjob > mad6t_"$iMad".sh
+	    chmod 755 mad6t_"$iMad".sh
+	    
+	    if ${linter} ; then
+		sixdeskmktmpdir batch ""
+		cd $sixdesktmpdir
+		../mad6t_"$iMad".sh | tee $junktmp/"${LHCDescrip}_mad6t_$iMad".log 2>&1
+		cd ../
+		rm -rf $sixdesktmpdir
+	    else
+		if [ "$sixdeskplatform" == "lsf" ] ; then
+		    read BSUBOUT <<< $(bsub -q $madlsfq -o $junktmp/"${LHCDescrip}_mad6t_$iMad".log -J ${workspace}_${LHCDescrip}_mad6t_$iMad mad6t_"$iMad".sh)
+		    tmpString=$(printf "Seed %2i        %40s\n" ${iMad} "${BSUBOUT}")
+		    sixdeskmess -1 "${tmpString}"
+		elif [ "$sixdeskplatform" == "htcondor" ] ; then
+		    echo mad6t_${iMad}.sh >> jobs.list
+		fi
+	    fi
+	    mad6tjob=$lsfFilesPath/mad6t.sh
+	done
+    fi
+	
+    if [ "$sixdeskplatform" == "htcondor" ] && ! ${linter} ; then
+	cp ${SCRIPTDIR}/templates/htcondor/mad6t.sub .
+	sed -i "s#^+JobFlavour =.*#+JobFlavour = \"${madHTCq}\"#" mad6t.sub
+	condor_submit -batch-name "mad/$workspace/$LHCDescrip" mad6t.sub
+	if [ $? -eq 0 ] ; then
+	    rm -f jobs.list
+	fi
+    fi
 
     # End loop over seeds
     cd $sixdeskhome
 }
 
-function check(){
-    sixdeskmess="Checking $LHCDescrip"
-    sixdeskmess
+function check_output_option(){
+    local __selected_output_valid
+    __selected_output_valid=false
+    
+    case ${OPTARG} in
+    ''|*[!0-2]*) __selected_output_valid=false ;;
+    *)           __selected_output_valid=true  ;;
+    esac
 
-    sixdeskmesslevel=0
+    if ! ${__selected_output_valid}; then
+	echo "ERROR: Option -o requires the following arguments:"
+	echo "    0: only error messages and basic output [default]"
+	echo "    1: full output"
+	echo "    2: extended output for debugging"
+	exit 1
+    else
+	loutform=true
+	sixdesklevel_option=${OPTARG}
+    fi
+    
+}
+
+
+function check(){
+    sixdeskmess 1 "Checking MADX runs for study $LHCDescrip in ${sixtrack_input}"
     local __lerr=0
+    # accepted discrepancy in file dimensions [%]
+    local __factor=1
+    local __njobs
+    local __currdir=$PWD
+    local __lwarn=false
+
+    cd $sixtrack_input
     
     # check jobs still running
-    nJobs=`bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t | wc -l`
-    if [ ${nJobs} -gt 0 ] ; then
-	bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t
-	echo "There appear to be some mad6t jobs still not finished"
-	let __lerr+=1
+    if [ "$sixdeskplatform" == "lsf" ] ; then
+	__njobs=`bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t | wc -l`
+	if [ ${__njobs} -gt 0 ] ; then
+	    bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t
+	    sixdeskmess -1 "There appear to be some mad6t jobs still not finished"
+	    let __lerr+=1
+	fi
+    elif [ "$sixdeskplatform" == "htcondor" ] ; then
+	local __lastLogFile=`\ls -trd */*log 2> /dev/null | tail -1`
+	if [ -z "${__lastLogFile}" ] ; then
+	    sixdeskmess -1 "no htcondor log files, hence cannot get cluster ID!!"
+	else
+	    local __clusterID=`head -1 ${__lastLogFile} 2> /dev/null | cut -d\( -f2 | cut -d\. -f1`
+	    if [ -z "${__clusterID}" ] ; then
+		sixdeskmess -1 "cannot get cluster ID from htcondor log file ${__lastLogFile}!!"
+	    else
+		sixdeskmess -1 "echo of condor_q ${__clusterID} -run -wide"
+		condor_q ${__clusterID} -run -wide
+		echo ""
+	    fi
+	fi
     fi
     
     # check errors/warnings
-    if [ -s $sixtrack_input/ERRORS ] ; then
-	sixdeskmess="There appear to be some MADX errors!"
-	sixdeskmess
-	sixdeskmess="If these messages are annoying you and you have checked them carefully then"
-	sixdeskmess
-	sixdeskmess="just remove sixtrack_input/ERRORS or rm sixtrack_input/* and rerun `basname $0` -s!"
-	sixdeskmess
+    if [ -s ERRORS ] ; then
+	sixdeskmess -1 "There appear to be some MADX errors!"
+	sixdeskmess -1 "If these messages are annoying you and you have checked them carefully then"
+	sixdeskmess -1 "just remove sixtrack_input/ERRORS or rm sixtrack_input/* and rerun `basename $0` -s!"
 	echo "ERRORS"
-	cat $sixtrack_input/ERRORS
+	cat ERRORS
 	let __lerr+=1
-    elif [ -s $sixtrack_input/WARNINGS ] ; then
-	sixdeskmess="There appear to be some MADX result warnings!"
-	sixdeskmess
-	sixdeskmess="Some files are being changed; details in sixtrack_input/WARNINGS"
-	sixdeskmess
-	sixdeskmess="If these messages are annoying you and you have checked them carefully then"
-	sixdeskmess
-	sixdeskmess="just remove sixtrack_input/WARNINGS"
-	sixdeskmess
+    elif [ -s WARNINGS ] ; then
+	sixdeskmess -1 "There appear to be some MADX result warnings!"
+	sixdeskmess -1 "Some files are being changed; details in sixtrack_input/WARNINGS"
+	sixdeskmess -1 "If these messages are annoying you and you have checked them carefully then"
+	sixdeskmess -1 "just remove sixtrack_input/WARNINGS"
 	echo "WARNINGS"
-	cat $sixtrack_input/WARNINGS
+	cat WARNINGS
 	let __lerr+=1
     fi
 
-    # check that the expected number of files have been generated
-    let njobs=$iendmad-$istamad+1
+    # check generated files
+    let __njobs=$iendmad-$istamad+1
     iForts="2 8 16"
     if [ "$fort_34" != "" ] ; then
 	iForts="${iForts} 34"
     fi
+    iMadsResubmit=""
     for iFort in ${iForts} ; do
+	# - the expected number of files have been generated
 	nFort=0
-	sixdeskmess="Checking fort.${iFort}_??.gz..."
-	sixdeskmess
+	local __fileNames=""
+	sixdeskmess 1 "Checking that a fort.${iFort}_??.gz exists for each MADX seed requested..."
 	for (( iMad=${istamad}; iMad<=${iendmad}; iMad++ )) ; do
-	    let nFort+=`ls -1 $sixtrack_input/fort.${iFort}_${iMad}.gz 2> /dev/null | wc -l`
+	    if [ `ls -1 fort.${iFort}_${iMad}.gz 2> /dev/null | wc -l` -eq 1 ] ; then
+		let nFort+=1
+		__fileNames="${__fileNames} fort.${iFort}_${iMad}.gz"
+	    else
+		iMadsResubmit="${iMadsResubmit}\n${iMad}"
+	    fi
 	done
-	if [ ${nFort} -ne ${njobs} ] ; then
-	    sixdeskmess="Discrepancy!!! Found ${nFort} fort.${iFort}_??.gz in $sixtrack_input (expected $njobs)"
-	    sixdeskmess
+	if [ ${nFort} -ne ${__njobs} ] ; then
+	    sixdeskmess -1 "...discrepancy!!! Found ${nFort} fort.${iFort}_??.gz (expected $__njobs)"
+	    let __lerr+=1
+	    continue
+	else
+	    sixdeskmess -1 "...found ${nFort} fort.${iFort}_??.gz (as expected)"
+	fi
+        # - files are all of comparable dimensions
+	tmpFilesDimensions=`\gunzip -l ${__fileNames} 2> /dev/null | grep -v -e compressed -e totals | awk '{print ($2,$4)}'`
+	tmpFiles=`echo "${tmpFilesDimensions}" | awk '{print ($2)}'`
+	tmpFiles=( ${tmpFiles} )
+	tmpDimens=`echo "${tmpFilesDimensions}" | awk '{print ($1)}'`
+	tmpAve=`echo "${tmpDimens}" | awk '{tot+=$1}END{print (tot/NR)}'`
+	tmpSig=`echo "${tmpDimens}" | awk -v "ave=${tmpAve}" '{tot+=($1-ave)**2}END{print (sqrt(tot)/NR)}'`
+	sixdeskmess -1 "   average dimension (uncompressed): `echo ${tmpAve} | awk '{print ($1/1024)}'` kB - sigma: `echo ${tmpSig} | awk '{print ($1/1024)}'` kB"
+	if [ `echo ${tmpAve} | awk '{print ($1==0)}'` -eq 1 ] ; then
+	    if [ ${iFort} -eq 8 ] || [ ${iFort} -eq 16 ] ; then
+		# just a warning
+		sixdeskmess -1 "   --> all fort.${iFort} have a NULL dimension!! I guess you did it on purpose..."
+		__lwarn=true
+	    else
+		# actually a potential problem
+		sixdeskmess -1 "   --> NULL average file dimension!! Maybe something wrong with MADX runs?"
+		let __lerr+=1
+	    fi
+	elif [ `echo ${tmpAve} ${tmpSig} ${__factor} | awk '{print ($2<$1*$3/100)}'` -eq 0 ] ; then
+	    sixdeskmess -1 "   --> spread in file dimensions larger than ${__factor} % !! Maybe something wrong with MADX runs?"
 	    let __lerr+=1
 	else
-	    sixdeskmess="...found ${nFort} fort.${iFort}_??.gz in $sixtrack_input (as expected)"
-	    sixdeskmess
+	    tmpDimens=( ${tmpDimens} )
+	    for (( ii=0; ii<${#tmpDimens[@]}; ii++ )) ; do
+		if [ `echo ${tmpDimens[$ii]} ${tmpAve} ${__factor} | awk '{diff=($1/$2-1); if (diff<0) {diff=-diff} ; print(diff<$3/100)}'` -eq 0 ] ; then
+		    sixdeskmess -1 "   --> dimension of file `basename ${tmpFiles[$ii]}` is different from average by more than ${__factor} % !!"
+		    let __lerr+=1
+		    iMad=`basename ${tmpFiles[$ii]} | cut -d\_ -f2 | cut -d\. -f1`
+		    iMadsResubmit="${iMadsResubmit}\n${iMad}"
+		fi
+	    done
 	fi
     done
+    # - unique list of seeds
+    iMadsResubmit=`echo -e "${iMadsResubmit}" | sort -u`
+    iMadsResubmit=( ${iMadsResubmit} )
+    if [ ${#iMadsResubmit[@]} -gt 0 ] ; then
+	# prepare jobs.list file
+	# - last junk dir, in case it is needed to re-run selected seeds
+	local __lastJunkDir=`\ls -trd */ 2> /dev/null | tail -1`
+	if [ -z "${__lastJunkDir}" ] ; then
+	    sixdeskmktmpdir mad
+	    __lastJunkDir=$sixdesktmpdir
+	else
+	    # remove trailing '/'
+	    __lastJunkDir=`echo "${__lastJunkDir}" | sed 's/\/$//'`
+	fi
+	# - actual list
+	sixdeskmess 1 "generating list of missing MADX seed in ${__lastJunkDir}/jobs.list"
+	rm -f ${__lastJunkDir}/jobs.list
+	for iMadResubmit in ${iMadsResubmit[@]} ; do
+	    echo mad6t_${iMadResubmit}.sh >> ${__lastJunkDir}/jobs.list
+	done
+    fi
 
     # check mother files
-    if test ! -s $sixtrack_input/fort.3.mother1 \
-	    -o ! -s $sixtrack_input/fort.3.mother2
-    then
-	sixdeskmess="Could not find fort.3.mother1/2 in $sixtrack_input"
-	sixdeskmess
+    if [ ! -s fort.3.mother1 ] || [ ! -s fort.3.mother2 ] ; then
+	sixdeskmess -1 "Could not find fort.3.mother1/2 in $sixtrack_input"
 	let __lerr+=1
     else
-	sixdeskmess="all mother files are there"
-	sixdeskmess
+	sixdeskmess 1 "all mother files are there"
     fi
 
     # multipole errors
-    if test "$CORR_TEST" -ne 0 -a ! -s "$sixtrack_input/CORR_TEST"
-    then
+    if [ $CORR_TEST -ne 0 ] && [ ! -s CORR_TEST ] ; then
 	sixdeskmiss=0
 	for tmpCorr in MCSSX MCOSX MCOX MCSX MCTX ; do
-	    rm -f $sixtrack_input/${tmpCorr}_errors
+	    rm -f ${tmpCorr}_errors
 	    for (( iMad=$istamad; iMad<=$iendmad; iMad++ )) ; do
-		ls $sixtrack_input/$tmpCorr"_errors_"$iMad
-		if [ -f $sixtrack_input/$tmpCorr"_errors_"$iMad ] ; then
-		    cat  $sixtrack_input/$tmpCorr"_errors_"$iMad >> $sixtrack_input/$tmpCorr"_errors"
+		ls $tmpCorr"_errors_"$iMad
+		if [ -f $tmpCorr"_errors_"$iMad ] ; then
+		    cat  $tmpCorr"_errors_"$iMad >> $tmpCorr"_errors"
 		else
 		    let sixdeskmiss+=1
 		fi
 	    done
 	done
 	if [ $sixdeskmiss -eq 0 ] ; then
-	    echo "CORR_TEST MC_error files copied" > $sixtrack_input/CORR_TEST
-	    sixdeskmess="CORR_TEST MC_error files copied"
-	    sixdeskmess
+	    echo "CORR_TEST MC_error files copied" > CORR_TEST
+	    sixdeskmess 1 "CORR_TEST MC_error files copied"
 	else
-	    sixdeskmess="$sixdeskmiss MC_error files could not be found!!!"
-	    sixdeskmess
+	    sixdeskmess -1 "$sixdeskmiss MC_error files could not be found!!!"
 	    let __lerr+=1
 	fi
     fi
 
     if [ ${__lerr} -gt 0 ] ; then
-	exit ${__lerr}
+	# final remarks
+	sixdeskmess 1 "Problems with MADX runs! - error: ${__lerr}"
+	exit
     else
 	# final remarks
-	sixdeskmess="All the mad6t jobs appear to have completed successfully using madx -X Version $MADX in $MADX_PATH"
-	sixdeskmess
-	sixdeskmess="Please check the sixtrack_input directory as the mad6t runs may have failed and just produced empty files!!!"
-	sixdeskmess
-	sixdeskmess="All jobs/logs/output are in sixtrack_input/mad.mad6t.sh* directories"
-	sixdeskmess
+	sixdeskmess 1 "All the mad6t jobs appear to have completed successfully using madx -X Version $MADX in $MADX_PATH"
+	sixdeskmess 1 "Please check the sixtrack_input directory as the mad6t runs may have failed and just produced empty files!!!"
+	sixdeskmess 1 "All jobs/logs/output are in sixtrack_input/mad.mad6t.sh* directories"
+	if ${__lwarn} ; then
+	    sixdeskmess -1 "please check warnings about fort.8 / fort.16"
+	fi
     fi
+    cd ${__currdir}
     return $__lerr
 }
 
@@ -281,11 +423,17 @@ fi
 linter=false
 lsub=false
 lcheck=false
+loutform=false
+lwrong=false
+lSetEnv=true
+lunlockMad6T=false
+unlockSetEnv=""
 currStudy=""
+currPythonPath=""
 optArgCurrStudy="-s"
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  ":hiscd:" opt ; do
+while getopts  ":hiwseo:cd:P:U" opt ; do
     case $opt in
 	h)
 	    how_to_use
@@ -303,9 +451,35 @@ while getopts  ":hiscd:" opt ; do
 	    # required submission
 	    lsub=true
 	    ;;
+	o)
+	    # output option
+	    check_output_option
+	    ;;	
 	d)
 	    # the user is requesting a specific study
 	    currStudy="${OPTARG}"
+	    ;;
+	w)
+	    # re-submit wrong seeds
+	    lwrong=true
+	    # require submission
+	    lsub=true
+	    # disable checking
+	    lcheck=false
+	    ;;
+	e)
+	    # skip set_env.sh (only when called from scripts;
+	    #   users should not be made aware of this option!)
+	    lSetEnv=false
+	    ;;
+	P)
+	    # the user is requesting a specific path to python
+	    currPythonPath="-P ${OPTARG}"
+	    ;;
+	U)
+	    # unlock currently locked folder
+	    lunlockMad6T=true
+	    unlockSetEnv="-U"
 	    ;;
 	:)
 	    how_to_use
@@ -322,7 +496,7 @@ done
 shift "$(($OPTIND - 1))"
 # user's requests:
 # - actions
-if ! ${lcheck} && ! ${lsub} ; then
+if ! ${lcheck} && ! ${lsub} && ! ${lunlockMad6T} ; then
     how_to_use
     echo "No action specified!!! aborting..."
     exit 1
@@ -333,6 +507,9 @@ elif ${lcheck} && ${lsub} ; then
 elif ${lcheck} && ${linter} ; then
     echo "Interactive mode valid only for running. Switching it off!!!"
     linter=false
+elif ${lsub} && ! ${lSetEnv} ; then
+    echo "Submission requires to run set_env.sh, but you requested to skip this step - aborting!!"
+    exit 1
 fi
 # - options
 if [ -n "${currStudy}" ] ; then
@@ -342,51 +519,99 @@ fi
 # load environment
 # NB: workaround to get getopts working properly in sourced script
 OPTIND=1
-source ${SCRIPTDIR}/bash/set_env.sh ${optArgCurrStudy} -e
+
+if ${lSetEnv} ; then
+    echo ""
+    printf "=%.0s" {1..80}
+    echo ""
+    echo "--> sourcing set_env.sh"
+    printf '.%.0s' {1..80}
+    echo ""
+    source ${SCRIPTDIR}/bash/set_env.sh ${optArgCurrStudy} ${currPythonPath} ${unlockSetEnv} -e
+    printf "=%.0s" {1..80}
+    echo ""
+    echo ""
+else
+    echo ""
+    printf "=%.0s" {1..80}
+    echo ""
+    echo "--> sourcing dot_profile"
+    printf '.%.0s' {1..80}
+    echo ""
+    source ${SCRIPTDIR}/bash/dot_profile
+    printf "=%.0s" {1..80}
+    echo ""
+    echo ""
+fi
+if ${loutform} ; then
+    sixdesklevel=${sixdesklevel_option}
+fi
 # build paths
 sixDeskDefineMADXTree ${SCRIPTDIR}
-# sixdeskmess level
-sixdeskmesslevel=0
+
+# - define locking dirs
+lockingDirs=( "$sixdeskstudy" "$sixtrack_input" )
+
+# - unlocking
+if ${lunlockMad6T} ; then
+    sixdeskunlockAll
+    if ! ${lcheck} && ! ${lsub} ; then
+	sixdeskmess -1 "requested only unlocking. Exiting..."
+	exit 0
+    fi
+fi
 
 # define trap
-trap "sixdeskexit 1" EXIT
+trap "sixdeskexit 1" EXIT SIGINT SIGQUIT
 
 # don't use this script in case of BNL
 if test "$BNL" != "" ; then
-    sixdeskmess="Use prepare_bnl instead for BNL runs!!! aborting..."
-    sixdeskmess
-    sixdeskexit 1
+    sixdeskmess -1 "Use prepare_bnl instead for BNL runs!!! aborting..."
+    exit
+fi
+
+# platform
+if ${lSetEnv} ; then
+    if [ "$sixdeskplatform" != "lsf" ] && [ "$sixdeskplatform" != "htcondor" ]; then
+	# set the platform to the default value
+	sixdeskSetPlatForm ""
+    fi
 fi
 
 if ${lsub} ; then
     # - some checks
     preliminaryChecksM6T
 
-    # - define locking dirs
-    lockingDirs=( "$sixdeskstudy" "$sixtrack_input" )
+    if ${lwrong} ; then
+	if [ "$sixdeskplatform" != "htcondor" ]; then
+	    # set the platform to htcondor
+	    sixdeskSetPlatForm "htcondor"
+	fi
+	lastJobsList=`\ls -trd ${sixtrack_input}/*/jobs.list 2> /dev/null`
+	if [ -z "${lastJobsList}" ] ; then
+	    sixdeskmess -1 "no jobs list previously generated! - I need one for using -w option"
+	    exit
+	fi
+    fi
 
-    # - lock dirs before doing any action
-    for tmpDir in ${lockingDirs[@]} ; do
-	sixdesklock $tmpDir
-    done
+    # - queue
+    sixdeskSetQueue madlsfq madHTCq
     
-    # - define trap
-    trap "sixdeskCleanExit 1" EXIT
-
+    # - lock dirs before doing any action
+    sixdesklockAll
+    
     submit
-
-    # - redefine trap
-    trap "sixdeskCleanExit 0" EXIT
 
 else
     check
-    # - redefine trap
-    trap "sixdeskexit 0" EXIT
 fi
 
+# - redefine traps
+trap "sixdeskexit 0" EXIT SIGINT SIGQUIT
+
 # echo that everything went fine
-sixdeskmess="Appears to have completed normally"
-sixdeskmess
+sixdeskmess -1 "               Appears to have completed normally"
+echo
 
 # bye bye
 exit 0

@@ -7,28 +7,38 @@ function how_to_use() {
    to set up the SixDesk environment
 
    actions (mandatory, one of the following):
-   -s              set up new study or update existing one
-                   NB: the local sixdeskenv and sysenv will be parsed, used and
-                       saved in studies/
+   -s              set up new study or update existing one according to local
+                       version of input files (${necessaryInputFiles[@]})
+                   NB: the local input files (${necessaryInputFiles[@]})
+                       will be parsed, used and saved in studies/
    -d <study_name> load existing study.
-                   NB: the sixdeskenv and sysenv in studies/<study_name> will
-                       be parsed, used and saved in sixjobs
+                   NB: the input files (${necessaryInputFiles[@]})
+                       in studies/<study_name> will be parsed, used and saved in sixjobs
+   -n              retrieve input files (${necessaryInputFiles[@]}) from template dir
+                       to prepare a brand new study. The template files will
+                       OVERWRITE the local ones. The template dir is:
+           ${SCRIPTDIR}/templates/input
+   -U      unlock dirs necessary to the script to run
+           PAY ATTENTION when using this option, as no check whether the lock
+              belongs to this script or not is performed, and you may screw up
+              processing of another script
 
    options (optional)
    -p      platform name (when running many jobs in parallel)
-   -e      just parse the concerned sixdeskenv/sysenv files, without
-               overwriting
+           recognised platforms: LSF, BOINC, HTCONDOR
+   -e      just parse the concerned input files (${necessaryInputFiles[@]}),
+               without overwriting
+   -P      python path
    -v      verbose (OFF by default)
 
 EOF
 }
 
-function preliminaryChecks(){
+function basicChecks(){
 
     # - running dir
     if [ "$sixdeskroot" != "sixjobs" ] ; then
-	sixdeskmess="This script must be run in the directory sixjobs!!!"
-	sixdeskmess
+	sixdeskmess -1 "This script must be run in the directory sixjobs!!!"
 	sixdeskexit 1
     fi
 
@@ -44,54 +54,76 @@ function preliminaryChecks(){
 
     # - make sure that, in case of loading, we have the concerned directory in studies:
     if ${lload} ; then
-	sixdeskInspectPrerequisites ${lverbose} studies/${currStudy} -d
+	sixdeskInspectPrerequisites ${lverbose} ${envFilesPath} -d
 	if [ $? -gt 0 ] ; then
-	    sixdeskmess="Study $currStudy not found in studies!!!"
-	    sixdeskmess
+	    sixdeskmess -1 "Dir containing input files for study $currStudy not found!!!"
+	    sixdeskmess -1 "Expected: ${envFilesPath}"
 	    sixdeskexit 3
 	fi
     fi
 
-    # - make sure we have sixdeskenv/sysenv files
-    sixdeskInspectPrerequisites ${lverbose} $envFilesPath -s sixdeskenv sysenv
-    if [ $? -gt 0 ] ; then
-	sixdeskexit 4
-    fi
+    return 0
+}
+
+function consistencyChecks(){
 
     # - make sure we are in the correct workspace
-    local __cworkspace=`basename $sixdeskwhere`
-    local __workspace=`egrep "^ *export *workspace=" $envFilesPath/sixdeskenv | tail -1 | sed -e 's/\(.*=\)\([^ ]*\)\(.*\)/\2/'`
-    if [ -z "${__workspace}" ] ; then
-	sixdeskmess="Couldn't find a workspace in $envFilesPath/sixdeskenv!!!"
-	sixdeskmess
+    if [ -z "${workspace}" ] ; then
+	sixdeskmess -1 "Workspace not declared in $envFilesPath/sixdeskenv!!!"
 	sixdeskexit 5
     fi
-    if [ "$__workspace" != "$__cworkspace" ] ; then
-	sixdeskmess="Workspace mismatch: $__workspace (from sixdeskenv) different from $__cworkspace (from current path)!!!"
-	sixdeskmess
-	sixdeskmess="Check the workspace definition in $envFilesPath/sixdeskenv."
-	sixdeskmess
+    local __cworkspace=`basename $sixdeskwhere`
+    if [ "${workspace}" != "${__cworkspace}" ] ; then
+	sixdeskmess -1 "Workspace mismatch: ${workspace} (from sixdeskenv) different from ${__cworkspace} (from current path)!!!"
+	sixdeskmess -1 "Check the workspace definition in $envFilesPath/sixdeskenv."
 	sixdeskexit 6
     fi
 
     # - study:
     #   . make sure we have one in sixdeskenv
-    local __LHCDescrip=`egrep "^ *export *LHCDescrip=" $envFilesPath/sixdeskenv | tail -1 | sed -e 's/\(.*=\)\([^ ]*\)\(.*\)/\2/'`
-    if [ -z "${__LHCDescrip}" ] ; then
-	sixdeskmess="Couldn't find an LHCDescrip in $envFilesPath/sixdeskenv!!!"
-	sixdeskmess
+    if [ -z "${LHCDescrip}" ] ; then
+	sixdeskmess -1 "LHCDescrip not declared in $envFilesPath/sixdeskenv!!!"
 	sixdeskexit 7
     fi
     #   . make sure it corresponds to the expected one
     if ${lload} ; then
-	if [ "${__LHCDescrip}" != "${currStudy}" ] ; then
-	    sixdeskmess="Study mismatch: $__LHCDescrip (from sixdeskenv) different from $currStudy (command-line argument)!!!"
-	    sixdeskmess
+	if [ "${LHCDescrip}" != "${currStudy}" ] ; then
+	    sixdeskmess -1 "Study mismatch: ${LHCDescrip} (from sixdeskenv) different from $currStudy (command-line argument)!!!"
 	    sixdeskexit 8
 	fi
     fi
 
     return 0
+}
+
+function setFurtherEnvs(){
+    # scan angles:
+    lReduceAngsWithAmplitude=false
+    ampFactor=1
+    local __ampFactorDef=0.3
+    # - reduce angles with amplitude
+    if [ -n "${reduce_angs_with_aplitude}" ] ; then
+	if [ ${long} -eq 1 ] ; then
+	    local __tmpValues=`echo "${reduce_angs_with_aplitude}" | awk -v "ampFactorDef=${__ampFactorDef}" '{if ($1<0) {print (ampFactorDef,"true") } else if ($1==0||$1==1) { print(1,"false") } else { print($1,"true") } } '`
+	    __tmpValues=(${__tmpValues})
+	    ampFactor=${__tmpValues[0]}
+	    lReduceAngsWithAmplitude=${__tmpValues[1]}
+	else
+	    sixdeskmess -1 "reduced angles with amplitudes available only for long simulations!"
+	fi
+    elif [ -n "${reduce_angs_with_amplitude}" ] ; then
+	if [ ${long} -eq 1 ] ; then
+	    local __tmpValues=`echo "${reduce_angs_with_amplitude}" | awk -v "ampFactorDef=${__ampFactorDef}" '{if ($1<0) {print (ampFactorDef,"true") } else if ($1==0||$1==1) { print(1,"false") } else { print($1,"true") } } '`
+	    __tmpValues=(${__tmpValues})
+	    ampFactor=${__tmpValues[0]}
+	    lReduceAngsWithAmplitude=${__tmpValues[1]}
+	else
+	    sixdeskmess -1 "reduced angles with amplitudes available only for long simulations!"
+	fi
+    fi
+    export totAngle=90
+    export lReduceAngsWithAmplitude
+    export ampFactor
 }
 
 # ==============================================================================
@@ -109,16 +141,22 @@ if [ -z "${SCRIPTDIR}" ] ; then
 fi
 # ------------------------------------------------------------------------------
 
+# - necessary input files
+necessaryInputFiles=( sixdeskenv sysenv )
+
 # actions and options
 lset=false
 lload=false
+lcptemplate=false
 loverwrite=true
 lverbose=false
+lunlock=false
 currPlatform=""
 currStudy=""
+tmpPythonPath=""
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  ":hsvd:ep:" opt ; do
+while getopts  ":hsvd:ep:P:nU" opt ; do
     case $opt in
 	h)
 	    how_to_use
@@ -133,6 +171,10 @@ while getopts  ":hsvd:ep:" opt ; do
 	    lload=true
 	    currStudy="${OPTARG}"
 	    ;;
+	n) 
+	    # copy input files from template dir
+	    lcptemplate=true
+	    ;;
 	e)
 	    # do not overwrite
 	    loverwrite=false
@@ -140,6 +182,14 @@ while getopts  ":hsvd:ep:" opt ; do
 	p)
 	    # the user is requesting a specific platform
 	    currPlatform="${OPTARG}"
+	    ;;
+	P)
+	    # the user is requesting a specific path to python
+	    tmpPythonPath="${OPTARG}"
+	    ;;
+	U)
+	    # unlock currently locked folder
+	    lunlock=true
 	    ;;
 	v)
 	    # verbose
@@ -160,25 +210,28 @@ done
 shift "$(($OPTIND - 1))"
 # user's request
 # - actions
-if ! ${lset} && ! ${lload} ; then
+if ! ${lset} && ! ${lload} && ! ${lcptemplate} && ! ${lunlock} ; then
     how_to_use
     echo "No action specified!!! aborting..."
     exit
-elif ${lset} && ${lload} ; then
+elif ( ${lset} && ${lload} ) || ( ${lset} && ${lcptemplate} ) || ( ${lcptemplate} && ${lload} ) ; then
     how_to_use
     echo "Please choose only one action!!! aborting..."
     exit
 fi
+# - clean options in case of brand new study
+if ${lcptemplate} ; then
+    if [ -n "${currPlatform}" ] ; then
+	echo "--> brand new study: -p option with argument ${currPlatform} is switched off."
+	currPlatform=""
+    fi
+fi
 # - options
 if [ -n "${currStudy}" ] ; then
-    echo ""
     echo "--> User required a specific study: ${currStudy}"
-    echo ""
 fi
 if [ -n "${currPlatform}" ] ; then
-    echo ""
     echo "--> User required a specific platform: ${currPlatform}"
-    echo ""
 fi
 
 # ------------------------------------------------------------------------------
@@ -187,25 +240,38 @@ fi
 
 export sixdeskhostname=`hostname`
 export sixdeskname=`basename $0`
+export sixdesknameshort=`echo "${sixdeskname}" | cut -b 1-15`
 export sixdeskroot=`basename $PWD`
 export sixdeskwhere=`dirname $PWD`
 # Set up some temporary values until we execute sixdeskenv/sysenv
 # Don't issue lock/unlock debug text (use 2 for that)
 export sixdesklogdir=""
-export sixdesklevel=1
 export sixdeskhome="."
 export sixdeskecho="yes!"
+export sixdesklevel=-1
 if [ ! -s ${SCRIPTDIR}/bash/dot_profile ] ; then
     echo "dot_profile is missing!!!"
     exit 1
 fi
 # - load environment
 source ${SCRIPTDIR}/bash/dot_profile
-# - settings for sixdeskmessages
-sixdeskmessleveldef=0
-sixdeskmesslevel=$sixdeskmessleveldef
+
 # - locking dirs
-lockingDirs=( . studies )
+if ${lcptemplate} ; then
+    lockingDirs=( . )
+else
+    lockingDirs=( . studies )
+fi
+
+# - unlocking
+if ${lunlock} ; then
+    sixdeskunlockAll
+    if ! ${lset} && ! ${lload} && ! ${lcptemplate} ; then
+	sixdeskmess -1 "requested only unlocking. Exiting..."
+	exit 0
+    fi
+fi
+   
 # - path to active sixdeskenv/sysenv
 if ${lset} ; then
     envFilesPath="."
@@ -213,10 +279,10 @@ elif ${lload} ; then
     envFilesPath="studies/${currStudy}"
 fi
 
-# - preliminary checks (i.e. input info is consisten with present workspace)
-preliminaryChecks
+# - basic checks (i.e. dir structure)
+basicChecks
 if [ $? -gt 0 ] ; then
-    sixdeskexit 1
+    sixdeskexit 4
 fi
 
 # ------------------------------------------------------------------------------
@@ -224,82 +290,141 @@ fi
 # ------------------------------------------------------------------------------
 
 # - lock dirs
-for tmpDir in ${lockingDirs[@]} ; do
-    [ -d $tmpDir ] || mkdir -p $tmpDir
-    sixdesklock $tmpDir
-done
+sixdesklockAll
 
-# - source active sixdeskenv/sysenv
-source ${envFilesPath}/sixdeskenv
-source ${envFilesPath}/sysenv
+if ${lcptemplate} ; then
 
-# - save sixdeskenv/sysenv
-if ${loverwrite} ; then
-    __lnew=false
-    if ${lset} ; then
-	if ! [ -d studies/${LHCDescrip} ] ; then
-	    __lnew=true
-	    mkdir studies/${LHCDescrip}
-	fi
+    sixdeskmess -1 "copying here template files for brand new study"
+    sixdeskmess -1 "template input files from ${SCRIPTDIR}/templates/input"
+
+    for tmpFile in ${necessaryInputFiles[@]} ; do
+	# preserve original time stamps
+	cp -p ${SCRIPTDIR}/templates/input/${tmpFile} .
+    done
+
+else
+
+    # - make sure we have sixdeskenv/sysenv files
+    sixdeskInspectPrerequisites ${lverbose} $envFilesPath -s ${necessaryInputFiles[@]}
+    if [ $? -gt 0 ] ; then
+        sixdeskmess -1 "not all necessary files are in $envFilesPath dir:"
+        for tmpFile in ${necessaryInputFiles[@]} ; do
+            sixdeskmess -1 "file ${tmpFile} : `\ls -ltrh $envFilesPath`"
+        done
+	sixdeskexit 4
     fi
-    
-    # We now call update_sixjobs in case there were changes
-    #    and to create for example the logfile directories
-    source ${SCRIPTDIR}/bash/update_sixjobs
-    if ! ${__lnew} ; then
-        # and now we can check 
-	source ${SCRIPTDIR}/bash/check_envs
-    fi
-	
-    if ${lset} ; then
-	cp ${envFilesPath}/sixdeskenv studies/${LHCDescrip}
-	cp ${envFilesPath}/sysenv studies/${LHCDescrip}
-	if ${__lnew} ; then
-	    # new study
-	    sixdeskmess="Created a NEW study $LHCDescrip"
-	    sixdeskmess
-	else
-	    # updating an existing study
-	    sixdeskmess="Updated sixdeskenv/sysenv for $LHCDescrip"
-	    sixdeskmess
-	fi
-    elif ${lload} ; then
-	cp ${envFilesPath}/sixdeskenv .
-	cp ${envFilesPath}/sysenv .
-	sixdeskmess="Switched to study $LHCDescrip"
-	sixdeskmess
-    fi
-fi
 
-# - overwrite platform
-if [ -n "${currPlatform}" ] ; then
-    platform=$currPlatform
-fi
-sixdeskSetPlatForm $platform
+    # - source active sixdeskenv/sysenv
+    source ${envFilesPath}/sixdeskenv
+    source ${envFilesPath}/sysenv
 
-# - useful output
-PTEXT="[${sixdeskplatform}]"
-STEXT="[${LHCDescrip}]"
-WTEXT="[${workspace}]"
-BTEXT="no BNL flag"
-if [ "$BNL" != "" ] ; then
-  BTEXT="BNL flag active"
-fi
-NTEXT="["$sixdeskhostname"]"
-sixdeskmess="Using: Study $STEXT - Worskspace $WTEXT - Platform $PTEXT - Hostname $NTEXT - $BTEXT"
-sixdeskmess
+    # - perform some consistency checks on parsed info
+    consistencyChecks
 
-if [ -e "$sixdeskstudy"/deleted ] ; then
+    # - set further envs
+    setFurtherEnvs
+
+    # - save sixdeskenv/sysenv
     if ${loverwrite} ; then
-	rm -f "$sixdeskstudy"/deleted
-    else
-	sixdeskmess="Warning! Study `basename $sixdeskstudy` has been deleted!!! Please restore it explicitely"
-	sixdeskmess
+	__lnew=false
+	if ${lset} ; then
+	    if ! [ -d studies/${LHCDescrip} ] ; then
+		__lnew=true
+		mkdir studies/${LHCDescrip}
+	    fi
+	fi
+
+        # We now call update_sixjobs in case there were changes
+        #    and to create for example the logfile directories
+	source ${SCRIPTDIR}/bash/update_sixjobs
+	if ! ${__lnew} ; then
+            # and now we can check 
+	    source ${SCRIPTDIR}/bash/check_envs
+	fi
+	
+	if ${lset} ; then
+	    cp ${envFilesPath}/sixdeskenv studies/${LHCDescrip}
+	    cp ${envFilesPath}/sysenv studies/${LHCDescrip}
+	    if ${__lnew} ; then
+  	        # new study
+		sixdeskmess -1 "Created a NEW study $LHCDescrip"
+	    else
+ 	        # updating an existing study
+		sixdeskmess -1 "Updated sixdeskenv/sysenv for $LHCDescrip"
+	    fi
+	elif ${lload} ; then
+	    cp ${envFilesPath}/sixdeskenv .
+	    cp ${envFilesPath}/sysenv .
+	    sixdeskmess -1 "Switched to study $LHCDescrip"
+	fi
     fi
+
+    # - overwrite platform
+    if [ -n "${currPlatform}" ] ; then
+	platform=$currPlatform
+    fi
+    sixdeskSetPlatForm $platform
+    if [ $? -ne 0 ] ; then
+	sixdeskexit 10
+    fi
+
+    # - set python path
+    if [ -n "${tmpPythonPath}" ] ; then
+	# overwrite what was stated in sixdeskenv/sysenv
+	pythonPath=${tmpPythonPath}
+    fi
+    sixdeskDefinePythonPath ${pythonPath}
+
+    # - useful output
+    PTEXT="[${sixdeskplatform}]"
+    STEXT="[${LHCDescrip}]"
+    WTEXT="[${workspace}]"
+    BTEXT="no BNL flag"
+    if [ "$BNL" != "" ] ; then
+	BTEXT="BNL flag active"
+    fi
+    NTEXT="["$sixdeskhostname"]"
+
+    echo
+    sixdeskmess -1 "STUDY          ${STEXT}"
+    sixdeskmess -1 "WSPACE         ${WTEXT}"
+    sixdeskmess -1 "PLATFORM       ${PTEXT}"
+    sixdeskmess -1 "HOSTNAME       ${NTEXT} - ${BTEXT}"
+    echo
+    
+    if [ -e "$sixdeskstudy"/deleted ] ; then
+	if ${loverwrite} ; then
+	    rm -f "$sixdeskstudy"/deleted
+	else
+	    sixdeskmess -1 "Warning! Study `basename $sixdeskstudy` has been deleted!!! Please restore it explicitely"
+	fi
+    fi
+
 fi
 
 # - unlock dirs
-for tmpDir in ${lockingDirs[@]} ; do
-    sixdeskunlock $tmpDir
-done
+sixdeskunlockAll
 
+if ! ${lcptemplate} ; then
+    
+    # - kinit, to renew kerberos ticket
+    sixdeskRenewKerberosToken
+    
+    # - fs listquota
+    echo ""
+    if [ `echo "${sixdesktrack}" | cut -c-4` == "/afs" ] ; then
+	sixdeskmess -1 " --> fs listquota ${sixdesktrack}:"
+	tmpLines=`fs listquota ${sixdesktrack}`
+	echo "${tmpLines}"
+	#   check, and in case raise a warning
+	fraction=`echo "${tmpLines}" | tail -1 | awk '{frac=$3/$2*100; ifrac=int(frac); if (frac-ifrac>0.5) {ifrac+=1} print (ifrac)}'`
+	if [ ${fraction} -gt 90 ] ; then
+	    sixdeskmess -1 "WARNING: your quota is above 90%!! pay attention to occupancy of the current study, in case of submission..."
+	fi
+    else
+	sixdeskmess -1 " --> df -Th:"
+	\df -Th
+	sixdeskmess -1 " the above output is at your convenience, for you to check disk space"
+    fi
+
+fi
