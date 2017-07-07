@@ -713,7 +713,6 @@ sixdeskAllAngles(){
     KKs_reduced=""
     Angles_reduced=""
     kAngs_reduced=""
-    
     # AngleStep [deg]
     if ${__lbackcomp} ; then
 	local __angleStep=`echo ${__totAngle} ${__kmax} | awk '{print ($1/($2+1))}'`
