@@ -13,12 +13,17 @@ function how_to_use() {
    -w      submit wrong seeds
               NB: the list of wrong seeds must be generated beforehand,
                   by a `basename $0` -c run
+   -U      unlock dirs necessary to the script to run
+           PAY ATTENTION when using this option, as no check whether the lock
+              belongs to this script or not is performed, and you may screw up
+              processing of another script
 
    options (optional):
    -i      madx is run interactively (ie on the node you are locally
               connected to, no submission to lsf at all)
            option available only for submission, not for checking
    -d      study name (when running many jobs in parallel)
+   -P      python path
    -o      define output (preferred over the definition of sixdesklevel in sixdeskenv)
                0: only error messages and basic output 
                1: full output
@@ -98,6 +103,9 @@ function submit(){
 	sed -i -e 's?%xing?'$xing_rad'?g' \
   	    -e 's?/ bb_ho5b1_0?bb_ho5b1_0?g' \
 	    -e 's?/ bb_ho1b1_0?bb_ho5b1_0?g' $sixtrack_input/fort.3.mother1.tmp
+    else
+	sed -i -e 's?^bb_ho5b1_0?/ bb_ho5b1_0?g' \
+	       -e 's?^bb_ho1b1_0?/ bb_ho5b1_0?g' $sixtrack_input/fort.3.mother1.tmp
     fi
      
     # Clear flags for checking
@@ -178,8 +186,8 @@ function submit(){
 	
     if [ "$sixdeskplatform" == "htcondor" ] && ! ${linter} ; then
 	cp ${SCRIPTDIR}/templates/htcondor/mad6t.sub .
-	sed -i "s#^+JobFlavour =.*#+JobFlavour = ${madHTCq}#" mad6t.sub
-	condor_submit mad6t.sub
+	sed -i "s#^+JobFlavour =.*#+JobFlavour = \"${madHTCq}\"#" mad6t.sub
+	condor_submit -batch-name "mad/$workspace/$LHCDescrip" mad6t.sub
 	if [ $? -eq 0 ] ; then
 	    rm -f jobs.list
 	fi
@@ -416,11 +424,15 @@ lsub=false
 lcheck=false
 loutform=false
 lwrong=false
+lSetEnv=true
+lunlockMad6T=false
+unlockSetEnv=""
 currStudy=""
+currPythonPath=""
 optArgCurrStudy="-s"
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  ":hiwso:cd:" opt ; do
+while getopts  ":hiwseo:cd:P:U" opt ; do
     case $opt in
 	h)
 	    how_to_use
@@ -454,6 +466,20 @@ while getopts  ":hiwso:cd:" opt ; do
 	    # disable checking
 	    lcheck=false
 	    ;;
+	e)
+	    # skip set_env.sh (only when called from scripts;
+	    #   users should not be made aware of this option!)
+	    lSetEnv=false
+	    ;;
+	P)
+	    # the user is requesting a specific path to python
+	    currPythonPath="-P ${OPTARG}"
+	    ;;
+	U)
+	    # unlock currently locked folder
+	    lunlockMad6T=true
+	    unlockSetEnv="-U"
+	    ;;
 	:)
 	    how_to_use
 	    echo "Option -$OPTARG requires an argument."
@@ -469,7 +495,7 @@ done
 shift "$(($OPTIND - 1))"
 # user's requests:
 # - actions
-if ! ${lcheck} && ! ${lsub} ; then
+if ! ${lcheck} && ! ${lsub} && ! ${lunlockMad6T} ; then
     how_to_use
     echo "No action specified!!! aborting..."
     exit 1
@@ -480,6 +506,9 @@ elif ${lcheck} && ${lsub} ; then
 elif ${lcheck} && ${linter} ; then
     echo "Interactive mode valid only for running. Switching it off!!!"
     linter=false
+elif ${lsub} && ! ${lSetEnv} ; then
+    echo "Submission requires to run set_env.sh, but you requested to skip this step - aborting!!"
+    exit 1
 fi
 # - options
 if [ -n "${currStudy}" ] ; then
@@ -489,15 +518,52 @@ fi
 # load environment
 # NB: workaround to get getopts working properly in sourced script
 OPTIND=1
-source ${SCRIPTDIR}/bash/set_env.sh ${optArgCurrStudy} -e
+
+if ${lSetEnv} ; then
+    echo ""
+    printf "=%.0s" {1..80}
+    echo ""
+    echo "--> sourcing set_env.sh"
+    printf '.%.0s' {1..80}
+    echo ""
+    source ${SCRIPTDIR}/bash/set_env.sh ${optArgCurrStudy} ${currPythonPath} ${unlockSetEnv} -e
+    printf "=%.0s" {1..80}
+    echo ""
+    echo ""
+else
+    echo ""
+    printf "=%.0s" {1..80}
+    echo ""
+    echo "--> sourcing dot_profile"
+    printf '.%.0s' {1..80}
+    echo ""
+    source ${SCRIPTDIR}/bash/dot_profile
+    printf "=%.0s" {1..80}
+    echo ""
+    echo ""
+fi
 if ${loutform} ; then
     sixdesklevel=${sixdesklevel_option}
 fi
 # build paths
 sixDeskDefineMADXTree ${SCRIPTDIR}
 
+# - define locking dirs
+lockingDirs=( "$sixdeskstudy" "$sixtrack_input" )
+
+# - unlocking
+if ${lunlockMad6T} ; then
+    for tmpDir in ${lockingDirs[@]} ; do
+	sixdeskunlock $tmpDir
+    done
+    if ! ${lcheck} && ! ${lsub} ; then
+	sixdeskmess -1 "requested only unlocking. Exiting..."
+	exit 0
+    fi
+fi
+
 # define trap
-trap "sixdeskexit 1" EXIT
+trap "sixdeskexit 1" EXIT SIGINT SIGQUIT
 
 # don't use this script in case of BNL
 if test "$BNL" != "" ; then
@@ -506,9 +572,11 @@ if test "$BNL" != "" ; then
 fi
 
 # platform
-if [ "$sixdeskplatform" != "lsf" ] && [ "$sixdeskplatform" != "htcondor" ]; then
-    # set the platform to the default value
-    sixdeskSetPlatForm ""
+if ${lSetEnv} ; then
+    if [ "$sixdeskplatform" != "lsf" ] && [ "$sixdeskplatform" != "htcondor" ]; then
+	# set the platform to the default value
+	sixdeskSetPlatForm ""
+    fi
 fi
 
 if ${lsub} ; then
@@ -530,31 +598,26 @@ if ${lsub} ; then
     # - queue
     sixdeskSetQueue madlsfq madHTCq
     
-    # - define locking dirs
-    lockingDirs=( "$sixdeskstudy" "$sixtrack_input" )
-
     # - lock dirs before doing any action
     for tmpDir in ${lockingDirs[@]} ; do
 	sixdesklock $tmpDir
     done
     
     # - define trap
-    trap "sixdeskCleanExit 1" EXIT
+    trap "sixdeskCleanExit 1" EXIT SIGINT SIGQUIT
 
     submit
 
-    # - redefine trap
-    trap "sixdeskCleanExit 0" EXIT
-
 else
     check
-    # - redefine trap
-    trap "sixdeskexit 0" EXIT
 fi
 
-# echo that everything went fine
+# - redefine traps
+trap "sixdeskexit 0" EXIT SIGINT SIGQUIT
 
+# echo that everything went fine
 sixdeskmess -1 "               Appears to have completed normally"
-echo 
+echo
+
 # bye bye
 exit 0

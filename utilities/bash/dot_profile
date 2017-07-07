@@ -136,25 +136,13 @@ sixdeskexit()
   if [ $# -eq 1 ] ; then
       sixdeskexitparam=$1
   fi
-  if test "$SIXDESKLOCKED" != ""
-  then
-
-#MACRO mymess 0 sixdeskexit: Freeing lock(s) $SIXDESKLOCKED!!!
-    sixdeskmess 1 "sixdeskexit: Freeing lock(s) $SIXDESKLOCKED!!!"
-#MACRO mymess
-
-    while test "$SIXDESKLOCKED" != ""
-    do
-      sixdesklockeddir=`echo "$SIXDESKLOCKED" | cut -d " " -f1`
-
-#MACRO myunlock $sixdesklockeddir
-      sixdesklockdir=$sixdesklockeddir
-      sixdeskunlock
-#MACRO myunlock
-
-    done
+  if [ -n "$SIXDESKLOCKED" ] ; then
+      sixdeskmess 1 "sixdeskexit: Freeing lock(s) $SIXDESKLOCKED!!!"
   fi
-  exit "$sixdeskexitparam"
+  for tmpDir in "$SIXDESKLOCKED" ; do
+      sixdeskunlock $tmpDir
+  done
+  \exit "$sixdeskexitparam"
 }
 sixdeskunlock()
 {
@@ -197,7 +185,6 @@ sixdeskunlock()
     fi    
 #MACRO mymess
 
-    SIXDESKLOCKED=`echo "$SIXDESKLOCKED" | sed -e's?'"$sixdesklockdir "'??'`
   else
 
 #MACRO mymess 0 sixdeskunlock: The lock $sixdesklockdir does NOT exist!!!
@@ -205,6 +192,7 @@ sixdeskunlock()
 #MACRO mymess
 
   fi
+  SIXDESKLOCKED=`echo "$SIXDESKLOCKED" | sed -e's?'"$sixdesklockdir "'??'`
 }
 sixdesklock()
 {
@@ -364,18 +352,18 @@ sixdesklock()
 sixdeskchecklock()
 {
     # $1: dir where to check
-    dirToCheck=$1
-    if [ ! -d ${dirToCheck} ] ; then
-	sixdeskmess -1 "The directory ${dirToCheck} does not exist!!!"
-    elif [ ! -f ${dirToCheck}/sixdesklock ] ; then
-	sixdeskmess -1 "The lockfile ${dirToCheck}/sixdesklock does not exist!!!"
-    elif [ ! -w ${dirToCheck}/sixdesklock ] ; then
-	sixdeskmess -1 "The directory ${dirToCheck} is currently locked by"
-        sixdeskmess -1 "script `cat ${dirToCheck}/sixdesklock`"
+    local __dirToCheck=$1
+    if [ ! -d ${__dirToCheck} ] ; then
+	sixdeskmess -1 "The directory ${__dirToCheck} does not exist!!!"
+    elif [ ! -f ${__dirToCheck}/sixdesklock ] ; then
+	sixdeskmess -1 "The lockfile ${__dirToCheck}/sixdesklock does not exist!!!"
+    elif [ ! -w ${__dirToCheck}/sixdesklock ] ; then
+	sixdeskmess -1 "The directory ${__dirToCheck} is currently locked by"
+        sixdeskmess -1 "script `cat ${__dirToCheck}/sixdesklock`"
     else
-	sixdeskmess -1 "The directory ${dirToCheck} is currently unlocked"
-	sixdeskmess -1 "last lock: `ls -l ${dirToCheck}/sixdesklock`"
-	sixdeskmess -1 "`cat ${dirToCheck}/sixdesklock`"
+	sixdeskmess -1 "The directory ${__dirToCheck} is currently unlocked"
+	sixdeskmess -1 "last lock: `ls -l ${__dirToCheck}/sixdesklock`"
+	sixdeskmess -1 "`cat ${__dirToCheck}/sixdesklock`"
     fi
 }
 sixdesktunes(){
@@ -783,9 +771,15 @@ sixdeskrundir()
     rundirname=$(sixdeskFromJobNameToJobDir ${runnamename} ${__lbackcomp})
 }
 sixdeskDefinePythonPath(){
-    local __sourceEnv=/cvmfs/sft.cern.ch/lcg/views/LCG_88/x86_64-slc6-gcc49-opt/setup.sh
-    sixdeskmess 2 "Loading python as defined in ${__sourceEnv}"
-    source ${__sourceEnv}
+    if [ $# -eq 1 ] ; then
+	export PATH=${1}:${PATH}
+	sixdeskmess 2 "Setting python to ${1} in PATH env var"
+    else
+	local __sourceEnv=/cvmfs/sft.cern.ch/lcg/views/LCG_88/x86_64-slc6-gcc49-opt/setup.sh
+	sixdeskmess 2 "Loading python as defined in ${__sourceEnv}"
+	source ${__sourceEnv}
+    fi
+    sixdeskmess -1 "--> python set to: `which python`"
 }
 sixdeskDefineUserTree(){
     # define the tree in the userspace
@@ -1093,11 +1087,12 @@ sixdeskSetQueue(){
     else
 	case ${!1} in
             8nm | 1nh | 8nh | 1nd | 2nd | 1nw | 2nw )
-		sixdeskmess 2 "LSF queue in sixdeskenv: ${!1}"
+		sixdeskmess 2 "LSF queue (sixdeskenv): ${!1}"
 		;;
 	    *)
 		# set default queue
 		eval "${1}=8nh"
+		sixdeskmess 2 "LSF queue (default): ${!1}"
 		;;
 	esac
     fi
@@ -1105,7 +1100,7 @@ sixdeskSetQueue(){
     if [ -n "${!2}" ] ; then
 	case ${!2} in
             espresso | microcentury | workday | tomorrow | testmatch | 1nextweek )
-		sixdeskmess 2 "HTCONDOR queue in sixdeskenv: ${!2}"
+		sixdeskmess 2 "HTCONDOR queue (sixdeskenv): ${!2}"
 		;;
 	    *)
 		# set default queue
@@ -1138,6 +1133,7 @@ sixdeskSetQueue(){
 		eval "${2}=nextweek"
 		;;
 	esac
+	sixdeskmess 2 "HTCONDOR queue (sixdeskenv - from LSF-equivalent): ${!2}"
     fi
     export ${1}
     export ${2}
@@ -1269,8 +1265,7 @@ sixdeskCleanExit(){
 	__exitLevel=$1
     fi
     for tmpDir in ${lockingDirs[@]} ; do
-	sixdesklockdir=$tmpDir
-	sixdeskunlock
+	sixdeskunlock $tmpDir
     done
     sixdeskexit $__exitLevel
 }
@@ -1408,4 +1403,22 @@ function multipleTrials(){
 	sixdeskmess 1 "success!"
     fi
     return $__lerr
+}
+function sixdeskRenewKerberosToken(){
+    if [ $# -eq 1 ] ; then
+	local __lKlist=$1
+    else
+	local __lKlist=true
+    fi
+    sixdeskmess -1 " --> kinit;"
+    multipleTrials "kinit -R ; local __exit_status=\$?" "[ \$__exit_status -eq 0 ]"
+    if [ $? -gt 0 ] ; then
+	sixdeskmess -1 "--> kinit -R failed - AFS/Kerberos credentials expired??? aborting..."
+	exit
+    else
+	if ${__lKlist} ; then
+	    sixdeskmess -1 " --> klist output after kinit -R:"
+	    klist
+	fi
+    fi
 }

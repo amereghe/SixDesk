@@ -18,12 +18,17 @@ function how_to_use() {
                        to prepare a brand new study. The template files will
                        OVERWRITE the local ones. The template dir is:
            ${SCRIPTDIR}/templates/input
+   -U      unlock dirs necessary to the script to run
+           PAY ATTENTION when using this option, as no check whether the lock
+              belongs to this script or not is performed, and you may screw up
+              processing of another script
 
    options (optional)
    -p      platform name (when running many jobs in parallel)
            recognised platforms: LSF, BOINC, HTCONDOR
    -e      just parse the concerned input files (${necessaryInputFiles[@]}),
                without overwriting
+   -P      python path
    -v      verbose (OFF by default)
 
 EOF
@@ -94,27 +99,27 @@ function consistencyChecks(){
 function setFurtherEnvs(){
     # scan angles:
     export totAngle=90
-    export ampFactor=0.3
-    #lReduceAngsWithAmplitude=false
+    lReduceAngsWithAmplitude=false
+    local __ampFactorDef=0.3
+    ampFactor=1
     # - reduce angles with amplitude
     if [ -n "${reduce_angs_with_aplitude}" ] ; then
-	if [ ${reduce_angs_with_aplitude} -eq 1 ] ; then
-	    if [ ${long} -eq 1 ] ; then
-		lReduceAngsWithAmplitude=true
-	    else
-		sixdeskmess -1 "reduced angles with amplitudes available only for long simulations!"
-	    fi
+	if [ ${long} -eq 1 ] ; then
+	    lReduceAngsWithAmplitude=true
+	    ampFactor=`echo "${reduce_angs_with_aplitude}" | awk -v "ampFactorDef=${__ampFactorDef}" '{if ($1<0) {print (ampFactorDef)}else{print($1)}}'`
+	else
+	    sixdeskmess -1 "reduced angles with amplitudes available only for long simulations!"
 	fi
     elif [ -n "${reduce_angs_with_amplitude}" ] ; then
-	if [ ${reduce_angs_with_amplitude} -eq 1 ] ; then
-	    if [ ${long} -eq 1 ] ; then
-		lReduceAngsWithAmplitude=true
-	    else
-		sixdeskmess -1 "reduced angles with amplitudes available only for long simulations!"
-	    fi
+	if [ ${long} -eq 1 ] ; then
+	    lReduceAngsWithAmplitude=true
+	    ampFactor=`echo "${reduce_angs_with_amplitude}" | awk -v "ampFactorDef=${__ampFactorDef}" '{if ($1<0) {print (ampFactorDef)}else{print($1)}}'`
+	else
+	    sixdeskmess -1 "reduced angles with amplitudes available only for long simulations!"
 	fi
     fi
-    export ${lReduceAngsWithAmplitude}
+    export lReduceAngsWithAmplitude
+    export ampFactor
 }
 
 # ==============================================================================
@@ -141,11 +146,13 @@ lload=false
 lcptemplate=false
 loverwrite=true
 lverbose=false
+lunlock=false
 currPlatform=""
 currStudy=""
+tmpPythonPath=""
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  ":hsvd:ep:n" opt ; do
+while getopts  ":hsvd:ep:P:nU" opt ; do
     case $opt in
 	h)
 	    how_to_use
@@ -172,6 +179,14 @@ while getopts  ":hsvd:ep:n" opt ; do
 	    # the user is requesting a specific platform
 	    currPlatform="${OPTARG}"
 	    ;;
+	P)
+	    # the user is requesting a specific path to python
+	    tmpPythonPath="${OPTARG}"
+	    ;;
+	U)
+	    # unlock currently locked folder
+	    lunlock=true
+	    ;;
 	v)
 	    # verbose
 	    lverbose=true
@@ -191,7 +206,7 @@ done
 shift "$(($OPTIND - 1))"
 # user's request
 # - actions
-if ! ${lset} && ! ${lload} && ! ${lcptemplate} ; then
+if ! ${lset} && ! ${lload} && ! ${lcptemplate} && ! ${lunlock} ; then
     how_to_use
     echo "No action specified!!! aborting..."
     exit
@@ -203,22 +218,16 @@ fi
 # - clean options in case of brand new study
 if ${lcptemplate} ; then
     if [ -n "${currPlatform}" ] ; then
-	echo ""
 	echo "--> brand new study: -p option with argument ${currPlatform} is switched off."
-	echo ""
 	currPlatform=""
     fi
 fi
 # - options
 if [ -n "${currStudy}" ] ; then
-    echo ""
     echo "--> User required a specific study: ${currStudy}"
-    echo ""
 fi
 if [ -n "${currPlatform}" ] ; then
-    echo ""
     echo "--> User required a specific platform: ${currPlatform}"
-    echo ""
 fi
 
 # ------------------------------------------------------------------------------
@@ -249,6 +258,18 @@ if ${lcptemplate} ; then
 else
     lockingDirs=( . studies )
 fi
+
+# - unlocking
+if ${lunlock} ; then
+    for tmpDir in ${lockingDirs[@]} ; do
+	sixdeskunlock $tmpDir
+    done
+    if ! ${lset} && ! ${lload} && ! ${lcptemplate} ; then
+	sixdeskmess -1 "requested only unlocking. Exiting..."
+	exit 0
+    fi
+fi
+   
 # - path to active sixdeskenv/sysenv
 if ${lset} ; then
     envFilesPath="."
@@ -348,6 +369,13 @@ else
 	sixdeskexit 10
     fi
 
+    # - set python path
+    if [ -n "${tmpPythonPath}" ] ; then
+	# overwrite what was stated in sixdeskenv/sysenv
+	pythonPath=${tmpPythonPath}
+    fi
+    sixdeskDefinePythonPath ${pythonPath}
+
     # - useful output
     PTEXT="[${sixdeskplatform}]"
     STEXT="[${LHCDescrip}]"
@@ -383,15 +411,7 @@ done
 if ! ${lcptemplate} ; then
     
     # - kinit, to renew kerberos ticket
-    sixdeskmess -1 " --> kinit;"
-    multipleTrials "kinit -R ; local __exit_status=\$?" "[ \$__exit_status -eq 0 ]"
-    if [ $? -gt 0 ] ; then
-	sixdeskmess -1 "--> kinit -R failed - AFS/Kerberos credentials expired??? aborting..."
-	exit
-    else
-	sixdeskmess -1 " --> klist output after kinit -R:"
-	klist
-    fi
+    sixdeskRenewKerberosToken
     
     # - fs listquota
     echo ""

@@ -1536,6 +1536,7 @@ function treatLong(){
         done
 	# end of loop over angles
     done
+    exit
     # end of loop over amplitudes
 }
 
