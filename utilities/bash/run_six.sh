@@ -1321,7 +1321,8 @@ function treatLong(){
                 ksteps=()
                 for (( i=1; i<=$angles_nb; i++ ))
                 do
-                  An+=(`gawk 'END{a='$i'*'$kkstep';print a}' /dev/null` )
+        
+         An+=(`gawk 'END{a='$i'*'$kkstep';print a}' /dev/null` )
                   k_tot+=($i)
                   ksteps+=(`gawk 'END{a='$i'*'$kkstep'/'90';print a}' /dev/null` )
                 done
