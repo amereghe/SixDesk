@@ -808,7 +808,7 @@ function submitCreateFinalInputs(){
 	ln -s $sixtrack_input/fort.${iFort}_$iMad.gz $RundirFullPath/fort.${iFort}.gz
     done
 	
-    if [ "$sixdeskplatform" == "boinc" ] ; then
+    if [ "$sixdeskplatform" == "boinc" ] || [ "${sixdeskplatform}" == "htboinc" ] ; then
 	
 	# generate zip/description file
 	# - generate new taskid
@@ -1005,6 +1005,17 @@ function dot_htcondor(){
 
     return $__lerr
 }
+
+
+function dot_htboinc(){
+    local __lerr=0
+
+    # add current point in scan to list of points to be submitted:
+    echo "$Rundir" >> ${sixdeskjobs}/${LHCDesName}.list
+
+    return $__lerr
+}
+
 
 function dot_boinc(){
 
@@ -1524,6 +1535,9 @@ function treatLong(){
 	        	elif [ "$sixdeskplatform" == "boinc" ] ; then
 	        	    dot_boinc
 			    local __subSuccess=$?
+	        	elif [ "$sixdeskplatform" == "htboinc" ] ; then
+	        	    dot_htboinc
+			    local __subSuccess=$?			    
 	        	fi
 			if [ ${__subSuccess} -eq 0 ] ; then
 			    let NsuccessSub+=1
@@ -1980,6 +1994,9 @@ sixdeskDefineUserTree $basedir $scratchdir $workspace
 
 # - boinc variables
 sixDeskSetBOINCVars
+
+# - htboinc variables
+sixDeskSetHTBBOINCVars
 
 # - preliminary checks
 preliminaryChecksRS
@@ -2473,7 +2490,61 @@ if ${lsubmit} ; then
 	    fi
 	    cd - > /dev/null 2>&1
 	fi
-    fi
+    elif [ "$sixdeskplatform" == "htboinc" ] ; then
+	sixdeskmess -1 "htboinc selected. not yet implemented. finishing script"
+	exit
+	if [ ! -e ${sixdeskjobs}/${LHCDesName}.list ] ; then
+	    sixdeskmess -1 "List of tasks not there: ${sixdeskjobs}/${LHCDesName}.list"
+	elif [ `wc -l ${sixdeskjobs}/${LHCDesName}.list 2> /dev/null | awk '{print ($1)}'` -eq 0 ] ; then
+	    sixdeskmess -1 "Empty list of tasks: ${sixdeskjobs}/${LHCDesName}.list"
+	    rm -f ${sixdeskjobs}/${LHCDesName}.list
+	else
+	    cd ${sixdesktrack}
+            batch_name="run_six/$workspace/$LHCDescrip"
+	    sixdeskmess -1 "Submitting jobs to $sixdeskplatform from dir $PWD \"$batch_name\""
+	    sixdeskmess  1 "Depending on the number of points in the scan, this operation can take up to few minutes."
+	    allCases=`cat ${sixdeskjobs}/${LHCDesName}.list`
+	    allCases=( ${allCases} )
+	    # let's renew the kerberos token just before submitting
+	    sixdeskmess 2 "renewing kerberos token before submission to HTCondor"
+	    sixdeskRenewKerberosToken
+	    multipleTrials "terseString=\"\`condor_submit -batch-name ${batch_name} -terse ${sixdeskjobs}/htcondor_run_six.sub\`\" " "[ -n \"\${terseString}\" ]" "Problem at condor_submit"
+	    let __lerr+=$?
+	    if [ ${__lerr} -ne 0 ] ; then
+		sixdeskmess -1 "Something wrong with htboinc submission: submission didn't work properly - exit status: ${__lerr}"
+		jobIDmax=${#allCases[@]}
+		# clean
+		for (( ii=0; ii<${jobIDmax}; ii++ )) ; do
+		    rm -f ${allCases[$ii]}/JOB_NOT_YET_STARTED 
+		done
+	    else
+		sixdeskmess -1 "Submission was successful"
+		# parse terse output (example: "23548.0 - 23548.4")
+		clusterID=`echo "${terseString}" | head -1 | cut -d\- -f2 | cut -d\. -f1`
+		clusterID=${clusterID//\ /}
+		jobIDmax=`echo "${terseString}" | head -1 | cut -d\- -f2 | cut -d\. -f2`
+		let jobIDmax+=1
+		if [ ${jobIDmax} -ne ${#allCases[@]} ] ; then
+		    sixdeskmess -1 "Something wrong with htcondor submission: I requested ${#allCases[@]} to be submitted, and only ${jobIDmax} actually made it!"
+		    if [ ${#allCases[@]} -lt ${jobIDmax} ] ; then
+			jobIDmax=${#allCases[@]}
+		    fi
+		fi
+		# save taskIDs
+		sixdeskmess -1 "Updating DB..."
+		sixdeskmess  1 "Depending on the number of points in the scan, this operation can take up to few minutes."
+		for (( ii=0; ii<${jobIDmax}; ii++ )) ; do
+		    let jj=$ii-1
+		    taskid="htcondor${clusterID}.${ii}"
+		    Runnam=$(sixdeskFromJobDirToJobName ${allCases[$ii]} ${lbackcomp})
+		    updateTaskIdsCases $sixdeskjobs/jobs $sixdeskjobs/incomplete_jobs $taskid $Runnam
+		    let NsuccessSub+=1
+		done
+		rm -f ${sixdeskjobs}/${LHCDesName}.list
+	    fi
+	    cd - > /dev/null 2>&1
+	fi
+    fi    
 fi
 
 # megaZip, in case of boinc
