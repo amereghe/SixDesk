@@ -1319,7 +1319,6 @@ function treatShort(){
     done
 
 }
-
 function treatLong(){
 
     # ==========================================================================
@@ -1329,7 +1328,6 @@ function treatLong(){
 	Ampl=${allAmplitudeSteps[${iAmple}]}
 	fampstart=${fAmpStarts[${iAmple}]}
 	fampend=${fAmpEnds[${iAmple}]}
-	
 	if ${lrestart} && ${lrestartAmpli} ; then
 	    if [ "${amplisFromName}" == "${Ampl}" ] ; then
 		lrestartAmpli=false
@@ -1345,24 +1343,53 @@ function treatLong(){
         sixdeskmess -1 "Considering amplitude step: $Ampl"
 	
 	# angles
-	if ${lReduceAngsWithAmplitude} ; then
-	    if [ ${ampstart} -gt ${ampFactor} ] ;then
-		kksLoop=${KKs[@]}
-		anglesLoop=${Angles[@]}
-		kangsLoop=${kAngs[@]}
+	if [ ${lReduceAngsWithAmplitude} -eq 1 ]; then
+            echo 'Reduce Angles with Amplitude flag is ON...'
+            max_amplitude=${fAmpEnds[${#fAmpEnds[@]}-1]}
+            if  (( $(echo "$ampstart > $ampFactor"|bc -l) )) ; then
+                angles_nb=$(printf %.$2f $(echo "`gawk 'END{a=('$fampend'/('$max_amplitude')*('${KKs[${#KKs[@]}-1]}'));print a}' /dev/null`" | bc))
+                kkstep=`gawk 'END{a=90/('$angles_nb'+1);print a}' /dev/null`
+                An=()
+                k_tot=()
+                ksteps=()
+                for (( i=1; i<=$angles_nb; i++ ))
+                do
+        
+                  An+=(`gawk 'END{a='$i'*'$kkstep';print a}' /dev/null` )
+                  k_tot+=($i)
+                  ksteps+=(`gawk 'END{a='$i'*'$kkstep'/'90';print a}' /dev/null` )
+                done
+                kksLoop=${k_tot[@]}
+                anglesLoop=${An[@]}
+                kangsLoop=${ksteps[@]}
 	    else
-		kksLoop=${KKs_reduced[@]}
-		anglesLoop=${Angles_reduced[@]}
-		kangsLoop=${kAngs_reduced[@]}
+                echo 'Reduce Angles with Amplitude flag is ON, set to default 0.3...'
+                angles_nb=$(printf %.$2f $(echo "`gawk 'END{a=(0.3/('$max_amplitude')*('${KKs[${#KKs[@]}-1]}'));print a}' /dev/null`" | bc))
+                kkstep=`gawk 'END{a=90/('$angles_nb'+1);print a}' /dev/null`
+                An=()
+                k_tot=()
+                ksteps=()
+                for (( i=1; i<=$angles_nb; i++ ))
+                do
+                  An+=(`gawk 'END{a='$i'*'$kkstep';print a}' /dev/null` )
+                  k_tot+=($i)
+                  ksteps+=(`gawk 'END{a='$i'*'$kkstep'/'90';print a}' /dev/null` )
+                done
+                kksLoop=${k_tot[@]}
+                anglesLoop=${An[@]}
+                kangsLoop=${ksteps[@]}
 	    fi
 	else
+            echo 'Reduce Angles with Amplitude flag is OFF'
 	    kksLoop=${KKs[@]}
 	    anglesLoop=${Angles[@]}
 	    kangsLoop=${kAngs[@]}
 	fi
-	kksLoop=( ${kksLoop} )
-	anglesLoop=( ${anglesLoop} )
-	kangsLoop=( ${kangsLoop} )
+        kksLoop=( ${kksLoop} )
+        anglesLoop=( ${anglesLoop} )
+        kangsLoop=( ${kangsLoop} )
+
+
 	
 	# ======================================================================
 	for (( iAngle=0; iAngle<${#kksLoop[@]}; iAngle++ )) ; do

@@ -99,9 +99,9 @@ function consistencyChecks(){
 function setFurtherEnvs(){
     # scan angles:
     export totAngle=90
-    lReduceAngsWithAmplitude=false
+    #lReduceAngsWithAmplitude=false
     local __ampFactorDef=0.3
-    ampFactor=1
+    ampFactor=0.3
     # - reduce angles with amplitude
     if [ -n "${reduce_angs_with_aplitude}" ] ; then
 	if [ ${long} -eq 1 ] ; then
