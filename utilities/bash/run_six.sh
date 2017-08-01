@@ -861,6 +861,27 @@ function fixDir(){
     fi
 }
 
+
+function fix_DB_entry(){
+    # correct the database
+    local __RunDirFullPath=$1
+    local __actualDirNameFullPath=$2
+
+    
+
+    if [ ! -d $__RunDirFullPath ] ; then
+	sixdeskmess -1 "...directory path has problems: recreating it!!!"
+	rm -rf $__RunDirFullPath
+	mkdir -p $__RunDirFullPath
+    fi
+    if [ ! -L $__actualDirNameFullPath ] ; then
+	sixdeskmess -1 "...directory link has problems: recreating it!!!"
+	rm -rf $__actualDirNameFullPath
+	ln -fs $__RunDirFullPath $__actualDirNameFullPath
+    fi
+}
+
+
 function fixInputFiles(){
     local __RunDirFullPath=$1
     
@@ -958,8 +979,26 @@ function checkDirAlreadyRun(){
 }
 
 
+function check_job_complete(){
+
+    local __lstatus=0
+
+    if [ -s ${RundirFullPath}/fort.10.gz ] ; then
+	sixdeskmess 1 "fort.10.gz existing in $RundirFullPath!"
+	let __lstatus+=1
+    fi
+
+    return $__lstatus
+
+}
+
+
+
 function db_status(){
 
+    local __backupfn_ext
+    local __backupfn
+    
     sixdeskmess -1 "Summary of database of study $LHCDescrip:"
 
     
@@ -987,26 +1026,89 @@ function db_status(){
     sixdeskmess -1 "${message}"        
     sixdeskmess -1 "--------------------------"    
 
-#    exit
+
+    # backup the present database in case something goes wrong
     
-#    touch $sixdeskwork/completed_cases
-#    touch $sixdeskwork/completed_cases
-#    touch $sixdeskwork/mycompleted_cases
-#    touch $sixdeskwork/incomplete_cases
-#    touch $sixdeskwork/myincomplete_cases
-#    touch $sixdeskwork/taskids
+    __backupfn_ext=$(date +%Y-%m-%d-%H-%M-%S)
+    __backupfn="backup_${__backupfn_ext}"
+    
+    sixdeskmess -1 "Backing up database"
+    tar --exclude="${sixdeskwork}/*.tar.gz" -zcvf ${sixdeskwork}/${__backupfn}.tar.gz ${sixdeskwork}/* > /dev/null
+
+    exit
+
+
+}
+
+
+function db_find_old_entry(){
+    local __line_taskids
+    local __line_boinctasks
+    local __line_lsftasks
+
+    if grep -q "${Runnam}" ${sixdeskwork}/taskids; then
+	# if the point in scan can be found in the taskids, take this line and add it to the new taskids
+	sixdeskmess 2 "line found in taskids"
+	__line_taskids=$(grep ${} ${sixdeskwork}/taskids | tail -n 1)
+	sixdeskmess 2 "${__line_taskids}"
+    else
+	if [ -e ${sixdeskwork}/boincjobs/tasks ] && grep -q "${}" ${sixdeskwork}/boincjobs/tasks; then
+	    sixdeskmess 2 "line NOT found in taskids but in boincjobs/tasks"
+	    __line_boinctasks=$(grep ${} ${sixdeskwork}/boincjobs/tasks | tail -n 1)
+	    sixdeskmess 2 "${__line_boinctasks}"
+	fi
+
+	if [ -e ${sixdeskwork}/lsfjobs/jobs ] && grep -q "${}" ${sixdeskwork}/lsfjobs/jobs; then
+	    sixdeskmess 2 "line NOT found in taskids but in lsfjobs/tasks"
+	    __line_lsftasks=$(grep ${} ${sixdeskwork}/lsfjobs/jobs | tail -n 1)
+	    sixdeskmess 2 "${__line_lsftasks}"
+	fi
+    fi
+	
+}
+
+
+function db_add_complete_job(){
+    echo "not yet implemented"
+
+}
+
+function db_add_incomplete_job(){
+    echo "not yet implemented"
+
+}
+
+
+function db_correction_summary(){
+
+    # print the summary after the database was corrected
+      
+    casesf=$(cat ${sixdeskwork}/taskids           | wc -l)
+    icasesf=$(cat ${sixdeskwork}/incomplete_cases | wc -l)
+    ccasesf=$(cat ${sixdeskwork}/completed_cases  | wc -l)
+    micasesf=$(cat ${sixdeskwork}/myincomplete_cases | wc -l)
+    mccasesf=$(cat ${sixdeskwork}/mycompleted_cases  | wc -l)    
+    
+
+    echo
+    sixdeskmess -1 "FILE                 LINES      "
+    sixdeskmess -1 "--------------------------"    
+    message=$(printf "%-21s %4s" "taskids" "${cases}")
+    sixdeskmess -1 "${message}"
+    message=$(printf "%-21s\t%4s\t" "completed_cases" "${ccases}")
+    sixdeskmess -1 "${message}"
+    message=$(printf "%-21s %4s" "incomplete_cases" "${icases}")
+    sixdeskmess -1 "${message}"    
+    sixdeskmess -1 "--------------------------"    
+    message=$(printf "%-21s %4s" "mycompleted_cases" "${mccases}")
+    sixdeskmess -1 "${message}"
+    message=$(printf "%-21s %4s" "myincomplete_cases" "${micases}")
+    sixdeskmess -1 "${message}"        
+    sixdeskmess -1 "--------------------------"    
 
 
 
-    
- #   if [ "$sixdeskplatform" == "lsf" ] ; then#
-#	touch $sixdeskjobs/jobs#
-#	touch $sixdeskjobs/incomplete_jobs
-#    elif [ "$sixdeskplatform" == "boinc" ] ; then#
-#	touch $sixdeskjobs/tasks
-#	touch $sixdeskjobs/incomplete_tasks
-#    fi
-    
+
 }
 
 
@@ -1487,7 +1589,22 @@ function treatLong(){
 		    fixInputFiles $RundirFullPath
 		    let NsuccessFix+=1
 		elif ${lfixdb}; then
-		    sixdeskmess -1 "Analyzing and fixing DB entry ${RundirFullPath}"	    
+		    sixdeskmess -1 "Analyzing and fixing DB entry ${RundirFullPath}"
+
+
+		    db_find_old_entry
+
+		    
+		    check_job_complete
+		    __echeck_job_complete=$?
+		    
+	    	    if [ $? -eq 0 ] ; then
+	    		db_add_incomplete_job
+		    elif [ $? -eq 1 ]; then
+			db_add_complete_job
+	    	    fi	    	    
+
+		    
 		fi
 
 	    # ----------------------------------------------------------------------

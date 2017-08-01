@@ -43,15 +43,21 @@ function how_to_use() {
     -f      correct directory structure
     -i      run incomplete cases on LSF for all cases defined in scan_definitions
     -s      submit jobs to BOINC for all cases defined in scan_definitions
+    -e      rerun existing study
     -l      unlock all for all studies
     -R      retrieve results for all jobs listed in scan_definitions. can be combined with -c and -w
     -O      Overview: show submission status for all jobs in scan
+    -A      Analyze with sixdb
     -T      show status of simulations in scan
             will give information about jobs in queue, finished but unretrieved jobs and retrieved jobs
+    -M      run missing jobs
 
     options
+    -F      force execution of sixdb even if db file exists
     -c      perform action only for the specific study given as argument
+    -p      platform. e.g. -p BOINC submits to boinc
     -P      retrieve in parallel
+    -L      run on LSF. compatible with -a 
     -w      repeat periodically; works for actions -a, -T
     -S      selective submission [see man of run_six.sh]
     -q      quiet mode; parses output to different files
@@ -88,10 +94,39 @@ function initialize_scan(){
 }
 
 
+function analyze_sixdb(){
+
+    if [ ! -d ${sixdbdir} ]; then
+	echo "ERROR: ${sixdbdir} not found"
+	exit 1
+    fi
+       
+    echo "--> RUNNING SIXDESKDB FOR ${study}"
+    set_env_to_mask
+    thisdir=$(pwd)
+	    
+    cd ${sixdbdir}
+    if [ ! -e ${study}.db ] || ${lforce}; then
+	./sixdb ${thisdir} load_dir
+    fi
+
+    cd ${thisdir}
+	    
+    
+}
+
+
 
 function do_submit(){
 
-    flags="-a"
+    ./unlock_all
+
+    if ${lrerun}; then
+	flags="-s"
+    else
+	flags="-a"
+    fi
+
 
     if ${quiet}; then
 	flags="${flags} -q"
@@ -101,12 +136,17 @@ function do_submit(){
 	flags="${flags} -S"
     fi
 
+    if ${lplatform}; then
+	flages="${flags} -p ${platform}"
+    fi
+
     if ! ${parallel}; then
+	echo "FLAGS: ${flags}"
 	$SixDeskDev/run_six.sh ${flags}
     else
 	sixdeskmess="Parallel submission launched for ${study}"
 	sixdeskmess
-	$SixDeskDev/run_six.sh -q ${flags} > output.${study} &
+	$SixDeskDev/run_six.sh ${flags} > output.${study} &
 	sixdeskmess="waiting 60s"
 	sixdeskmess
 	sleep 60	
@@ -153,7 +193,18 @@ get_mask_name(){
 
 
 
+function retrieve_job_lsf(){
+    PWD=$(pwd)
+    cat <<EOF > scan_run_six_retrieve_lsf.sh
 
+cd ${PWD}
+./scan_run_six.sh -R -w 
+
+EOF
+    chmod 777 scan_run_six_retrieve_lsf.sh
+    bsub -q 1nw < scan_run_six_retrieve_lsf.sh
+    
+    }
 
 
 
@@ -182,7 +233,7 @@ function scan_loop() {
     if ${qcase}; then
 	study=${jobstring}
 	if ! ${skipenv}; then
-	    set_env_to_mask >> output.${study}
+	    set_env_to_mask 
 	fi
 	for var in "$@"
 	do
@@ -193,7 +244,7 @@ function scan_loop() {
 	for study in ${mask_names}; do
 
 	    if ! ${skipenv}; then
-		set_env_to_mask >> output.${study}
+		set_env_to_mask 
 	    fi
 	    
 	    for var in "$@"
@@ -243,16 +294,16 @@ function scan_loop() {
 
 function get_status(){
 
-    BOINCNAME="${workspace}_${study}"
+    BOINCNAME="${workspace}_${mask}"
     BOINCDIR=/afs/cern.ch/work/b/boinc/boinc/${BOINCNAME}
     NRES=$(ls ${BOINCDIR}/results/ | wc -l)                                           # ready to recieve
     
     NPEN=$(ls ${BOINCDIR}/work/    | wc -l)	                                      # pending
-    NREC=$(find ../track/${study}/*/*/*/*/*/*/ -type f -name "*.10.gz" | wc -l)        # recieved
+    NREC=$(find ../track/${mask}/*/*/*/*/*/*/ -type f -name "*.10.gz" | wc -l)        # recieved
 
     if ${quiet}; then
 
-	sixdeskmess="--> NAME         ${study}" >> ${OUTFILE}
+	sixdeskmess="--> NAME         ${mask}" >> ${OUTFILE}
 	sixdeskmess
 	sixdeskmess="--> PENDING      $NPEN"   >> ${OUTFILE}
 	sixdeskmess
@@ -263,7 +314,7 @@ function get_status(){
 	sixdeskmess=""                         >> ${OUTFILE}
 	sixdeskmess
     else
-	sixdeskmess="--> NAME         ${study}"
+	sixdeskmess="--> NAME         ${mask}"
 	sixdeskmess
 	sixdeskmess="--> PENDING      $NPEN"
 	sixdeskmess
@@ -279,9 +330,19 @@ function get_status(){
 
 
 
+function runmissing(){
+    ${SixDeskDev}/run_status
+    ${SixDeskDev}/run_six.sh -i -s -p HTCONDOR
+}
+
+
+
 
 function set_env_to_mask(){   
-    ${SixDeskDev}/set_env.sh -d ${study} #> /dev/null 2>&1
+    cat sixdeskenv |\
+      sed -e "s/export LHCDescrip=.*/export LHCDescrip=${study}/" > sixdeskenv.new
+    mv sixdeskenv.new sixdeskenv
+    ${SixDeskDev}/set_env
 }
 
 
@@ -301,6 +362,12 @@ retrieve=false
 incomplete=false
 qcase=false
 parallel=false
+lanalyze=false
+lreslsf=false
+lplatform=false
+lrunmiss=false
+lrerun=false
+lforce=false
 quiet=false
 progress=false
 status=false
@@ -311,13 +378,28 @@ skipenv=false
 selective=false
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  "fhwlPc:iqTOSsRb" opt ; do
+while getopts  "FfhMwlAp:PLc:iqTOSsRbe" opt ; do
     case $opt in
         f)
             fix=true
             ;;
+        F)
+            lforce=true
+            ;;	
+	e)
+	    lrerun=true
+	    ;;
+        M)
+            lrunmiss=true
+            ;;	
+	L)
+	    lreslsf=true
+	    ;;
         q)
             quiet=true
+            ;;
+        A)
+            lanalyze=true
             ;;
         O)
             substatus=true
@@ -329,6 +411,10 @@ while getopts  "fhwlPc:iqTOSsRb" opt ; do
             qcase=true
 	    jobstring=${OPTARG}
             ;;
+        p)
+            lplatform=true
+	    platform=${OPTARG}
+            ;;	
         T)
             status=true
             ;;	
@@ -380,7 +466,9 @@ shift "$(($OPTIND - 1))"
 
 
 
-
+if ${lrunmiss}; then
+    scan_loop runmissing
+fi
 
 
 
@@ -412,6 +500,10 @@ if ${status}; then
 fi
 
 
+if ${lanalyze}; then
+    scan_loop analyze_sixdb
+fi
+
 
 
 if ${incomplete}; then
@@ -422,7 +514,7 @@ fi
 
 
 
-if ${retrieve}; then
+if ${retrieve} && ! ${lreslsf} ; then
     if ${qcase}; then
 	study=${jobstring}
 	retrieve_job
@@ -438,6 +530,10 @@ if ${retrieve}; then
 	    fi
 	done
     fi
+fi
+
+if ${retrieve} && ${lreslsf} ; then
+    retrieve_job_lsf
 fi
 
    

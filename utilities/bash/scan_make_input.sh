@@ -1,5 +1,14 @@
 #!/bin/bash
 
+### INITIALIZATION
+
+lscan_var1=false
+lscan_var2=false
+lscan_var3=false
+lscan_var4=false
+scan_masks=false
+skipenv=false
+
 source ./scan_definitions
 source ./sixdeskenv
 #source $SixDeskDev/dot_profile
@@ -51,25 +60,99 @@ function how_to_use() {
 EOF
 }
 
-## if a scan in octupole and/or chromaticity should be carried out, the
-## corresponding settings in the mask file must be replaced by
-## %QPV and %OCV
 
 
 
+function set_env_to_mask(){
+       
+    local __study
 
-set_env_to_mask(){
-    
-#    echo "--> Setting sixdeskenv to ${mask}"
-    
+    if [ $# -eq 1 ]; then
+	__study=${1}
+    else
+	__study=${study}
+    fi
+
+    echo "Setting sixdeskenv AAA to ${__study}"
+
     cat sixdeskenv |\
-	sed -e 's/export LHCDescrip=.*/export LHCDescrip='$mask'/' > sixdeskenv.new
+	sed -e "s/export LHCDescrip=.*/export LHCDescrip=${__study}/" > sixdeskenv.new
 
     mv sixdeskenv.new sixdeskenv
     
-    ${SixDeskDev}/set_env.sh -s
+    ${SixDeskDev}/set_env.sh -s 
     
 }
+
+
+
+function scan_loop() {
+
+
+    if [[ $# -eq 0 ]] ; then
+	sixdeskmess -1 'ERROR: no argument given to scan_loop'
+	sixdeskmess -1 'ERROR: this error should not be triggered, there could be a bug in scan_run_six.sh'
+	exit 1
+    fi
+   
+    
+    if ${qcase}; then
+	echo "QCASE"
+	study=${jobstring}
+	set_env_to_mask 
+	
+	for var in "$@"
+	do
+	    $var
+	done
+	
+    elif ${scan_masks};then
+	echo "SCAN_MASKS}"
+	for study in ${mask_names}; do
+	    echo " SETTING ENVIRONMENT"
+	    set_env_to_mask ${study}	    
+	    
+	    for var in "$@"
+	    do
+		$var
+	    done	    
+	done
+	
+    elif ${lscan_var1} || ${lscan_var2} || ${lscan_var3} || ${lscan_var4} ; then
+	echo "LSCAN"
+	initialize_scan
+
+	echo "SETTING ENVIRONMENT"
+       for va in ${scan_var1_vals}
+       do
+	   for vb in ${scan_var2_vals}
+	   do
+	       for vc in ${scan_var3_vals}
+	       do
+		   for vd in ${scan_var4_vals}
+		   do
+		       echo ${va}
+		       get_mask_name
+		       study=${mask}
+		       
+		       set_env_to_mask ${study}	    
+		       
+		       
+		       for var in "$@"
+		       do
+			   $var
+		       done
+		   done
+	       done
+	   done
+       done
+    else
+	echo "SCAN LOOP: NO OPTION SELECTED -ERROR!"
+	exit 1
+    fi
+
+    }
+
 
 
 function initialize_scan(){
@@ -344,13 +427,10 @@ check_mask_file(){
 
     
     if grep -q "%SEEDRAN" "mask/${mask_prefix}.mask"; then
-	sixdeskmess="Random seed       mask file contains %SEEDRAN"
-	sixdeskmess
+	sixdeskmess -1 "Random seed       mask file contains %SEEDRAN"
     else
-	sixdeskmess="ERROR! mask file does not contain %SEEDRAN"
-	sixdeskmess
-	sixeskmess="Continue?"
-	sixdeskmess
+	sixdeskmess -1 "ERROR! mask file does not contain %SEEDRAN"
+	sixdeskmess -1 "Continue?"
 	mask_integrity_error_message
     fi
     
@@ -409,64 +489,6 @@ run_new_mad6t() {
     }
 
 
-function get_progress(){
-
-	    NF1=$(find ../../sixtrack_input/${workspace}/${mask}/ -type f -name fort.16* | wc -l)
-	    NF2=$(find ../../sixtrack_input/${workspace}/${mask}/ -type f -name fort.2* | wc -l)
-	    NF8=$(find ../../sixtrack_input/${workspace}/${mask}/ -type f -name fort.8* | wc -l)
-	    
-	    sixdeskmess="fort.2 files        : ${NF2}"
-	    sixdeskmess
-	    sixdeskmess="fort.8 files        : ${NF8}"
-	    sixdeskmess	    
-	    sixdeskmess="fort.16 files       : ${NF1}"
-	    sixdeskmess
-
-	    if [ ${NF1} -eq ${iendmad} ] && [ ${NF2} -eq ${iendmad} ] && [ ${NF8} -eq ${iendmad} ]; then
-		sixdeskmess="STATUS              : READY"
-		sixdeskmess
-	    else
-		sixdeskmess="STATUS              : NOT READY"
-		sixdeskmess				
-	    fi
-
-	    
-	    if [ ${NF2} -gt ${iendmad} ] || [ ${NF1} -gt ${iendmad} ]; then
-		echo 
-		sixdeskmess="WARNING! TOO MANY OUTPUT FILES!"
-		sixdeskmess
-		echo 
-		sixdeskmess="The following files are too much"
-		sixdeskmess		
-
-		find ../../sixtrack_input/${workspace}/${mask}/ -type f -name fort*_* ! -name '*.gz'
-
-		echo
-		sixdeskmess="Remove these files? [yY/nN]"
-		sixdeskmess
-
-		read yn
-		case $yn in
-		    [Yy]* ) removeQ=true  ;;
-		    [Nn]* ) removeQ=false ;;
-		    * ) sixdeskmess="Please answer yes or no."; sixdeskmess;;
-		esac
-		
-
-		if $removeQ; then
-		    sixdeskmess="REMOVING"
-		    sixdeskmess
-		    find ../../sixtrack_input/${workspace}/${mask}/ -type f -name fort*_* ! -name '*.gz' -delete
-		else
-		    sixdeskmess="NOT REMOVING"
-		    sixdeskmess		    
-		fi
-		
-	    fi
-	    
-	    echo
-
-    }
 
 
 
@@ -555,9 +577,18 @@ if ${submit}; then
     echo 
     sixdeskmess="SUBMIT MADX JOBS TO PRODUCE SIXTRACK INPUT"
     sixdeskmess
+    
+    if ${scan_masks}; then
+	sixdeskmess="user selected scan_masks"
+	sixdeskmess
+    else
+	sixdeskmess="no scan_masks found"
+	sixdeskmess
+    fi
+	
     echo 
-    if ${lscan_var1} || ${lscan_var2} || ${lscan_var3} || ${lscan_var4}
-    then
+    if ${lscan_var1} || ${lscan_var2} || ${lscan_var3} || ${lscan_var4}; then
+	sixdeskmess -1 "Scanning over variables"
 	initialize_scan
 	for va in ${scan_var1_vals}
 	do
@@ -572,28 +603,28 @@ if ${submit}; then
 			sixdeskmess		       		       
 			check_mask_file
 			generate_mask_file
-			set_env_to_mask
+			set_env_to_mask ${mask}
 			run_new_mad6t
 		    done
 		done
 	   done
 	done
     elif ${scan_masks}; then
-	sixdeskmess="Preparing input for the following studies:"
-	sixdeskmess
+	echo "Preparing input for the following studies:"
 	for NAME in ${mask_names}; do
-	    sixdeskmess="${NAME}"
-	    sixdeskmess
+	    echo "${NAME}"
 	done
 	echo 
 	for maskname in ${mask_names}; do
 	    mask=${maskname}
-	    set_env_to_mask
+	    set_env_to_mask ${mask}
 	    run_new_mad6t	    
 	done
     fi
 
 fi
+
+
 
 
 
@@ -633,7 +664,8 @@ if ${progress}; then
 			fi			
 
 			echo 
-			get_progress
+			set_env_to_mask ${mask}
+			${SixDeskDev}/mad6t.sh -c 
 		    done
 		done
 	   done
@@ -643,7 +675,8 @@ if ${progress}; then
 	for mask in ${mask_names}; do
 	    sixdeskmess="Progress for study  : ${mask}"	    
 	    sixdeskmess
-            get_progress
+	    set_env_to_mask ${mask}
+	    ${SixDeskDev}/mad6t.sh -c 
        done
     fi
 	
