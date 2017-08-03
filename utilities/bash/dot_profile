@@ -948,7 +948,7 @@ sixdeskFromJobNameToJobDir(){
     rundirname4=${rundirname3//\/m\//\/momen\/}
     rundirname5=${rundirname4//\/d\//\/da\/}
     # remove trailing slashes
-    rundirname5=`echo "${rundirname5}" | sed 's:/*$::'`
+    rundirname5=${rundirname5%"${rundirname5##*[!/]}"}
     echo ${rundirname5}
 }
 sixdeskFromJobDirToJobName(){
@@ -963,7 +963,7 @@ sixdeskFromJobDirToJobName(){
     rundirname3=${rundirname2//\/trans\//\/t\/}
     rundirname4=${rundirname3//\/simul\//\/s\/}
     # remove trailing slashes
-    rundirname4=`echo "${rundirname4}" | sed 's:/*$::'`
+    rundirname4=${rundirname4%"${rundirname4##*[!/]}"}
     if ${__lbackcomp} ; then
 	rundirname4=`echo "$rundirname4" | awk 'BEGIN{FS="/";OFS="/"}{gsub(/e/,"",$6); print}'`
     fi
@@ -1356,8 +1356,7 @@ function sixdeskInspectPrerequisites(){
 function sixdeskSanitizeString(){
     # A.Mereghetti, 2016-12-07
     # for the moment, remove empty spaces, tab and newline chars
-    __cleanArg=`echo "$1" | sed -e 's/\ //g' -e 's/\t//g' -e 's/\n//g'`
-    eval "$2=${__cleanArg}"
+    eval "$2=`echo \"$1\" | awk 'NR==1{print($1)}'`"
 }
 
 function sixdeskSendNotifMail(){
