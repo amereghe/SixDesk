@@ -32,8 +32,6 @@ sixdeskmesslevel=$sixdeskmessleveldef
 
 
 
-
-
 function set_env_to_mask(){     
     local __study
 
@@ -89,15 +87,51 @@ function make_mask_names() {
 }
 
 
+function make_mask_values() {
+
+  local _result="%"
+  local _arg
+  local _x
+  local _xx
+  local _r
+  local _new
+
+  i=0
+  for _arg in "${@:1}"                  # skip the first arg ( function name )
+  do
+    if [[ ! -z "${_arg// }" ]]          # test if the argument is not whites only
+    then
+      _new=""
+      for _r in $_result                # take all the old strings...
+      do
+        for _x in $_arg
+        do
+          _new="$_new ${_r}%${_x}"     # ...and append the new parameter
+        done
+      done
+      _result=${_new:1}                 # strip the leading space
+    fi
+    ((i++))      
+  done
+  
+  mask_values=${_result}
+  mask_values=(${mask_values})
+  
+}
+
+
+
 
 function get_study_names(){
 
-    scan_vars=(${scan_vars})
-
-    make_mask_names "${scan_vals_B}" "${scan_vals_MBH10M}" 
-
-    sixdeskmess -1 "Found ${#scan_studies[@]} study names for ${#scan_vars[@]} variables"
-
+    if ! ${scan_masks}; then
+	scan_vars=(${scan_vars})
+	make_mask_names  "${scan_vals_B}" "${scan_vals_MBH10M}"
+	make_mask_values "${scan_vals_B}" "${scan_vals_MBH10M}"
+    else
+	sixdeskmess -1 "scan_masks set to TRUE, using defined list of mask names"
+	scan_studies=(${scan_studies})
+    fi
    
 }
 
@@ -110,35 +144,32 @@ function initialize_scan(){
     }
 
 
-
-
 function set_env_to_mask(){   
     cat sixdeskenv |\
       sed -e "s/export LHCDescrip=.*/export LHCDescrip=${study}/" > sixdeskenv.new
     mv sixdeskenv.new sixdeskenv
-    ${SixDeskDev}/set_env
+    ${SixDeskDev}/set_env.sh -s 
 }
-
-
-
 
 
 function scan_loop(){
 
     local _var
 
+    i=0
     for study in ${scan_studies[@]}; do
 	set_env_to_mask ${study}
 
-	for var in "$@"
+	for _var in "$@"
 	do
 	    ${_var}
 	done
-	
+    ((i++))
     done
     
     
     }
+
 
 
 

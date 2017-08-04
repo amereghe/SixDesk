@@ -73,11 +73,44 @@ EOF
 
 
 
+function generate_mask_file(){
 
-scan_
+    local _val
+    local _j
+    local _placeholders=(${scan_placeholders})
+    local _placeholder
+    local _
+    local _tmpmask="mask/${scan_pref}_temp.mask"
+    
+    cp mask/${scan_pref}.mask ${_tmpmask}
+    
+    echo "launched generate_mask_file"
+    echo "mask value ${mask_values[i]}"
+
+    mask_vals=${mask_values[i]:2}
+    
+    IFS='%' read -a values <<< "${mask_vals}"
+
+    _j=0
+    for _ in ${values[@]}; do
+	
+	_placeholder=${_placeholders[${_j}]}           # the placeholder to be substituted in the mask file
+	_val=${values[${_j}]}                          # the value this placeholder shall be replaced with
+	
+	sed -i "s/${_placeholder}/${_val}/g" ${_tmpmask}
+	
+	((_j++))
+    done
+
+    mv ${_tmpmask} mask/${study}.mask
+
+    
+}
 
 
 
+
+scan_loop generate_mask_file
 
 
 
@@ -682,3 +715,16 @@ if ${progress}; then
     fi
 	
 fi
+
+
+
+
+
+
+
+
+
+
+
+
+
