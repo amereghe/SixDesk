@@ -15,9 +15,9 @@ function how_to_use() {
                for submission on the required platform
            NB: this is done by default after preparation and before submission,
                but this action can be triggered on its own
-   -f      fix either compromised directory structure or corrupted database
-           ./run_six.sh -f DIR 
-              similar to -g, but it fixes folders which miss any of the input files
+   -a      equivalent to -g -c -s
+   -f      fix compromised directory structure
+           similar to -g, but it fixes folders which miss any of the input files
               (i.e. the fort.*.gz) - BOINC .zip/.desc files are not re-generated;
            ./run_six.sh -f DB
               checks the consistency of the database and corrects it if necessary
@@ -25,6 +25,16 @@ function how_to_use() {
            NB: this is done by default in case of submission to boinc
    -t      report the current status of simulations
            for the time being, it reports the number of input and output files
+   -i      submit only incomplete cases. The platform of submission is forced to
+           ${sixdeskplatformDefIncomplete}
+           NB: no check at all of concerned directories / inputs is performed
+   -U      unlock dirs necessary to the script to run
+           PAY ATTENTION when using this option, as no check whether the lock
+              belongs to this script or not is performed, and you may screw up
+              processing of another script
+   -w      before doing any operation, submit any HTCondor cluster of jobs left
+              from a previous (failing attempt).
+           The platform of submission is forced to ${sixdeskplatformDefIncomplete}
 
    options (optional)
    -S      selected points of scan only
@@ -35,10 +45,16 @@ function how_to_use() {
               directories that will be submitted (see previous point)
            in case of submission, submit those directories requiring actual submission
               (see previous point)
-           NB: this option is NOT active in case of -c only!
-   -R      restart action from the specified point in scan (e.g.
-           -R lhc_coll%1%s%65_64%3_4%5%37.5)
-           NB: cannot be used with -S!
+           NB: 
+           - this option is NOT active in case of -c only!
+           - this option is NOT compatible with -i action!
+   -R      restart action from a specific point in scan (point is not treated again):
+           - e.g. -R lhc_coll%1%s%65_64%3_4%5%37.5, for starting from the specified
+             point;
+           - -R last, for starting from the last point present in taskids;
+           NB: when used with -S option, it is your responsibility to make sure that
+               there are no points in the scan that should be submitted but they are
+               actually skipped as they come 'after' the job you provided
    -M      MegaZip: in case of boinc, WUs all zipped in one file.
               (.zip/.desc files of each WU will be put in a big .zip)
            this option shall be used with both -g and -s actions, and in case
@@ -46,13 +62,19 @@ function how_to_use() {
    -B      break backward-compatibility
            for the moment, this sticks only to expressions affecting ratio of
               emittances, amplitude scans and job names in fort.3
+   -P      python path
    -v      verbose (OFF by default)
    -d      study name (when running many jobs in parallel)
    -p      platform name (when running many jobs in parallel)
+   -n      renew kerberos token every n jobs (default: ${NrenewKerberosDef})
+   -N      an HTCondor cluster of jobs should be composed of at most
+              N jobs (active only in case of HTCondor - default: ${nMaxJobsSubmitHTCondorDef}).
+           this option can be used also for submitting incomplete_cases
    -o      define output (preferred over the definition of sixdesklevel in sixdeskenv)
                0: only error messages and basic output 
                1: full output
                2: extended output for debugging
+
 EOF
 }
 
@@ -90,14 +112,6 @@ function preliminaryChecksRS(){
 	    sixdeskmess -1 "Only LSF platform for short runs!"
 	    let __lerr+=1
 	fi
-    elif [ $long -eq 1 ] ; then
-	if [ "$sixdeskplatform" == "grid" ] ; then
-	    sixdeskmess -1 "Running on GRID not yet implemented!!!"
-	    let __lerr+=1
-	elif [ "$sixdeskplatform" != "lsf" ] && [ "$sixdeskplatform" != "cpss" ] && [ "$sixdeskplatform" != "boinc" ] ; then
-	    sixdeskmess -1 "Platform not recognised: $sixdeskplatform!!!"
-	    let __lerr+=1
-	fi
     fi
 
     return $__lerr
@@ -118,7 +132,7 @@ function check_output_option(){
 	echo "    0: only error messages and basic output [default]"
 	echo "    1: full output"
 	echo "    2: extended output for debugging"
-	exit
+	exit 1
     else
 	loutform=true
 	sixdesklevel_option=${OPTARG}
@@ -375,23 +389,23 @@ function preProcessShort(){
             $sixdeskjobs_logs/sussix.tmp.3
 	let __lerr+=$?
 	sed -e 's/%suss//g' \
-	    ${SCRIPTDIR}/templates/lsf/${lsfjobtype}.job > $sixdeskjobs_logs/${lsfjobtype}.job
+	    ${SCRIPTDIR}/templates/lsf/${lsfjobtype}.sh > $sixdeskjobs_logs/${lsfjobtype}.sh
     else
 	sed -e 's/%suss/'#'/g' \
-            ${SCRIPTDIR}/templates/lsf/${lsfjobtype}.job > $sixdeskjobs_logs/${lsfjobtype}.job
+            ${SCRIPTDIR}/templates/lsf/${lsfjobtype}.sh > $sixdeskjobs_logs/${lsfjobtype}.sh
     fi
     let __lerr+=$?
     sed -i -e 's?SIXTRACKEXE?'$SIXTRACKEXE'?g' \
-           -e 's?SIXDESKHOME?'$sixdeskhome'?g' $sixdeskjobs_logs/${lsfjobtype}.job
+           -e 's?SIXDESKHOME?'$sixdeskhome'?g' $sixdeskjobs_logs/${lsfjobtype}.sh
     let __lerr+=$?
-    chmod 755 $sixdeskjobs_logs/${lsfjobtype}.job
+    chmod 755 $sixdeskjobs_logs/${lsfjobtype}.sh
     let __lerr+=$?
     sed -e 's/%suss/'#'/g' \
         -e 's?SIXTRACKEXE?'$SIXTRACKEXE'?g' \
 	-e 's?SIXDESKHOME?'$sixdeskhome'?g' \
-        ${SCRIPTDIR}/templates/lsf/${lsfjobtype}.job > $sixdeskjobs_logs/${lsfjobtype}0.job
+        ${SCRIPTDIR}/templates/lsf/${lsfjobtype}.sh > $sixdeskjobs_logs/${lsfjobtype}0.sh
     let __lerr+=$?
-    chmod 755 $sixdeskjobs_logs/${lsfjobtype}0.job
+    chmod 755 $sixdeskjobs_logs/${lsfjobtype}0.sh
     let __lerr+=$?
     return $__lerr
 }
@@ -479,6 +493,7 @@ function preProcessBoinc(){
 function submitChromaJobs(){
 
     local __destination=$1
+    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock'
     
     # --------------------------------------------------------------------------
     # generate appropriate fort.3 files as: fort.3.tx + fort.3.mad + fort.3.m2
@@ -534,10 +549,10 @@ function submitChromaJobs(){
 
     # --------------------------------------------------------------------------
     # prepare the other input files
-    ln -sf ${sixtrack_input}/fort.16_$iMad fort.16
-    ln -sf ${sixtrack_input}/fort.2_$iMad fort.2
-    if [ -e ${sixtrack_input}/fort.8_$iMad ] ; then
-        ln -sf ${sixtrack_input}/fort.8_$iMad fort.8
+    ln -sf ${sixtrack_input}/fort.16
+    ln -sf ${sixtrack_input}/fort.2
+    if [ -e ${sixtrack_input}/fort.8 ] ; then
+        ln -sf ${sixtrack_input}/fort.8
     else
         touch fort.8
     fi
@@ -551,15 +566,21 @@ function submitChromaJobs(){
     rm -f fort.10
     $SIXTRACKEXE > first_oneturn
     if test $? -ne 0 -o ! -s fort.10 ; then
-	if [ ${sixdesklevel} -lt 1 ]; then
-	    sixdeskmess -1 "Running the first one turn job for chromaticity"
-	fi
         sixdeskmess -1 "The first turn Sixtrack for chromaticity FAILED!!!"
         sixdeskmess -1 "Look in $sixdeskjobs_logs to see SixTrack input and output."
         sixdeskmess -1 "Check the file first_oneturn which contains the SixTrack fort.6 output."
 	exit
     fi
+    # save all interesting files from first job
+    rm -rf chromaJob01
+    mkdir chromaJob01
+    cp fort.2 fort.3 fort.8 fort.16 fort.10 first_oneturn chromaJob01
+    gzip -f chromaJob01/*
     mv fort.10 fort.10_first_oneturn
+    # clean dir
+    export GLOBIGNORE=${__GLOBIGNORE}
+    rm -f *
+    export GLOBIGNORE=
 
     # - second job
     sixdeskmess  1 "Running the second one turn job for chromaticity"
@@ -567,15 +588,21 @@ function submitChromaJobs(){
     rm -f fort.10
     $SIXTRACKEXE > second_oneturn
     if test $? -ne 0 -o ! -s fort.10 ; then
-	if [ ${sixdesklevel} -lt 1 ]; then
-	    sixdeskmess -1 "Running the second one turn job for chromaticity"
-	fi	
         sixdeskmess -1 "The second turn Sixtrack for chromaticity FAILED!!!"
         sixdeskmess -1 "Look in $sixdeskjobs_logs to see SixTrack input and output."
         sixdeskmess -1 "Check the file second_oneturn which contains the SixTrack fort.6 output."
 	exit
     fi
+    # save all interesting files from second job
+    rm -rf chromaJob02
+    mkdir chromaJob02
+    cp fort.2 fort.3 fort.8 fort.16 fort.10 second_oneturn chromaJob02
+    gzip -f chromaJob02/*
     mv fort.10 fort.10_second_oneturn
+    # clean dir
+    export GLOBIGNORE=${__GLOBIGNORE}
+    rm -f *
+    export GLOBIGNORE=
 
     # --------------------------------------------------------------------------
     # a bit of arithmetic
@@ -591,6 +618,7 @@ function submitChromaJobs(){
 function submitBetaJob(){
     
     local __destination=$1
+    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:lin*'
     
     # --------------------------------------------------------------------------
     # generate appropriate fort.3 files as: fort.3.m1 + fort.3.mad + fort.3.m2
@@ -627,10 +655,10 @@ function submitBetaJob(){
     
     # --------------------------------------------------------------------------
     # prepare the other input files
-    ln -sf ${sixtrack_input}/fort.16_$iMad fort.16
-    ln -sf ${sixtrack_input}/fort.2_$iMad fort.2
-    if [ -e ${sixtrack_input}/fort.8_$iMad ] ; then
-        ln -sf ${sixtrack_input}/fort.8_$iMad fort.8
+    ln -sf ${sixtrack_input}/fort.16
+    ln -sf ${sixtrack_input}/fort.2
+    if [ -e ${sixtrack_input}/fort.8 ] ; then
+        ln -sf ${sixtrack_input}/fort.8
     else
         touch fort.8
     fi
@@ -645,8 +673,17 @@ function submitBetaJob(){
         sixdeskmess -1 "Check the file lin which contains the SixTrack fort.6 output."
 	exit
     fi
+    # save all interesting files from beta job
+    rm -rf betaJob/*
+    mkdir betaJob
+    cp fort.2 fort.3 fort.8 fort.16 fort.10 lin betaJob
+    gzip -f betaJob/*
     mv lin lin_old
     cp fort.10 fort.10_old
+    # clean dir
+    export GLOBIGNORE=${__GLOBIGNORE}
+    rm -f *
+    export GLOBIGNORE=
 
     # --------------------------------------------------------------------------
     # regenerate betavalues file
@@ -665,45 +702,6 @@ function submitBetaJob(){
         echo "$beta_x $beta_x2 $beta_y $beta_y2 $htune $vtune $mychromx $mychromy $closed_orbit" > $__destination/betavalues
     fi
     
-}
-
-function parseBetaValues(){
-
-    local __betaWhere=$1
-
-    # check that the betavalues file contains all the necessary values
-    nBetas=`cat $__betaWhere/betavalues | wc -w`
-    if [ $nBetas -ne 14 ] ; then
-        sixdeskmess -1 "betavalues has $nBetas words!!! Should be 14!"
-	exit
-    fi
-
-    # check that the beta values are not NULL and notify user
-    beta_x=`gawk '{print $1}' $__betaWhere/betavalues`
-    beta_x2=`gawk '{print $2}' $__betaWhere/betavalues`
-    beta_y=`gawk '{print $3}' $__betaWhere/betavalues`
-    beta_y2=`gawk '{print $4}' $__betaWhere/betavalues`
-    if test "$beta_x" = "" -o "$beta_y" = "" -o "$beta_x2" = "" -o "beta_y2" = "" ; then
-        # clean up for a retry by removing old betavalues
-	# anyway, this run was not ok...
-        sixdeskmess -1 "One or more betavalues are NULL !!!"
-        sixdeskmess -1 "Look in $sixdeskjobs_logs to see SixTrack input and output."
-        sixdeskmess -1 "Check the file lin_old which contains the SixTrack fort.6 output."
-	exit
-    fi
-    sixdeskmess  1 "Betavalues:"
-    sixdeskmess  1 "beta_x[2] $beta_x $beta_x2 - beta_y[2] $beta_y $beta_y2"
-
-    # notify user other variables
-    fhtune=`gawk '{print $5}' $__betaWhere/betavalues`
-    fvtune=`gawk '{print $6}' $__betaWhere/betavalues`
-    fchromx=`gawk '{print $7}' $__betaWhere/betavalues`
-    fchromy=`gawk '{print $8}' $__betaWhere/betavalues`
-    fclosed_orbit=`gawk '{print $9" "$10" "$11" "$12" "$13" "$14}' $__betaWhere/betavalues`
-    sixdeskmess  1 "Chromaticity: $fchromx $fchromy"
-    sixdeskmess  1 "Tunes: $fhtune $fvtune"
-    sixdeskmess  1 "Closed orbit: $fclosed_orbit"
-
 }
 
 function submitCreateRundir(){
@@ -747,10 +745,15 @@ function submitCreateFinalFort3Short(){
 
 function submitCreateFinalFort3Long(){
 
+    local __lerr=0
+
     # returns ratio
     sixdeskRatio $kang $lbackcomp
+    [ -n "${ratio}" ] || let __lerr+=1
     # returns ax0 and ax1
     sixdeskax0 $factor $beta_x $beta_x2 $beta_y $beta_y2 $ratio $kang $square $fampstart $fampend $lbackcomp
+    [ -n "${ax0}" ] || let __lerr+=1
+    [ -n "${ax1}" ] || let __lerr+=1
     #
     sed -e 's/%turnsl/'$turnsl'/g' \
 	-e 's/%ax0l/'$ax0'/g' \
@@ -762,6 +765,8 @@ function submitCreateFinalFort3Long(){
 	-e 's/%inttuney/'$inttuneyy'/g' \
 	-e 's/%Runnam/'$Runnam'/g' \
 	-e 's/%writebinl/'$writebinl'/g' $sixdeskjobs_logs/fortl.3.mask > $sixdeskjobs_logs/fort.3
+    let __lerr+=${PIPESTATUS[0]}
+    return ${__lerr}
 }
 
 function submitCreateFinalFort3DA(){
@@ -790,15 +795,6 @@ function submitCreateFinalInputs(){
 	
     if [ "$sixdeskplatform" == "boinc" ] ; then
 	
-	# fort.3
-	ln -s $sixdeskjobs_logs/fort.3 $RundirFullPath/fort.3
-		
-	# input from MADX: fort.2/.8/.16
-	for iFort in 2 8 16 ; do
-	    [ ! -e $RundirFullPath/fort.${iFort} ] || rm -f $RundirFullPath/fort.${iFort}
-	    ln -s $sixtrack_input/fort.${iFort}_$iMad $RundirFullPath/fort.${iFort}
-	done
-
 	# generate zip/description file
 	# - generate new taskid
 	sixdeskTaskId=`awk '{print ($1+1)}' $sixdeskhome/sixdeskTaskIds/$LHCDescrip/sixdeskTaskId`
@@ -808,10 +804,11 @@ function submitCreateFinalInputs(){
 	# - return sixdeskTaskName and workunitName
 	sixdeskDefineWorkUnitName $workspace $Runnam $sixdesktaskid
 	let __lerr+=$?
-	if [ $__lerr -eq 0 ] ; then
-   	    # - generate zip file
+	if [ ${__lerr} -eq 0 ] ; then
+	    # - generate zip file
 	    #   NB: -j option, to store only the files, and not the source paths
-	    zip -j $RundirFullPath/$workunitName.zip $RundirFullPath/fort.2 $RundirFullPath/fort.3 $RundirFullPath/fort.8 $RundirFullPath/fort.16 >/dev/null 2>&1
+	    multipleTrials "zip -j $RundirFullPath/$workunitName.zip $sixdeskjobs_logs/fort.3 $sixtrack_input/fort.2 $sixtrack_input/fort.8 $sixtrack_input/fort.16 > $RundirFullPath/zip.log 2>&1; local __zip_exit_status=\$? ; grep warning $RundirFullPath/zip.log >/dev/null 2>&1 ; local __zip_warnings=\$? ; rm -f $RundirFullPath/zip.log" "[ \${__zip_exit_status} -eq 0 ] && [ \${__zip_warnings} -eq 1 ]" "Failing to generate .zip file for WU ${workunitName}"
+	    let __lerr+=$?
 	    # - generate the workunit description file
 	    cat > $RundirFullPath/$workunitName.desc <<EOF
 $workunitName
@@ -826,21 +823,15 @@ $errors
 $numIssues
 $resultsWithoutConcensus
 EOF
-
-	    # - update MegaZip file:
+	    let __lerr+=$?
+  	    # - update MegaZip file:
 	    if ${lmegazip} ; then
 		echo "$RundirFullPath/$workunitName.desc" >> ${sixdeskjobs_logs}/megaZipList.txt
 		echo "$RundirFullPath/$workunitName.zip" >> ${sixdeskjobs_logs}/megaZipList.txt
 	    fi
 	fi
-
-	# clean
-	for iFort in 2 3 8 16 ; do
-	    rm -f $RundirFullPath/fort.$iFort
-	done
-
     fi
-
+    
     return $__lerr
 }
 
@@ -849,16 +840,20 @@ function fixDir(){
     #    that RunDirFullPath and actualDirNameFullPath are non-zero length strings
     local __RunDirFullPath=$1
     local __actualDirNameFullPath=$2
+    local __iFixed=0
     if [ ! -d $__RunDirFullPath ] ; then
 	sixdeskmess -1 "...directory path has problems: recreating it!!!"
 	rm -rf $__RunDirFullPath
 	mkdir -p $__RunDirFullPath
+	let __iFixed+=1
     fi
     if [ ! -L $__actualDirNameFullPath ] ; then
 	sixdeskmess -1 "...directory link has problems: recreating it!!!"
 	rm -rf $__actualDirNameFullPath
 	ln -fs $__RunDirFullPath $__actualDirNameFullPath
+	let __iFixed+=1
     fi
+    return ${__iFixed}
 }
 
 
@@ -884,11 +879,13 @@ function fix_DB_entry(){
 
 function fixInputFiles(){
     local __RunDirFullPath=$1
+    local __iFixed=0
     
     # fort.3
     if [ ! -f $RundirFullPath/fort.3.gz ] ; then
 	sixdeskmess -1 "...fort.3.gz has problems: recreating it!!!"
 	gzip -c $sixdeskjobs_logs/fort.3 > $RundirFullPath/fort.3.gz
+	let __iFixed+=1
     fi
 	
     # input from MADX: fort.2/.8/.16
@@ -896,12 +893,13 @@ function fixInputFiles(){
 	if [ ! -f $RundirFullPath/fort.${iFort}.gz ] ; then
 	    sixdeskmess -1 "...fort.${iFort}.gz has problems: recreating it!!!"
 	    ln -s $sixtrack_input/fort.${iFort}_$iMad.gz $RundirFullPath/fort.${iFort}.gz
+	    let __iFixed+=1
 	fi
     done
+    return ${__iFixed}
 }
 
 function checkDirStatus(){
-    let nExpected+=1
     sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -d
     if [ $? -eq 0 ] ; then
 	let nFound[0]+=1
@@ -920,13 +918,14 @@ function checkDirStatus(){
 
 function checkDirReadyForSubmission(){
     local __lerr=0
+    local __llerr=0
     
     sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -d
     let __lerr+=$?
     sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -s fort.2.gz fort.3.gz fort.8.gz fort.16.gz
     let __lerr+=$?
     if [ "$sixdeskplatform" == "lsf" ] ; then
-	sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -s $Runnam.job
+	sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -s $Runnam.sh
 	let __lerr+=$?
     elif [ "$sixdeskplatform" == "boinc" ] ; then
 	# - there should be only 1 .desc/.zip files
@@ -939,6 +938,7 @@ function checkDirReadyForSubmission(){
 	    if [ -z "${tmpFileName}" ] ; then
 		sixdeskmess -1 "no ${extension} file in $RundirFullPath!!!"
 		let __lerr+=1
+		let __llerr+=1
 	    else
 		sixdeskGetFileName "${tmpFileName}" tmpName
 		fileNames="${fileNames} ${tmpName}"
@@ -949,7 +949,7 @@ function checkDirReadyForSubmission(){
 	if [ "${fileNames[0]}" != "${fileNames[1]}" ] ; then
 	    sixdeskmess -1 "mismatch between .desc and .zip file names in $RundirFullPath: ${fileNames[0]} and ${fileNames[1]}!"
 	    let __lerr+=$?
-	else
+	elif [ ${__llerr} -eq 0 ] ; then
 	    workunitName="${fileNames[0]}"
 	    sixdeskmess  1 ".desc and .zip files present in $RundirFullPath!"
 	fi
@@ -1117,37 +1117,25 @@ function dot_bsub(){
     # temporary variables
     local __lerr=0
     local __taskno=""
+    local __tmpLines=""
 
-    touch $RundirFullPath/JOB_NOT_YET_STARTED
-    
-    # clean, in case
-    dot_clean
-    
     # actually submit
-    multipleTrials "tmpLines=\"`bsub -q $lsfq -o $RundirFullPath/$Runnam.log $RundirFullPath/$Runnam.job 2>&1`\" ; local __exit_status=\$?" "[ \$__exit_status -eq 0 ]" "Problem at bsub"
+    # typical message returned by bsub:
+    #   Job <864248893> is submitted to queue <8nm>.
+    multipleTrials "__tmpLines=\"\`bsub -q $lsfq -o $RundirFullPath/$Runnam.log $RundirFullPath/$Runnam.sh 2>&1\`\" ; __taskno=\`echo \"\${__tmpLines}\" | grep submitted | cut -d\< -f2 | cut -d\> -f1\`;" "[ -n \"\${__taskno}\" ]" "Problem at bsub"
     let __lerr+=$?
 
     # verify that submission was successfull
     if  [ ${__lerr} -eq 0 ] ; then
-	# typical message returned by bsub:
-	#   Job <864248893> is submitted to queue <8nm>.
-	multipleTrials "taskno=\"`echo \"${tmpLines}\" | grep submitted | cut -d\< -f2 | cut -d\> -f1`\"" "[ -n \"\${taskno}\" ]" "Problem at taskno"
-	let __lerr+=$?
-	if [ ${__lerr} -eq 0 ] ; then
-	    local __taskid="lsf${taskno}"
-	    sixdeskmess  1 "`echo \"${tmpLines}\" | grep submitted`"
-	else
-	    local __taskid="lsf_unknown"
-	    sixdeskmess -1 "bsub did NOT return a taskno !!! - assigning a default one"
-	fi
-
+	local __taskid="lsf${__taskno}"
+	sixdeskmess  1 "`echo \"${__tmpLines}\" | grep submitted`"
     else
-	sixdeskmess -1 "bsub of $RundirFullPath/$Runnam.job to Queue ${lsfq} failed !!! - going to next WU!"
+	sixdeskmess -1 "bsub of $RundirFullPath/$Runnam.sh to Queue ${lsfq} failed !!! - going to next WU!"
     fi
 
     if [ ${__lerr} -eq 0 ] ; then
         # keep track of the $Runnam-taskid couple
-	updateTaskIdsCases $sixdeskjobs/jobs $sixdeskjobs/incomplete_jobs $__taskid
+	updateTaskIdsCases $sixdeskjobs/jobs $sixdeskjobs/incomplete_jobs $__taskid $Runnam
     else
 	rm -f $RundirFullPath/JOB_NOT_YET_STARTED 
     fi
@@ -1155,18 +1143,21 @@ function dot_bsub(){
     return $__lerr
 }
 
-function dot_task(){
-    return
+function dot_htcondor(){
+
+    # temporary variables
+    local __lerr=0
+
+    # add current point in scan to list of points to be submitted:
+    echo "$Rundir" >> ${sixdeskjobs}/${LHCDesName}.list
+
+    return $__lerr
 }
 
 function dot_boinc(){
 
+    # temporary variables
     local __lerr=0
-    
-    touch $RundirFullPath/JOB_NOT_YET_STARTED
-
-    # clean, in case
-    dot_clean
     
     # actually submit
     descFileNames=`ls -1 $RundirFullPath/*.desc 2> /dev/null`
@@ -1187,12 +1178,91 @@ function dot_boinc(){
         # the job has just started
 	touch $RundirFullPath/JOB_NOT_YET_COMPLETED
         # keep track of the $Runnam-taskid couple
-	updateTaskIdsCases $sixdeskjobs/tasks $sixdeskjobs/incomplete_tasks $sixdesktaskid
+	updateTaskIdsCases $sixdeskjobs/tasks $sixdeskjobs/incomplete_tasks $sixdesktaskid $Runnam
     fi
 
+    # in case of LSF, this operation is done either by:
+    # - dot_bsub, in case of un-successful submission;
+    # - the job at statup, in case of successful submission;
     rm -f $RundirFullPath/JOB_NOT_YET_STARTED
 
     return $__lerr
+}
+
+function condor_sub(){
+    local __lerr=0
+    echo ""
+    printf "=%.0s" {1..80}
+    echo ""
+    if [ ! -e ${sixdeskjobs}/${LHCDesName}.list ] ; then
+	sixdeskmess -1 "List of tasks not there: ${sixdeskjobs}/${LHCDesName}.list"
+	let __lerr+=1
+    elif [ `wc -l ${sixdeskjobs}/${LHCDesName}.list 2> /dev/null | awk '{print ($1)}'` -eq 0 ] ; then
+	sixdeskmess -1 "Empty list of tasks: ${sixdeskjobs}/${LHCDesName}.list"
+	rm -f ${sixdeskjobs}/${LHCDesName}.list
+	let __lerr+=1
+    else
+	cd ${sixdesktrack}
+	iBatch=$((${nQueued}/${nMaxJobsSubmitHTCondor}))
+	if [ ${iBatch} -eq 0 ] ; then
+	    sixdeskmess 1 "checking if there are already some condor clusters from the same workspace/study ..."
+	    i0Batch=`condor_q -wide | grep run_six/$workspace/$LHCDescrip | awk '{print ($2)}' | cut -d\/ -f4 | sort | tail -1`
+	    if [ -n "${i0Batch}" ] ; then
+		iBatch=${i0Batch}
+	    fi
+	fi
+	let iBatch+=1
+	if [ ${iBatch} -eq 1 ] ; then
+            batch_name="run_six/$workspace/$LHCDescrip"
+	else
+            batch_name="run_six/$workspace/${LHCDescrip}/${iBatch}"
+	fi
+	sixdeskmess -1 "Submitting jobs to $sixdeskplatform from dir $PWD - batch name: \"$batch_name\""
+	sixdeskmess  1 "Depending on the number of points in the scan, this operation can take up to few minutes."
+	sixdeskmess -1 "First job: `head -1 ${sixdeskjobs}/${LHCDesName}.list`"
+	sixdeskmess -1 "Last job: `tail -1 ${sixdeskjobs}/${LHCDesName}.list`"
+	# let's renew the kerberos token just before submitting
+	sixdeskmess 2 "renewing kerberos token before submission to HTCondor"
+	sixdeskRenewKerberosToken
+	multipleTrials "terseString=\"\`condor_submit -batch-name ${batch_name} -terse ${sixdeskjobs}/htcondor_run_six.sub\`\" " "[ -n \"\${terseString}\" ]" "Problem at condor_submit"
+	let __lerr+=$?
+	if [ ${__lerr} -ne 0 ] ; then
+	    sixdeskmess -1 "Something wrong with htcondor submission: submission didn't work properly - exit status: ${__lerr}"
+	    # clean
+	    while read tmpDir ; do
+		rm -f ${tmpDir}/JOB_NOT_YET_STARTED 
+	    done < ${sixdeskjobs}/${LHCDesName}.list
+	else
+	    sixdeskmess -1 "Submission was successful"
+	    # parse terse output (example: "23548.0 - 23548.4")
+	    clusterID=`echo "${terseString}" | head -1 | cut -d\- -f2 | cut -d\. -f1`
+	    clusterID=${clusterID//\ /}
+	    jobIDmax=`echo "${terseString}" | head -1 | cut -d\- -f2 | cut -d\. -f2`
+	    let jobIDmax+=1
+	    nCases=`wc -l ${sixdeskjobs}/${LHCDesName}.list | awk '{print ($1)}'`
+	    if [ ${jobIDmax} -ne ${nCases} ] ; then
+		sixdeskmess -1 "Something wrong with htcondor submission: I requested ${nCases} to be submitted, and only ${jobIDmax} actually made it!"
+	    fi
+	    # save taskIDs
+	    sixdeskmess -1 "Updating DB..."
+	    sixdeskmess  1 "Depending on the number of points in the scan, this operation can take up to few minutes."
+	    ii=0
+	    while read tmpDir ; do
+		taskid="htcondor${clusterID}.${ii}"
+		Runnam=$(sixdeskFromJobDirToJobName ${tmpDir} ${lbackcomp})
+		updateTaskIdsCases $sixdeskjobs/jobs $sixdeskjobs/incomplete_jobs $taskid $Runnam
+		let NsuccessSub+=1
+		let ii+=1
+	    done < ${sixdeskjobs}/${LHCDesName}.list
+	    rm -f ${sixdeskjobs}/${LHCDesName}.list
+	fi
+	cd - > /dev/null 2>&1
+    fi
+    echo ""
+    printf "=%.0s" {1..80}
+    echo ""
+    echo ""
+    return ${__lerr}
 }
 
 function dot_megaZip(){
@@ -1229,6 +1299,7 @@ function dot_clean(){
     if [ -s $RundirFullPath/fort.10.gz ] || [ -s $RundirFullPath/JOB_NOT_YET_COMPLETED ]; then
 	rm -f $RundirFullPath/fort.10.gz
 	rm -f $RundirFullPath/JOB_NOT_YET_COMPLETED
+	rm -f $RundirFullPath/JOB_NOT_YET_STARTED 
 	sed -i -e '/^'$Runnam'$/d' $sixdeskwork/completed_cases
 	sed -i -e '/^'$Runnam'$/d' $sixdeskwork/mycompleted_cases
     fi
@@ -1250,24 +1321,25 @@ function updateTaskIdsCases(){
     local __outFile1=$1
     local __outFile2=$2
     local __taskid=$3
+    local __Runnam=$4
     local __taskids
     local __oldtaskid
 
-    __oldtaskid=`grep "$Runnam " $sixdeskwork/taskids`
+    __oldtaskid=`grep "${__Runnam} " $sixdeskwork/taskids`
     if [ -n "$__oldtaskid" ] ; then
 	__oldtaskid=`echo $__oldtaskid | cut -d " " -f2-`
-	sed -i -e '/'$Runnam' /d' $sixdeskwork/taskids
-	__taskids=$__oldtaskid" "$__taskid" "
-	sixdeskmess  1 "Job $Runnam re-submitted with JobId/taskid $__taskid; old JobId/taskid(s) $__oldtaskid"
+	sed -i -e "/${__Runnam} /d" $sixdeskwork/taskids
+	__taskids="${__oldtaskid} ${__taskid} "
+	sixdeskmess 1 "Job ${__Runnam} re-submitted with JobId/taskid $__taskid; old JobId/taskid(s) $__oldtaskid"
     else
 	__taskids=$__taskid
-	echo $Runnam >> $sixdeskwork/incomplete_cases
-	echo $Runnam >> $sixdeskwork/myincomplete_cases
-	sixdeskmess  1 "Job $Runnam submitted with JobId/taskid $__taskid"
+	echo ${__Runnam} >> $sixdeskwork/incomplete_cases
+	echo ${__Runnam} >> $sixdeskwork/myincomplete_cases
+	sixdeskmess 1 "Job ${__Runnam} submitted with JobId/taskid $__taskid"
     fi
-    echo "$Runnam $__taskids " >> $sixdeskwork/taskids
-    echo "$Runnam $__taskid " >> $__outFile1
-    echo "$Runnam $__taskid " >> $__outFile2
+    echo "${__Runnam} ${__taskids} " >> $sixdeskwork/taskids
+    echo "${__Runnam} ${__taskid} " >> $__outFile1
+    echo "${__Runnam} ${__taskid} " >> $__outFile2
     
 }
 
@@ -1301,28 +1373,8 @@ function treatShort(){
 	fi
     fi
 
-    # angles
-    if [ -n "${__reduce_angs_with_aplitude}" ] && [ ${__reduce_angs_with_aplitude} -eq 1 ] ; then
-	if [ ${__ampstart} -gt ${__factor} ] ;then
-	    kksLoop=${KKs[@]}
-	    anglesLoop=${Angles[@]}
-	    kangsLoop=${kAngs[@]}
-	else
-	    kksLoop=${KKs_reduced[@]}
-	    anglesLoop=${Angles_reduced[@]}
-	    kangsLoop=${kAngs_reduced[@]}
-	fi
-    else
-	kksLoop=${KKs[@]}
-	anglesLoop=${Angles[@]}
-	kangsLoop=${kAngs[@]}
-    fi
-    kksLoop=( ${kksLoop} )
-    anglesLoop=( ${anglesLoop} )
-    kangsLoop=( ${kangsLoop} )
-    
     # ======================================================================
-    for (( iAngle=0; iAngle<${#kkLoop[@]}; iAngle++ )) ; do
+    for (( iAngle=0; iAngle<${#KKs[@]}; iAngle++ )) ; do
     # ======================================================================
 
 	# separate output for current case from previous one
@@ -1336,12 +1388,16 @@ function treatShort(){
 	local __eCheckDirReadyForSubmission=0
 	# exit status: dir already run
 	local __eCheckDirAlreadyRun=0
+	# fixing dir
+	local __iFixed=0
 
 	# kk, Angle and kang
-	kk=${kksLoop[${iAngle}]}
-	Angle=${anglesLoop[${iAngle}]}
-	kang=${kangsLoop[${iAngle}]}
+	kk=${KKs[${iAngle}]}
+	Angle=${Angles[${iAngle}]}
+	kang=${kAngs[${iAngle}]}
 
+	let nConsidered+=1
+	
 	# get dirs for this point in scan (returns Runnam, Rundir, actualDirName)
 	# ...and notify user
         if [ $kk -eq 0 ] ; then
@@ -1365,20 +1421,19 @@ function treatShort(){
 	if ${lfix} ; then
 	# ----------------------------------------------------------------------
 
-	    if ${lfixdir}; then
-		sixdeskmess -1 "Analysing and fixing dir $RundirFullPath"
-		# fix dir
-		fixDir $RundirFullPath $actualDirNameFullPath
-		# finalise generation of fort.3
-		submitCreateFinalFort3Short $kk
-		# fix input files
-		fixInputFiles $RundirFullPath
+	    sixdeskmess -1 "Analysing and fixing dir $RundirFullPath"
+	    # fix dir
+	    fixDir $RundirFullPath $actualDirNameFullPath
+	    let __iFixed+=$?
+	    # finalise generation of fort.3
+	    submitCreateFinalFort3Short $kk
+	    # fix input files
+	    fixInputFiles $RundirFullPath
+	    let __iFixed+=$?
+	    if [ $__iFixed -ne 0 ] ; then
 		let NsuccessFix+=1
-	    elif ${lfixdb}; then
-		sixdeskmess -1 "Analyzing and fixing DB entry ${RundirFullPath}"
 	    fi
-
-		
+	    
 	# ----------------------------------------------------------------------
 	elif ${lstatus} ; then
         # ----------------------------------------------------------------------
@@ -1434,14 +1489,14 @@ function treatShort(){
 	    		sed -e 's?SIXJOBNAME?'$Runnam'?g' \
 	    		    -e 's?SIXJOBDIR?'$Rundir'?g' \
 	    		    -e 's?SIXTRACKDIR?'$sixdesktrack'?g' \
-	    		    $sixdeskjobs_logs/${lsfjobtype}0.job > $RundirFullPath/$Runnam.job
+	    		    $sixdeskjobs_logs/${lsfjobtype}0.sh > $RundirFullPath/$Runnam.sh
 	    	    else
 	    		sed -e 's?SIXJOBNAME?'$Runnam'?g' \
 	    		    -e 's?SIXJOBDIR?'$Rundir'?g' \
 	    		    -e 's?SIXTRACKDIR?'$sixdesktrack'?g' \
-	    		    $sixdeskjobs_logs/${lsfjobtype}.job > $RundirFullPath/$Runnam.job
+	    		    $sixdeskjobs_logs/${lsfjobtype}.sh > $RundirFullPath/$Runnam.sh
 	    	    fi
-	    	    chmod 755 $RundirFullPath/$Runnam.job
+	    	    chmod 755 $RundirFullPath/$Runnam.sh
 
 		    let NsuccessGen+=1
 	        fi
@@ -1474,9 +1529,13 @@ function treatShort(){
 	    if ${lsubmit} ; then
 	    # ------------------------------------------------------------------
 	        if ${__lSubmit} ; then
+                    # clean, in case
+		    dot_clean
+		    touch $RundirFullPath/JOB_NOT_YET_STARTED
+		    # actually submit
 	    	    dot_bsub
-		    local __exStatus=$?
-		    if [ ${__exStatus} -eq 0 ] ; then
+		    local __subSuccess=$?
+		    if [ ${__subSuccess} -eq 0 ] ; then
 			let NsuccessSub+=1
 		    fi
 	        else
@@ -1518,8 +1577,8 @@ function treatLong(){
         sixdeskmess -1 "Considering amplitude step: $Ampl"
 	
 	# angles
-	if [ -n "${__reduce_angs_with_aplitude}" ] && [ ${__reduce_angs_with_aplitude} -eq 1 ] ; then
-	    if [ ${__ampstart} -gt ${__factor} ] ;then
+	if ${lReduceAngsWithAmplitude} ; then
+	    if [ ${ampstart} -gt ${ampFactor} ] ;then
 		kksLoop=${KKs[@]}
 		anglesLoop=${Angles[@]}
 		kangsLoop=${kAngs[@]}
@@ -1549,6 +1608,8 @@ function treatLong(){
 	    local __eCheckDirReadyForSubmission=0
 	    # exit status: dir already run
 	    local __eCheckDirAlreadyRun=0
+	    # fixing dir
+	    local __iFixed=0
 
 	    # kk, Angle and kang
 	    kk=${kksLoop[${iAngle}]}
@@ -1558,10 +1619,16 @@ function treatLong(){
 	    if ${lrestart} && ${lrestartAngle} ; then
 		if [ "${angleFromName}" == "${Angle}" ] ; then
 		    lrestartAngle=false
+		    if ${lrestartLast} ; then
+			# -R LAST
+			continue
+		    fi
 		else
 		    continue
 		fi
 	    fi
+
+	    let nConsidered+=1
 
 	    # get dirs for this point in scan (returns Runnam, Rundir, actualDirName)
 	    sixdeskDefinePointTree $LHCDesName $iMad "s" $sixdesktunes $Ampl $turnsle $Angle $kk $sixdesktrack
@@ -1574,7 +1641,7 @@ function treatLong(){
 	    if ! ${lquiet}; then
 		echo ""
 	    fi
-	    sixdeskmess  1 "Point in scan $Runnam $Rundir, k"
+
 	    
 	    # ----------------------------------------------------------------------
 	    if ${lfix} ; then
@@ -1582,31 +1649,18 @@ function treatLong(){
 
 		if ${lfixdir}; then
 		# fix dir
-		    fixDir $RundirFullPath $actualDirNameFullPath
+
+		fixDir $RundirFullPath $actualDirNameFullPath
+		let __iFixed+=$?
 		# finalise generation of fort.3
 		    submitCreateFinalFort3Long
 		# fix input files
-		    fixInputFiles $RundirFullPath
+		fixInputFiles $RundirFullPath
+		let __iFixed+=$?
+		if [ $__iFixed -ne 0 ] ; then
 		    let NsuccessFix+=1
-		elif ${lfixdb}; then
-		    sixdeskmess -1 "Analyzing and fixing DB entry ${RundirFullPath}"
-
-
-		    db_find_old_entry
-
-		    
-		    check_job_complete
-		    __echeck_job_complete=$?
-		    
-	    	    if [ $? -eq 0 ] ; then
-	    		db_add_incomplete_job
-		    elif [ $? -eq 1 ]; then
-			db_add_complete_job
-	    	    fi	    	    
-
-		    
 		fi
-
+	    
 	    # ----------------------------------------------------------------------
 	    elif ${lstatus} ; then
             # ----------------------------------------------------------------------
@@ -1640,7 +1694,11 @@ function treatLong(){
 	        	submitCreateRundir $RundirFullPath $actualDirNameFullPath
 			
 	        	# finalise generation of fort.3
-	        	submitCreateFinalFort3Long
+			multipleTrials "submitCreateFinalFort3Long; local __exit_status=\$?" "[ \${__exit_status} -eq 0 ]" "Failing to generate a proper fort.3"
+			if [ $? -ne 0 ] ; then
+			    sixdeskmess  1 "Carrying on with next WU"
+			    continue
+			fi
 			
 	        	# final preparation of all SIXTRACK files
 	        	# NB: for boinc, it returns workunitName
@@ -1656,8 +1714,8 @@ function treatLong(){
 	        		-e 's?SIXJOBDIR?'$Rundir'?g' \
 	        		-e 's?SIXTRACKDIR?'$sixdesktrack'?g' \
 	        		-e 's?SIXTRACKEXE?'$SIXTRACKEXE'?g' \
-	        		-e 's?SIXCASTOR?'$sixdeskcastor'?g' ${SCRIPTDIR}/templates/lsf/${lsfjobtype}.job > $RundirFullPath/$Runnam.job
-	        	    chmod 755 $RundirFullPath/$Runnam.job
+	        		-e 's?SIXCASTOR?'$sixdeskcastor'?g' ${SCRIPTDIR}/templates/lsf/${lsfjobtype}.sh > $RundirFullPath/$Runnam.sh
+	        	    chmod 755 $RundirFullPath/$Runnam.sh
 	        	fi
 			let NsuccessGen+=1
 	            fi
@@ -1690,23 +1748,28 @@ function treatLong(){
 	        if ${lsubmit} ; then
 	        # ------------------------------------------------------------------
 	            if ${__lSubmit} ; then
-			sixdeskmess -1 "Submitting - ${LHCDescrip} - Job: ${NsuccessSub} - Seed: $iMad/$iend - Ampl: $Ampl - Angle: $Angle"
+                        # clean, in case
+			dot_clean
+			touch $RundirFullPath/JOB_NOT_YET_STARTED
 	        	if [ "$sixdeskplatform" == "lsf" ] ; then
 	        	    dot_bsub
-			    local __exStatus=$?
-	        	elif [ "$sixdeskplatform" == "cpss" ] ; then
-	        	    dot_task
-			    local __exStatus=$?
+			    local __subSuccess=$?
+	        	elif [ "$sixdeskplatform" == "htcondor" ] ; then
+	        	    dot_htcondor
+			    local __subSuccess=1
+			    let nQueued+=1
+			    if  [ $((${nQueued}%${nMaxJobsSubmitHTCondor})) -eq 0 ] ; then
+				condor_sub
+			    fi
 	        	elif [ "$sixdeskplatform" == "boinc" ] ; then
 	        	    dot_boinc
-			    local __exStatus=$?
+			    local __subSuccess=$?
 	        	fi
-			if [ ${__exStatus} -eq 0 ] ; then
+			if [ ${__subSuccess} -eq 0 ] ; then
 			    let NsuccessSub+=1
 			fi
 	            else
 	        	sixdeskmess -1 "No submission!"
-			echo
 	            fi
 	        fi
 	        
@@ -1718,6 +1781,26 @@ function treatLong(){
 		    fi
 	        fi
 
+	        # ------------------------------------------------------------------
+	        # renew kerberos ticket (long submissions)
+	        # ------------------------------------------------------------------
+		if ${lfix} && [ $((${NsuccessGen}%${NrenewKerberos})) -eq 0 ] && [ ${NsuccessGen} -ne 0 ] ; then
+		    sixdeskmess 2 "renewing kerberos token: ${NsuccessGen} vs ${NrenewKerberos}"
+		    sixdeskRenewKerberosToken
+		elif ${lstatus} && [ $((${NsuccessSts}%${NrenewKerberos})) -eq 0 ] && [ ${NsuccessSts} -ne 0 ] ; then
+		    sixdeskmess 2 "renewing kerberos token: ${NsuccessSts} vs ${NrenewKerberos}"
+		    sixdeskRenewKerberosToken
+		elif ${lgenerate} && [ $((${NsuccessFix}%${NrenewKerberos})) -eq 0 ] && [ ${NsuccessFix} -ne 0 ] ; then
+		    sixdeskmess 2 "renewing kerberos token: ${NsuccessFix} vs ${NrenewKerberos}"
+		    sixdeskRenewKerberosToken
+		elif ${lcheck} && [ $((${NsuccessChk}%${NrenewKerberos})) -eq 0 ] && [ ${NsuccessChk} -ne 0 ] ; then
+		    sixdeskmess 2 "renewing kerberos token: ${NsuccessChk} vs ${NrenewKerberos}"
+		    sixdeskRenewKerberosToken
+		elif ${lsubmit} && [ $((${NsuccessSub}%${NrenewKerberos})) -eq 0 ] && [ ${NsuccessSub} -ne 0 ] ; then
+		    sixdeskmess 2 "renewing kerberos token: ${NsuccessSub} vs ${NrenewKerberos}"
+		    sixdeskRenewKerberosToken
+		fi
+		
 	    # ----------------------------------------------------------------------
 	    fi
 	    # ----------------------------------------------------------------------
@@ -1731,6 +1814,10 @@ function treatLong(){
 function treatDA(){
     Angle=0
     kk=0
+    
+    let nConsidered+=1
+    # fixing dir
+    local __iFixed=0
     
     # get dirs for this point in scan (returns Runnam, Rundir, actualDirName)
     sixdeskDefinePointTree $LHCDesName $iMad "d" $sixdesktunes $Ampl "0" $Angle $kk $sixdesktrack
@@ -1746,11 +1833,15 @@ function treatDA(){
 	sixdeskmess -1 "Analysing and fixing dir $RundirFullPath"
 	# fix dir
 	fixDir $RundirFullPath $actualDirNameFullPath
+	let __iFixed+=$?
 	# finalise generation of fort.3
 	submitCreateFinalFort3DA
 	# fix input files
 	fixInputFiles $RundirFullPath
-	let NsuccessFix+=1
+	let __iFixed+=$?
+	if [ $__iFixed -ne 0 ] ; then
+	    let NsuccessFix+=1
+	fi
 	    
     # ----------------------------------------------------------------------
     elif ${lstatus} ; then
@@ -1782,15 +1873,18 @@ function treatDA(){
                 -e 's?SIXTRACKDAEXE?'$SIXTRACKDAEXE'?g' \
                 -e 's?SIXJOBDIR?'$Rundir'?g' \
                 -e 's?SIXTRACKDIR?'$sixdesktrack'?g' \
-                -e 's?SIXJUNKTMP?'$sixdeskjobs_logs'?g' $sixdeskhome/utilities/${lsfjobtype}.job > $sixdeskjobs_logs/$Runnam.job
-            chmod 755 $sixdeskjobs_logs/$Runnam.job
+                -e 's?SIXJUNKTMP?'$sixdeskjobs_logs'?g' $sixdeskhome/utilities/${lsfjobtype}.sh > $sixdeskjobs_logs/$Runnam.sh
+            chmod 755 $sixdeskjobs_logs/$Runnam.sh
 	    let NsuccessGen+=1
         fi
         if ${lsubmit} ; then
+            # clean, in case
+	    dot_clean
+	    touch $RundirFullPath/JOB_NOT_YET_STARTED
             # actually submit
             dot_bsub
-	    local __exStatus=$?
-	    if [ ${__exStatus} -eq 0 ] ; then
+	    local __subSuccess=$?
+	    if [ ${__subSuccess} -eq 0 ] ; then
 		let NsuccessSub+=1
 	    fi
         fi
@@ -1805,29 +1899,18 @@ function printSummary(){
 	sixdeskmess -1 "FIXED          ${NsuccessFix} directories"
     fi
     if ${lgenerate} ; then
-	sixdeskmess -1 "GENERATED      ${NsuccessGen} directories"	
+	sixdeskmess -1 "GENERATED      ${NsuccessGen} directories"
     fi
     if ${lcheck} ; then
-	sixdeskmess -1 "CHECKED        ${NsuccessChk} directories"		
+	sixdeskmess -1 "CHECKED        ${NsuccessChk} directories"
     fi
     if ${lsubmit} ; then
-	sixdeskmess -1 "SUBMITTED      ${NsuccessSub} jobs"		
+	sixdeskmess -1 "SUBMITTED      ${NsuccessSub} jobs"
     fi
     if ${lstatus} ; then
-	sixdeskmess -1 "STATUS LISTED  ${NsuccessSub} jobs"			
+	sixdeskmess -1 "STATUS LISTED  ${NsuccessSts} jobs"
     fi
-    if [ $1 -eq 0 ] ; then
-	sixdeskmess -1 "Completed normally."
-    else
-	sixdeskmess -1 "Premature end."
-	if [ $1 -eq 11 ] ; then
-	    sixdeskEchoEnvVars /tmp/envs_SIGSEGV.txt
-	    sixdeskSendNotifMail "FATAL - SIGSEGV"
-	elif [ $1 -eq 8 ] ; then
-	    sixdeskEchoEnvVars /tmp/envs_SIGFPE.txt
-	    sixdeskSendNotifMail "FATAL - SIGFPE"
-	fi
-    fi
+    sixdeskmess -1 "CONSIDERED     ${nConsidered} jobs"
 }
 
 # ==============================================================================
@@ -1860,15 +1943,27 @@ lverbose=false
 lfixdb=false
 lfixdir=false
 lrestart=false
+lrestartLast=false
+lincomplete=false
+lunlockRun6T=false
+lFinaliseHTCondor=false
+unlockSetEnv=""
 restartPoint=""
 currPlatform=""
 currStudy=""
 optArgCurrStudy="-s"
 optArgCurrPlatForm=""
+doNotOverwrite=""
 verbose=""
+sixdeskplatformDefIncomplete="htcondor"
+currPythonPath=""
+NrenewKerberosDef=10000
+NrenewKerberos=${NrenewKerberosDef}
+nMaxJobsSubmitHTCondorDef=15000
+nMaxJobsSubmitHTCondor=${nMaxJobsSubmitHTCondorDef}
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  ":hgo:sctakf:vBSCMd:p:R:" opt ; do
+while getopts  ":hgo:sctakfvBSCMid:p:R:P:n:N:wU" opt ; do
     case $opt in
 	a)
 	    # do everything
@@ -1933,6 +2028,16 @@ while getopts  ":hgo:sctakf:vBSCMd:p:R:" opt ; do
 	    # submission to boinc through MegaZip
 	    lmegazip=true
 	    ;;
+	i)
+	    # submit incomplete cases only
+	    lincomplete=true
+	    # disable generation
+	    lgenerate=false
+	    # disable check
+	    lcheck=false
+	    # submit
+	    lsubmit=true
+	    ;;
 	B)
 	    # use whatever breaks backward compatibility
 	    lbackcomp=false
@@ -1949,9 +2054,44 @@ while getopts  ":hgo:sctakf:vBSCMd:p:R:" opt ; do
 	    # status
 	    lstatus=true
 	    ;;
+	P)
+	    # the user is requesting a specific path to python
+	    currPythonPath="-P ${OPTARG}"
+	    ;;
+	n)
+	    # renew kerberos token every N jobs
+	    NrenewKerberos=${OPTARG}
+	    # check it is actually a number
+	    let NrenewKerberos+=0
+	    if [ $? -ne 0 ] 2>/dev/null; then
+		how_to_use
+		echo "-n argument option is not a number!"
+		exit 1
+	    fi
+	    ;;
+	N)
+	    # max number of jobs per HTCondor cluster
+	    nMaxJobsSubmitHTCondor=${OPTARG}
+	    # check it is actually a number
+	    let nMaxJobsSubmitHTCondor+=0
+	    if [ $? -ne 0 ] 2>/dev/null; then
+		how_to_use
+		echo "-N argument option is not a number!"
+		exit 1
+	    fi
+	    ;;
 	v) 
 	    # verbose
 	    lverbose=true
+	    ;;
+	w)
+	    # submit any .list left behind
+	    lFinaliseHTCondor=true
+	    ;;
+	U)
+	    # unlock currently locked folder
+	    lunlockRun6T=true
+	    unlockSetEnv="-U"
 	    ;;
 	:)
 	    how_to_use
@@ -1968,20 +2108,37 @@ done
 shift "$(($OPTIND - 1))"
 # user's request
 # - actions
-if ! ${lgenerate} && ! ${lsubmit} && ! ${lcheck} && ! ${lstatus} && ! ${lcleanzip} && ! ${lfix} ; then
+if ! ${lgenerate} && ! ${lsubmit} && ! ${lcheck} && ! ${lstatus} && ! ${lcleanzip} && ! ${lfix} && ! ${lincomplete} && ! ${lunlockRun6T} && ! ${lFinaliseHTCondor} ; then
     how_to_use
     echo "No action specified!!! aborting..."
     exit 1
 fi
+if ${lunlockRun6T} && ! ${lgenerate} && ! ${lsubmit} && ! ${lcheck} && ! ${lstatus} && ! ${lcleanzip} && ! ${lfix} && ! ${lincomplete} && ! ${lFinaliseHTCondor} ; then
+    # only unlocking -> set_env.sh should not overwrite sixdeskenv/sysenv anyway
+    doNotOverwrite="-e"
+fi
 # - options
 if [ -n "${currStudy}" ] ; then
     optArgCurrStudy="-d ${currStudy}"
+    doNotOverwrite="-e"
 fi
 if [ -n "${currPlatform}" ] ; then
     optArgCurrPlatForm="-p ${currPlatform}"
 fi
 if ${lverbose} ; then
     verbose="-v"
+fi
+if ${lincomplete} ; then
+    optArgCurrPlatForm="-p ${sixdeskplatformDefIncomplete}"
+    echo "-i action forces platform to ${sixdeskplatformDefIncomplete}"
+fi
+if ${lFinaliseHTCondor} ; then
+    optArgCurrPlatForm="-p ${sixdeskplatformDefIncomplete}"
+    echo "-w action forces platform to ${sixdeskplatformDefIncomplete}"
+fi
+if ${lincomplete} && ${lselected} ; then
+    echo "-S option and -i action are incompatible!"
+    exit 1
 fi
 
 # ------------------------------------------------------------------------------
@@ -1991,13 +2148,20 @@ fi
 # - load environment
 #   NB: workaround to get getopts working properly in sourced script
 OPTIND=1
-source ${SCRIPTDIR}/bash/set_env.sh ${optArgCurrStudy} ${optArgCurrPlatForm} ${verbose} -e
+echo ""
+printf "=%.0s" {1..80}
+echo ""
+echo "--> sourcing set_env.sh"
+printf '.%.0s' {1..80}
+echo ""
+source ${SCRIPTDIR}/bash/set_env.sh ${optArgCurrStudy} ${optArgCurrPlatForm} ${verbose} ${currPythonPath} ${unlockSetEnv} ${doNotOverwrite}
+printf "=%.0s" {1..80}
+echo ""
+echo ""
 # - settings for sixdeskmessages
 if ${loutform} ; then
     sixdesklevel=${sixdesklevel_option}
 fi
-# - temporary trap
-trap "sixdeskexit 1" EXIT
 
 # - action-dependent stuff
 echo ""
@@ -2043,6 +2207,9 @@ if ${lsubmit} ; then
     #
     sixdeskmess  2 "Using sixtrack_input ${sixtrack_input}"
     sixdeskmess  2 "Using ${sixdeskjobs_logs}"
+    #
+    # verify queue type
+    sixdeskSetQueue lsfq HTCq
 fi
 if ${lstatus} ; then
     #
@@ -2051,19 +2218,32 @@ if ${lstatus} ; then
     lockingDirs=( "$sixdeskstudy" )
     #
     # initialise some counters:
-    # - expected number of points in scan
-    nExpected=0
     # - actually found:
     nFound=( 0 0 0 0 0 0 )
     foundNames=( 'dirs' 'fort.2.gz' 'fort.3.gz' 'fort.8.gz' 'fort.16.gz' 'fort.10.gz' )
 
 fi
+
+# - unlocking
+if ${lunlockRun6T} ; then
+    sixdeskunlockAll
+    if ! ${lgenerate} && ! ${lsubmit} && ! ${lcheck} && ! ${lstatus} && ! ${lcleanzip} && ! ${lfix} && ! ${lincomplete} && ! ${lFinaliseHTCondor} ; then
+	sixdeskmess -1 "requested only unlocking. Exiting..."
+	exit 0
+    fi
+fi
+
+nQueued=0 # for limiting number of jobs in HTCondor cluster
+nConsidered=0
 NsuccessFix=0
 NsuccessGen=0
 NsuccessChk=0
 NsuccessSub=0
 NsuccessSts=0
 echo ""
+
+# - temporary trap
+trap "sixdeskexit 199" EXIT
 
 # - option specific stuff
 #   . megaZip available only in case of boinc:
@@ -2079,25 +2259,9 @@ if ! ${lbackcomp} ; then
     sixdeskmess  2 " --> flag for backward compatibility de-activated, as requested by user!"
 fi
 #   . restart action
-if ${lrestart} ; then
-    if ${lselected} ; then
-	sixdeskmess -1 "flags -R and -S are incompatible!"
-	exit
-    fi
-    sixdeskCheckNFieldsFromJobName "${restartPoint}"
-    if [ $? -ne 0 ] ; then
-	exit
-    fi
-    # get infos of starting point
-    sixdeskSmashJobName
-    lrestartTune=true
-    lrestartAmpli=true
-    lrestartAngle=true
-else
-    lrestartTune=false
-    lrestartAmpli=false
-    lrestartAngle=false
-fi
+lrestartTune=false
+lrestartAmpli=false
+lrestartAngle=false
 
 # - define user tree
 sixdeskDefineUserTree $basedir $scratchdir $workspace
@@ -2122,24 +2286,44 @@ __lerr=0
 # ------------------------------------------------------------------------------
 
 # lock dirs
-for tmpDir in ${lockingDirs[@]} ; do
-    [ -d $tmpDir ] || mkdir -p $tmpDir
-    sixdesklock $tmpDir
-done
+sixdesklockAll
 
 # actual traps
-trap "printSummary  1 ; sixdeskCleanExit 1" EXIT SIGINT SIGQUIT
-trap "printSummary 11 ; sixdeskCleanExit 1" SIGSEGV
-trap "printSummary  8 ; sixdeskCleanExit 1" SIGFPE
+trap "printSummary; sixdeskexit  199" EXIT
+trap "printSummary; sixdeskexit  1" SIGINT
+trap "printSummary; sixdeskexit  2" SIGQUIT
+trap "printSummary; sixdeskexit 11" SIGSEGV
+trap "printSummary; sixdeskexit  8" SIGFPE
+
+# submit any .list left behind
+if ${lFinaliseHTCondor} ; then
+    condor_sub
+    if ! ${lgenerate} && ! ${lsubmit} && ! ${lcheck} && ! ${lstatus} && ! ${lcleanzip} && ! ${lfix} && ! ${lincomplete} ; then
+	# only finalise submission
+	sixdeskmess -1 "only finalisation of submission"
+	trap "" SIGINT SIGQUIT SIGSEGV SIGFPE
+	trap "printSummary; sixdeskexit 0" EXIT
+	exit
+    fi
+fi
 
 # preparation to main loop
 if ${lgenerate} || ${lfixdir} ; then
     # - check that all the necessary MadX input is ready
+    #   NB: -e option, to skip set_env.sh another time
+    echo ""
+    printf "=%.0s" {1..80}
+    echo ""
+    echo "--> local mad6t.sh run"
+    printf '.%.0s' {1..80}
+    echo ""
     if [ -n "${currStudy}" ] ; then
-	${SCRIPTDIR}/bash/mad6t.sh -c ${optArgCurrStudy}
+	${SCRIPTDIR}/bash/mad6t.sh -c -e ${currPythonPath} ${optArgCurrStudy}
     else
-	${SCRIPTDIR}/bash/mad6t.sh -c
+	${SCRIPTDIR}/bash/mad6t.sh -c -e ${currPythonPath} 
     fi
+    printf "=%.0s" {1..80}
+    echo ""
     let __lerr+=$?
     # - these dirs should already exist...
     for tmpDir in $sixdesktrack $sixdeskjobs $sixdeskjobs_logs $sixdesktrackStudy ; do
@@ -2186,8 +2370,8 @@ if ${lgenerate} || ${lfixdir} ; then
     fi
     # - in case of errors, interrupt execution
     if [ $__lerr -gt 0 ] ; then
-        sixdeskmess -1 "Preparatory step failed."
-	exit $__lerr
+        sixdeskmess -1 "Preparatory step failed - error: ${__lerr}."
+	exit
     fi
 fi
 if ${lcheck} ; then
@@ -2203,7 +2387,7 @@ if ${lcheck} ; then
 	    let __lerr+=$?
 	    echo $__lerr
 	fi
-	sixdeskInspectPrerequisites true ${sixdeskjobs_logs} -s ${lsfjobtype}.job ${lsfjobtype}0.job
+	sixdeskInspectPrerequisites true ${sixdeskjobs_logs} -s ${lsfjobtype}.sh ${lsfjobtype}0.sh
 	let __lerr+=$?
     elif [ $da -eq 1 ] ; then
 	sixdeskInspectPrerequisites true ${sixdeskjobs_logs} -s dalie.data dalie.input dalie reson.data readda
@@ -2229,8 +2413,8 @@ if ${lcheck} ; then
 		    sixdeskmess -1 "Err of ownership of $sixdeskboincdir: ${tmpOwner} (expected: $LOGNAME)"
 		    let __lerr+=1
 		else
-		    # - check acl rights
-		    aclRights=`fs listacl $sixdeskboincdir | grep $LOGNAME 2> /dev/null | awk '{print ($2)}'`
+		    # - check acl rights of current user
+		    aclRights=`fs listacl $sixdeskboincdir | grep $LOGNAME 2> /dev/null | grep -v ":" | awk '{print ($2)}'`
 		    if [ "$aclRights" != "rlidwka" ] ; then
 			sixdeskmess -1 "Err of acl rights on $sixdeskboincdir for $LOGNAME: ${aclRights} (expected: rlidwka)"
 			let __lerr+=1
@@ -2252,8 +2436,8 @@ if ${lcheck} ; then
 	fi
     fi
     if [ ${__lerr} -gt 0 ] ; then
-        sixdeskmess -1 "Preparation incomplete."
-	exit ${__lerr}
+        sixdeskmess -1 "Preparation incomplete - error:  ${__lerr}."
+	exit
     fi
 fi
 # - echo emittance and dimsus
@@ -2267,7 +2451,7 @@ if ${lsubmit} ; then
     touch $sixdeskwork/incomplete_cases
     touch $sixdeskwork/myincomplete_cases
     touch $sixdeskwork/taskids
-    if [ "$sixdeskplatform" == "lsf" ] ; then
+    if [ "$sixdeskplatform" == "lsf" ] || [ "$sixdeskplatform" == "htcondor" ] ; then
 	touch $sixdeskjobs/jobs
 	touch $sixdeskjobs/incomplete_jobs
     elif [ "$sixdeskplatform" == "boinc" ] ; then
@@ -2275,199 +2459,255 @@ if ${lsubmit} ; then
 	touch $sixdeskjobs/incomplete_tasks
     fi
 fi
+# - preparatory steps for submission to htcondor:
+if ${lsubmit} ; then
+    if [ "$sixdeskplatform" == "htcondor" ] ; then
+	# clean away any existing .list, to avoid double submissions
+	if [ -e ${sixdeskjobs}/${LHCDesName}.list ] ; then
+	    sixdeskmess -1 "cleaning away existing ${sixdeskjobs}/${LHCDesName}.list to avoid double submissions!"
+	    rm -f ${sixdeskjobs}/${LHCDesName}.list
+	fi
+	cp ${SCRIPTDIR}/templates/htcondor/htcondor_job.sh ${sixdeskjobs}/htcondor_job.sh
+	cp ${SCRIPTDIR}/templates/htcondor/htcondor_run_six.sub ${sixdeskjobs}/htcondor_run_six.sub
+	# some set up of htcondor submission scripts
+ 	sed -i "s#^exe=.*#exe=${SIXTRACKEXE}#g" ${sixdeskjobs}/htcondor_job.sh
+	sed -i "s#^runDirBaseName=.*#runDirBaseName=${sixdesktrack}#g" ${sixdeskjobs}/htcondor_job.sh
+	chmod +x ${sixdeskjobs}/htcondor_job.sh
+	sed -i "s#^executable = .*#executable = ${sixdeskjobs}/htcondor_job.sh#g" ${sixdeskjobs}/htcondor_run_six.sub
+	sed -i "s#^queue dirname from.*#queue dirname from ${sixdeskjobs}/${LHCDesName}.list#g" ${sixdeskjobs}/htcondor_run_six.sub
+	sed -i "s#^+JobFlavour =.*#+JobFlavour = \"${HTCq}\"#g" ${sixdeskjobs}/htcondor_run_six.sub
+    fi
+fi
 # - MegaZip: get file name
 if ${lmegazip} ; then
     # get name of zip as from initialisation
     megaZipName=`cat ${sixdeskjobs_logs}/megaZipName.txt`
 fi
+# - restart action
+if ${lrestart} ; then
+    if [ `echo "${restartPoint}" | tr [a-z] [A-Z]` == "LAST" ] ; then
+	restartPoint=`tail -1 $sixdeskwork/taskids 2> /dev/null | awk '{print ($1)}'`
+	if [ -z "${restartPoint}" ] ; then
+	    sixdeskmess -1 "file $sixdeskwork/taskids not present or empty"
+	fi
+	lrestartLast=true
+	sixdeskmess 1 "Last point with successful submission: ${restartPoint}"
+	sixdeskmess 1 " as from $sixdeskwork/taskids"
+    fi
+    sixdeskCheckNFieldsFromJobName "${restartPoint}"
+    exitStatus=$?
+    if [ ${exitStatus} -ne 0 ] ; then
+	sixdeskmess 1 "error: ${exitStatus}"
+	exit
+    fi
+    # get infos of starting point
+    sixdeskSmashJobName "${restartPoint}"
+    lrestartTune=true
+    lrestartAmpli=true
+    lrestartAngle=true
+fi
 
 # - final set-ups and echo
-echo ""
-sixdeskmess -1 "Infos about loop (as from input):"
-let iTotalMad=${iend}-${ista}+1
-sixdeskmess -1 "- MadX seeds: from ${ista} to ${iend} - total: ${iTotalMad} seeds;"
-# - prepare tune scans (including integer part of tune)
-#   it returns tunesXX/YY and inttunesXX/YY as arrays
-sixdeskAllTunes
-sixdeskmess -1 "- Tune values:"
-tunesXString="${tunesXX[@]}"
-sixdeskmess -1 "  . Qx: ${tunesXString}"
-tunesYString="${tunesYY[@]}"
-sixdeskmess -1 "  . Qy: ${tunesYString}"
-if [ -n "${squaredTuneScan}" ] ; then
-    lSquaredTuneScan=true
-    let iTotalTunes=${#tunesXX[@]}*${#tunesYY[@]}
-    sixdeskmess -1 "  --> over a squared domain in (Qx,Qy) - total: ${iTotalTunes} pairs;"
+if ${lincomplete} ; then
+    sixdeskmess -1 "re-submitting `cat $sixdeskwork/incomplete_cases | wc -l` incomplete cases"
 else
-    lSquaredTuneScan=false
-    if [ ${#tunesXX[@]} -eq ${#tunesYY[@]} ] ;  then
-	iTotalTunes=${#tunesXX[@]}
-	sixdeskmess -1 "  --> along a line in (Qx,Qy) - total: ${iTotalTunes} pairs;"
-    elif [ ${#tunesXX[@]} -lt ${#tunesYY[@]} ] ;  then
-	iTotalTunes=${#tunesXX[@]}
-	sixdeskmess -1 "  --> along a line in (Qx,Qy) - total: ${iTotalTunes} pairs;"
+    echo ""
+    sixdeskmess -1 "Infos about loop (as from input):"
+    let iTotalMad=${iend}-${ista}+1
+    sixdeskmess -1 "- MadX seeds: from ${ista} to ${iend} - total: ${iTotalMad} seeds;"
+    # - prepare tune scans (including integer part of tune)
+    #   it returns tunesXX/YY and inttunesXX/YY as arrays
+    sixdeskAllTunes
+    sixdeskmess -1 "- Tune values:"
+    tunesXString="${tunesXX[@]}"
+    sixdeskmess -1 "  . Qx: ${tunesXString}"
+    tunesYString="${tunesYY[@]}"
+    sixdeskmess -1 "  . Qy: ${tunesYString}"
+    if [ -n "${squaredTuneScan}" ] ; then
+	lSquaredTuneScan=true
+	let iTotalTunes=${#tunesXX[@]}*${#tunesYY[@]}
+	sixdeskmess -1 "  --> over a squared domain in (Qx,Qy) - total: ${iTotalTunes} pairs;"
     else
-	iTotalTunes=${#tunesYY[@]}
-	sixdeskmess -1 "  --> along a line in (Qx,Qy) - total: ${iTotalTunes} pairs;"
-    fi
-fi
-if [ $long -eq 1 ] ; then
-    # generate array of amplitudes (it returns allAmplitudeSteps, fAmpStarts, fAmpEnds, ampstart, ampfinish)
-    sixdeskAllAmplitudes
-    iTotalAmplitudeSteps=${#allAmplitudeSteps[@]}
-    sixdeskmess -1 "- Amplitudes: from $ns1l to $ns2l by $nsincl - total: ${iTotalAmplitudeSteps} amplitude steps;"
-    # generate array of angles (it returns KKs, Angles and kAngs, and reduced ones)
-    sixdeskAllAngles $kinil $kendl $kmaxl $kstep $ampstart $ampfinish $lbackcomp "${reduce_angs_with_aplitude}"
-    iTotalAngles=${#KKs[@]}
-    sixdeskmess -1 "- Angles: $kinil, $kendl, $kmaxl by $kstep - total: ${iTotalAngles} angles"
-elif [ $short -eq 1 ] || [ $da -eq 1 ] ; then
-    iTotalAmplitudeSteps=1
-    sixdeskmess -1 "- Amplitudes: from $ns1s to $ns2s by $nss - total: ${iTotalAmplitudeSteps} amplitude steps;"
-    sixdeskAllAngles $kini $kend $kmax $kstep $ampstart $ampfinish $lbackcomp "${reduce_angs_with_aplitude}"
-    iTotalAngles=${#KKs[@]}
-    sixdeskmess -1 "- Angles: $kini, $kend, $kmax by $kstep - total: ${iTotalAngles} angles"
-fi
-let iTotal=${iTotalMad}*${iTotalTunes}*${iTotalAmplitudeSteps}*${iTotalAngles}
-sixdeskmess -1 "for a total of ${iTotal} points."
-
-# - starting MadX seed
-if ${lrestart} ; then
-    iMadStart=${MADseedFromName}
-else
-    iMadStart=${ista}
-fi
-
-##################################### MAIN LOOP ###########################################
-###########################################################################################
-
-for (( iMad=${iMadStart}; iMad<=$iend; iMad++ )) ; do
-    echo ""
-    echo ""
-    echo ""
-    sixdeskmess -1 "MADX seed $iMad"
-    if ${lgenerate} || ${lfixdir} ; then
-	iForts="2 8 16"
-	if [ "$fort_34" != "" ] ; then
-	    iForts="${iForts} 34"
-	fi
-	# required not only by boinc, but also by chroma/beta jobs
-	for iFort in ${iForts} ; do
-	    gunzip -c $sixtrack_input/fort.${iFort}_$iMad.gz > $sixtrack_input/fort.${iFort}_$iMad
-	done
-    fi
-
-    for (( iTuneY=0 ; iTuneY<${#tunesYY[@]} ; iTuneY++ )) ; do
-	if ${lSquaredTuneScan} ; then
-	    # squared scan: for a value of Qy, explore all values of Qx
-	    jmin=0
-	    jmax=${#tunesXX[@]}
+	lSquaredTuneScan=false
+	if [ ${#tunesXX[@]} -eq ${#tunesYY[@]} ] ;  then
+	    iTotalTunes=${#tunesXX[@]}
+	    sixdeskmess -1 "  --> along a line in (Qx,Qy) - total: ${iTotalTunes} pairs;"
+	elif [ ${#tunesXX[@]} -lt ${#tunesYY[@]} ] ;  then
+	    iTotalTunes=${#tunesXX[@]}
+	    sixdeskmess -1 "  --> along a line in (Qx,Qy) - total: ${iTotalTunes} pairs;"
 	else
-	    # linear scan: for a value of Qy, run only one value of Qx
-	    jmin=$iTuneY
-	    let jmax=$jmin+1
+	    iTotalTunes=${#tunesYY[@]}
+	    sixdeskmess -1 "  --> along a line in (Qx,Qy) - total: ${iTotalTunes} pairs;"
 	fi
-	for (( iTuneX=$jmin; iTuneX<$jmax ; iTuneX++ )) ; do
-	    tunexx=${tunesXX[$iTuneX]}
-	    tuneyy=${tunesYY[$iTuneY]}
-	    # generate tune string (dir/job name)
-	    sixdeskPrepareTunes new
-	    exitStatus=$?
-	    if ${lrestart} && ${lrestartTune} ; then
-		if [ "${tunesFromName}" == "${sixdesktunes}" ] ; then
-		    lrestartTune=false
-		else
+    fi
+    if [ $long -eq 1 ] ; then
+	# generate array of amplitudes (it returns allAmplitudeSteps, fAmpStarts, fAmpEnds, ampstart, ampfinish)
+	sixdeskAllAmplitudes
+	iTotalAmplitudeSteps=${#allAmplitudeSteps[@]}
+	sixdeskmess -1 "- Amplitudes: from $ns1l to $ns2l by $nsincl - total: ${iTotalAmplitudeSteps} amplitude steps;"
+	# generate array of angles (it returns KKs, Angles and kAngs, and reduced ones)
+	sixdeskAllAngles $kinil $kendl $kmaxl $kstep $ampstart $ampfinish $lbackcomp ${lReduceAngsWithAmplitude} ${totAngle} ${ampFactor}
+	iTotalAngles=${#KKs[@]}
+	sixdeskmess -1 "- Angles: $kinil, $kendl, $kmaxl by $kstep - total: ${iTotalAngles} angles"
+    elif [ $short -eq 1 ] || [ $da -eq 1 ] ; then
+	iTotalAmplitudeSteps=1
+	sixdeskmess -1 "- Amplitudes: from $ns1s to $ns2s by $nss - total: ${iTotalAmplitudeSteps} amplitude steps;"
+	sixdeskAllAngles $kini $kend $kmax $kstep $ampstart $ampfinish $lbackcomp ${lReduceAngsWithAmplitude} ${totAngle} ${ampFactor}
+	iTotalAngles=${#KKs[@]}
+	sixdeskmess -1 "- Angles: $kini, $kend, $kmax by $kstep - total: ${iTotalAngles} angles"
+    fi
+    let iTotal=${iTotalMad}*${iTotalTunes}*${iTotalAmplitudeSteps}*${iTotalAngles}
+    sixdeskmess -1 "for a total of ${iTotal} points."
+fi
+
+# main loop
+if ${lincomplete} ; then
+    # fill in the list of points to be submitted from $sixdeskwork/incomplete_cases
+    while read runnamename ; do
+	sixdeskrundir true
+	sixdeskSanitizeString "${rundirname}" Rundir
+	dot_htcondor
+	let nConsidered+=1
+	let nQueued+=1
+	if  [ $((${nQueued}%${nMaxJobsSubmitHTCondor})) -eq 0 ] ; then
+	    condor_sub
+	fi
+    done < $sixdeskwork/incomplete_cases
+else
+    if ${lrestart} ; then
+        iMadStart=${MADseedFromName}
+    else
+        iMadStart=${ista}
+    fi
+    for (( iMad=${iMadStart}; iMad<=$iend; iMad++ )) ; do
+        echo ""
+        echo ""
+        echo ""
+        sixdeskmess -1 "MADX seed $iMad"
+        if ${lgenerate} || ${lfix} ; then
+    	    iForts="2 8 16"
+    	    if [ "$fort_34" != "" ] ; then
+    		iForts="${iForts} 34"
+    	    fi
+    	    # required not only by boinc, but also by chroma/beta jobs
+    	    for iFort in ${iForts} ; do
+    		gunzip -c $sixtrack_input/fort.${iFort}_$iMad.gz > $sixtrack_input/fort.${iFort}
+    	    done
+        fi
+    
+	for (( iTuneY=0 ; iTuneY<${#tunesYY[@]} ; iTuneY++ )) ; do
+    	    if ${lSquaredTuneScan} ; then
+    	        # squared scan: for a value of Qy, explore all values of Qx
+    		jmin=0
+    		jmax=${#tunesXX[@]}
+    	    else
+    	        # linear scan: for a value of Qy, run only one value of Qx
+    		jmin=$iTuneY
+    		let jmax=$jmin+1
+    	    fi
+	    for (( iTuneX=$jmin; iTuneX<$jmax ; iTuneX++ )) ; do
+    		tunexx=${tunesXX[$iTuneX]}
+    		tuneyy=${tunesYY[$iTuneY]}
+		# generate tune string (dir/job name)
+		sixdeskPrepareTunes new
+		exitStatus=$?
+    		if ${lrestart} && ${lrestartTune} ; then
+    		    if [ "${tunesFromName}" == "${sixdesktunes}" ] ; then
+    			lrestartTune=false
+    		    else
+    			continue
+    		    fi
+    		fi
+		if [ $exitStatus -ne 0 ] ; then
+		    # go to next tune couple (sixdeskmess already printed out and email sent to user/admins)
 		    continue
 		fi
-	    fi
-	    if [ $exitStatus -ne 0 ] ; then
-		# go to next tune couple (sixdeskmess already printed out and email sent to user/admins)
-		continue
-	    fi
-	    # - int tunes (used in fort.3 for post-processing)
-	    inttunexx=${inttunesXX[$iTuneX]}
-	    inttuneyy=${inttunesYY[$iTuneY]}
-            #   ...notify user
-	    echo ""
-	    echo ""
-	    sixdeskmess  1 "Tunescan $sixdesktunes"
-  	    # - get simul path (storage of beta values), stored in $Rundir (returns Runnam, Rundir, actualDirName)...
-	    sixdeskDefinePointTree $LHCDesName $iMad "s" $sixdesktunes "" "" "" "" $sixdesktrack
-	    if [ $? -gt 0 ] ; then
-		# go to next tune values (sixdeskmess already printed out and email sent to user/admins)
-		continue
-	    fi
-	    # - beta values?
-	    if [ $short -eq 1 ] || [ $long -eq 1 ] ; then
-	        if ${lgenerate} || ${lfixdir}; then
-	    	    if [ ! -s ${RundirFullPath}/betavalues ] ; then
-	    		[ -d $RundirFullPath ] || mkdir -p $RundirFullPath
-	    		cd $sixdeskjobs_logs
-	    		if [ $chrom -eq 0 ] ; then
-	    		    sixdeskmess  1 "Running two `basename $SIXTRACKEXE` (one turn) jobs to compute chromaticity"
-	    		    submitChromaJobs $RundirFullPath
-	    		else
-	    		    sixdeskmess -1 "Using Chromaticity specified as $chromx $chromy"
-	    		fi
-	    		sixdeskmess  1 "Running `basename $SIXTRACKEXE` (one turn) to get beta values"
-	    		submitBetaJob $RundirFullPath
-	    		cd $sixdeskhome
-	    	    fi
-	        fi
-	        if ${lcheck} ; then
-	    	    # checks
-	    	    sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -d
-	    	    let __lerr+=$?
-	    	    if [ $chrom -eq 0 ] ; then
-	    		sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -s mychrom
-	    		let __lerr+=$?
-	    	    fi
-	    	    sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -s betavalues
-	    	    let __lerr+=$?
-	    	    if [ ${__lerr} -gt 0 ] ; then
-	    		sixdeskmess -1 "Failure in preparation."
-	    		exit ${__lerr}
-	    	    fi
-	        fi
-	        parseBetaValues $RundirFullPath
-	    fi	    
-	    
-	    # Resonance Calculation only
-	    N1=0
-	    if [ $N1 -gt 0 ] ; then
-	        N2=9
-	        Qx=63.28
-	        Qy=59.31
-	        nsr=10.
-	        Ax=`gawk 'END{Ax='$nsr'*sqrt('$emit'/'$gamma'*'$beta_x');print Ax}' /dev/null`
-	        Ay=`gawk 'END{Ay='$nsr'*sqrt('$emit'/'$gamma'*'$beta_y');print Ay}' /dev/null`
-	        echo "$Qx $Qy $Ax $Ay $N1 $N2" > $sixdeskjobs_logs/resonance
-	    fi
-	    
-	    # further actions depend on type of job
-	    if [ $short -eq 1 ] ; then
-	        treatShort
-	    elif [ $long -eq 1 ] ; then
-	        treatLong
-	    elif [ $da -eq 1 ] ; then
-	        treatDA
-	    fi
-	done
+		# - int tunes (used in fort.3 for post-processing)
+		inttunexx=${inttunesXX[$iTuneX]}
+		inttuneyy=${inttunesYY[$iTuneY]}
+                #   ...notify user
+    		echo ""
+    		echo ""
+    		sixdeskmess -1 "Tunescan $sixdesktunes"
+      	        # - get simul path (storage of beta values), stored in $Rundir (returns Runnam, Rundir, actualDirName)...
+    		sixdeskDefinePointTree $LHCDesName $iMad "s" $sixdesktunes "" "" "" "" $sixdesktrack
+    		if [ $? -gt 0 ] ; then
+    		    # go to next tune values (sixdeskmess already printed out and email sent to user/admins)
+    		    continue
+    		fi
+    	        # - beta values?
+    		if [ $short -eq 1 ] || [ $long -eq 1 ] ; then
+    	            if ${lgenerate} || ${lfix} ; then
+    	    		if [ ! -s ${RundirFullPath}/betavalues ] ; then
+    	    		    [ -d $RundirFullPath ] || mkdir -p $RundirFullPath
+    	    		    cd $sixdeskjobs_logs
+    	    		    if [ $chrom -eq 0 ] ; then
+    	    			sixdeskmess  1 "Running two `basename $SIXTRACKEXE` (one turn) jobs to compute chromaticity"
+    	    			submitChromaJobs $RundirFullPath
+    	    		    else
+    	    			sixdeskmess -1 "Using Chromaticity specified as $chromx $chromy"
+    	    		    fi
+    	    		    sixdeskmess  1 "Running `basename $SIXTRACKEXE` (one turn) to get beta values"
+    	    		    submitBetaJob $RundirFullPath
+    	    		    cd $sixdeskhome
+    	    		fi
+    	            fi
+    	            if ${lcheck} ; then
+    	    	        # checks
+    	    		sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -d
+    	    		let __lerr+=$?
+    	    		if [ $chrom -eq 0 ] ; then
+    	    		    sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -s mychrom
+    	    		    let __lerr+=$?
+    	    		fi
+    	    		sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -s betavalues
+    	    		let __lerr+=$?
+    	    		if [ ${__lerr} -gt 0 ] ; then
+    	    		    sixdeskmess -1 "Failure in preparation - error: ${__lerr}}."
+    	    		    exit
+    	    		fi
+    	            fi
+    	            parseBetaValues $RundirFullPath
+    		fi	    
+    		
+    	        # Resonance Calculation only
+    		N1=0
+    		if [ $N1 -gt 0 ] ; then
+    	            N2=9
+    	            Qx=63.28
+    	            Qy=59.31
+    	            nsr=10.
+    	            Ax=`gawk 'END{Ax='$nsr'*sqrt('$emit'/'$gamma'*'$beta_x');print Ax}' /dev/null`
+    	            Ay=`gawk 'END{Ay='$nsr'*sqrt('$emit'/'$gamma'*'$beta_y');print Ay}' /dev/null`
+    	            echo "$Qx $Qy $Ax $Ay $N1 $N2" > $sixdeskjobs_logs/resonance
+    		fi
+    		
+    	        # further actions depend on type of job
+    		if [ $short -eq 1 ] ; then
+    	            treatShort
+    		elif [ $long -eq 1 ] ; then
+    	            treatLong
+    		elif [ $da -eq 1 ] ; then
+    	            treatDA
+    		fi
+    	    done
+        done
+        if ${lgenerate} || ${lfix} ; then
+    	    iForts="2 8 16"
+    	    if [ "$fort_34" != "" ] ; then
+    		iForts="${iForts} 34"
+    	    fi
+    	    # required not only by boinc, but also by chroma/beta jobs
+    	    for iFort in ${iForts} ; do
+    		rm -f $sixtrack_input/fort.${iFort}
+    	    done
+        fi	    
     done
-    if ${lgenerate} || ${lfixdir}  ; then
-	iForts="2 8 16"
-	if [ "$fort_34" != "" ] ; then
-	    iForts="${iForts} 34"
-	fi
-	# required not only by boinc, but also by chroma/beta jobs
-	for iFort in ${iForts} ; do
-	    rm -f $sixtrack_input/fort.${iFort}_$iMad
-	done
-    fi	    
-done
+fi
 
 # restart check
 if ${lrestart} ; then
-    if ! ${lrestartTune} || ! ${lrestartAmpli} || ! ${lrestartAngle} ; then
+    if ${lrestartTune} || ${lrestartAmpli} || ${lrestartAngle} ; then
 	sixdeskmess -1 "Something wrong with restarting the scan from point ${restartPoint}"
 	sixdeskmess -1 "Scan was not restarted correctly"
 	if ${lrestartTune} ; then
@@ -2479,7 +2719,17 @@ if ${lrestart} ; then
 	if ${lrestartAngle} ; then
 	    sixdeskmess -1 "Starting angle ${angleFromName} was not properly recognised!"
 	fi
+	if ${lselected} ; then
+	    sixdeskmess -1 "This might be due to the fact that, with -S option, all jobs have been recognised"
+	    sixdeskmess -1 "  as not being in the need of submission."
+	fi
     fi
+fi
+
+# HTCondor: run the actual command
+if ${lsubmit} && [ "$sixdeskplatform" == "htcondor" ] && [ $((${nQueued}%${nMaxJobsSubmitHTCondor})) -ne 0 ] ; then
+    # submit the remaining jobs
+    condor_sub
 fi
 
 # megaZip, in case of boinc
@@ -2488,8 +2738,8 @@ if ${lmegazip} ; then
     sixdeskInspectPrerequisites ${lverbose} ${sixdeskjobs_logs} -s megaZipList.txt
     let __lerr+=$?
     if [ $__lerr -ne 0 ] ; then
-	sixdeskmess -1 "${sixdeskjobs_logs}/megaZipList.txt not generated!"
-	exit ${__lerr}
+	sixdeskmess -1 "${sixdeskjobs_logs}/megaZipList.txt not generated - error: ${__lerr}."
+	exit
     fi
 	
     # loop: in case of generation and checking, be nice, and re-generate megaZip file,
@@ -2558,7 +2808,7 @@ if ${lmegazip} ; then
 	if ${lgenerate} && ${lcheck} ; then
 	    if ! ${gotit} ; then
 		sixdeskmess -1 "failed to regenerate MegaZip file ${megaZipName} ${mytries} times!!!"
-		exit ${mytries}
+		exit
 	    fi
 	fi
     fi
@@ -2567,8 +2817,8 @@ if ${lmegazip} ; then
     sixdeskInspectPrerequisites ${lverbose} . -s ${megaZipName}
     let __lerr+=$?
     if [ $__lerr -ne 0 ] ; then
-	sixdeskmess -1 "./${megaZipName} not generated!"
-	exit ${__lerr}
+	sixdeskmess -1 "./${megaZipName} not generated! - error: ${__lerr}"
+	exit
     fi
 
     # - upload megaZip file
@@ -2577,7 +2827,7 @@ if ${lmegazip} ; then
 	multipleTrials "cp ${megaZipName} ${megaZipPath} ; local __exit_status=\$?" "[ \$__exit_status -eq 0 ]" "MegaZip - problem at upload"
 	if [ $? -ne 0 ] ; then
 	    sixdeskmess -1 "failed to submit ${megaZipName} !!!"
-	    exit 10
+	    exit
 	fi
 	tmpZipFiles=`cat ${sixdeskjobs_logs}/megaZipList.txt | grep 'zip$'`
 	tmpZipFiles=( ${tmpZipFiles} )
@@ -2608,9 +2858,9 @@ if ${lstatus} ; then
     echo ""
     echo ""
     sixdeskmess -1 "Summary of status of study $LHCDescrip:"
-    sixdeskmess -1 "- number of EXPECTED points in scan (dirs): ${nExpected};"
+    sixdeskmess -1 "- number of EXPECTED points in scan (main loop): ${nConsidered};"
     for (( iFound=0; iFound<${#foundNames[@]}; iFound++ )) ; do
-	if [ ${nFound[$iFound]} == ${nExpected} ] ; then
+	if [ ${nFound[$iFound]} == ${nConsidered} ] ; then
 	    expectation="AS EXPECTED!"
 	else
 	    expectation="NOT as expected: MISMATCH!"
@@ -2624,9 +2874,8 @@ fi
 # ------------------------------------------------------------------------------
 
 # redefine traps
-trap "printSummary 0 ; sixdeskCleanExit 0" EXIT SIGINT SIGQUIT
-trap "" SIGSEGV
-trap "" SIGFPE
+trap "" SIGINT SIGQUIT SIGSEGV SIGFPE
+trap "printSummary; sixdeskexit 0" EXIT
 
 # echo that everything went fine
 echo ""
