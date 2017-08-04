@@ -758,7 +758,7 @@ function submitCreateFinalFort3Long(){
 	cat ${sixdeskjobs_logs}/${tempFort3Dir}/${sixdesktunes}/fortl.3.mask_basic >> ${sixdeskjobs_logs}/${tempFort3Dir}/${sixdesktunes}/fortl.3.mask_basic__${Ampl}__${Angle}
     fi
     #
-    printf "${GEOMLINES}\n" "${Runnam}" > fort.3
+    printf "${GEOMLINES}\n" "${Runnam}" > $sixdeskjobs_logs/fort.3
     cat ${sixdeskjobs_logs}/${tempFort3Dir}/${sixdesktunes}/fortl.3.mask_basic__${Ampl}__${Angle} >> $sixdeskjobs_logs/fort.3
     let __lerr+=${PIPESTATUS[0]}
     return ${__lerr}
