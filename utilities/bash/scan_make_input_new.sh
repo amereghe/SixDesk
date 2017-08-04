@@ -82,17 +82,14 @@ function generate_mask_file(){
     local _
     local _tmpmask="mask/${scan_pref}_temp.mask"
     
-    cp mask/${scan_pref}.mask ${_tmpmask}
+    cp mask/${scan_pref}.mask ${_tmpmask}              # copy mask template to other name to be working on
     
-    echo "launched generate_mask_file"
-    echo "mask value ${mask_values[i]}"
-
-    mask_vals=${mask_values[i]:2}
+    mask_vals=${mask_values[i]:2}                      # read the mask variable values for the particular studies
     
-    IFS='%' read -a values <<< "${mask_vals}"
+    IFS='%' read -a values <<< "${mask_vals}"          # split the string
 
     _j=0
-    for _ in ${values[@]}; do
+    for _ in ${values[@]}; do                          # replace the individual placeholders in the tmp mask file
 	
 	_placeholder=${_placeholders[${_j}]}           # the placeholder to be substituted in the mask file
 	_val=${values[${_j}]}                          # the value this placeholder shall be replaced with
@@ -102,7 +99,7 @@ function generate_mask_file(){
 	((_j++))
     done
 
-    mv ${_tmpmask} mask/${study}.mask
+    mv ${_tmpmask} mask/${study}.mask                  # move tmp mask file to definite name
 
     
 }
