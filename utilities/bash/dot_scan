@@ -1,0 +1,152 @@
+#!/bin/bash
+
+
+source scan_definitions
+
+# ------------------------------------------------------------------------------
+# preparatory steps
+# ------------------------------------------------------------------------------
+
+export sixdeskhostname=`hostname`
+export sixdeskname=`basename $0`
+export sixdeskroot=`basename $PWD`
+export sixdeskwhere=`dirname $PWD`
+# Set up some temporary values until we execute sixdeskenv/sysenv
+# Don't issue lock/unlock debug text (use 2 for that)
+export sixdesklogdir=""
+export sixdesklevel=1
+export sixdeskhome="."
+export sixdeskecho="yes!"
+if [ ! -s ${SixDeskDev}/dot_profile ] ; then
+    echo "${SixDeskDev}"
+    echo "dot_profile is missing!!!"
+    #    exit 1
+else
+    source ${SixDeskDev}/dot_profile
+fi
+
+
+
+sixdeskmessleveldef=0
+sixdeskmesslevel=$sixdeskmessleveldef
+
+
+
+
+
+function set_env_to_mask(){     
+    local __study
+
+    if [ $# -eq 1 ]; then
+	__study=${1}
+    else
+	__study=${study}
+    fi
+
+    echo "Setting sixdeskenv to ${__study}"
+
+    cat sixdeskenv |\
+	sed -e "s/export LHCDescrip=.*/export LHCDescrip=${__study}/" > sixdeskenv.new
+    mv sixdeskenv.new sixdeskenv
+    
+    ${SixDeskDev}/set_env.sh -s 
+    
+}
+
+
+
+function make_mask_names() {
+
+  local _result="${scan_pref}"
+  local _arg
+  local _x
+  local _xx
+  local _r
+  local _new
+
+  i=0
+  for _arg in "${@:1}"                  # skip the first arg ( function name )
+  do
+    if [[ ! -z "${_arg// }" ]]          # test if the argument is not whites only
+    then
+      _new=""
+      for _r in $_result                # take all the old strings...
+      do
+        for _x in $_arg
+        do
+	  _xx="${scan_vars[i]}_${_x}"
+          _new="$_new ${_r}_${_xx}"     # ...and append the new parameter
+        done
+      done
+      _result=${_new:1}                 # strip the leading space
+    fi
+    ((i++))      
+  done
+  
+  scan_studies=${_result}
+  scan_studies=(${scan_studies})
+  
+}
+
+
+
+function get_study_names(){
+
+    scan_vars=(${scan_vars})
+
+    make_mask_names "${scan_vals_B}" "${scan_vals_MBH10M}" 
+
+    sixdeskmess -1 "Found ${#scan_studies[@]} study names for ${#scan_vars[@]} variables"
+
+   
+}
+
+
+
+function initialize_scan(){
+    
+    get_study_names
+    
+    }
+
+
+
+
+function set_env_to_mask(){   
+    cat sixdeskenv |\
+      sed -e "s/export LHCDescrip=.*/export LHCDescrip=${study}/" > sixdeskenv.new
+    mv sixdeskenv.new sixdeskenv
+    ${SixDeskDev}/set_env
+}
+
+
+
+
+
+function scan_loop(){
+
+    local _var
+
+    for study in ${scan_studies[@]}; do
+	set_env_to_mask ${study}
+
+	for var in "$@"
+	do
+	    ${_var}
+	done
+	
+    done
+    
+    
+    }
+
+
+
+
+
+
+#### MAIN
+
+get_study_names
+
+

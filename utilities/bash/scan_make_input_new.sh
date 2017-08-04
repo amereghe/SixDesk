@@ -2,12 +2,12 @@
 
 ### INITIALIZATION
 
-lscan_var1=false
-lscan_var2=false
-lscan_var3=false
-lscan_var4=false
-scan_masks=false
-skipenv=false
+#lscan_var1=false
+#lscan_var2=false
+#lscan_var3=false
+#lscan_var4=false
+#scan_masks=false
+#skipenv=false
 
 source ./scan_definitions
 source ./sixdeskenv
@@ -50,13 +50,14 @@ kinit -R
 
 
 
+
 function how_to_use() {
     cat <<EOF
    `basename $0` [action] [option]
     performs actions on the input preparation for a defined set of studies
 
     actions
-    -s      submit MAD jobs to HTCondor
+    -s      submit MAD jobs for all studies to HTCondor
     -p      progress of MAD input
     -m      find missing seeds in study 
     -r      rerun missing seeds in study / remove faulty output
@@ -70,6 +71,18 @@ EOF
 }
 
 
+
+
+
+scan_
+
+
+
+
+
+
+
+exit
 
 
 
