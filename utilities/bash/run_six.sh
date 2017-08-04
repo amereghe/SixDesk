@@ -745,24 +745,21 @@ function submitCreateFinalFort3Long(){
 
     local __lerr=0
 
-    # returns ratio
-    sixdeskRatio $kang $lbackcomp
-    [ -n "${ratio}" ] || let __lerr+=1
-    # returns ax0 and ax1
-    sixdeskax0 $factor $beta_x $beta_x2 $beta_y $beta_y2 $ratio $kang $square $fampstart $fampend $lbackcomp
-    [ -n "${ax0}" ] || let __lerr+=1
-    [ -n "${ax1}" ] || let __lerr+=1
+    if ${lFirstSeed} ; then
+	# returns ratio
+	sixdeskRatio $kang $lbackcomp
+	[ -n "${ratio}" ] || let __lerr+=1
+	# returns ax0 and ax1
+	sixdeskax0 $factor $beta_x $beta_x2 $beta_y $beta_y2 $ratio $kang $square $fampstart $fampend $lbackcomp
+	[ -n "${ax0}" ] || let __lerr+=1
+	[ -n "${ax1}" ] || let __lerr+=1
+	sixdeskmess -1 "--> pre-processing of fort.3: ratio (${ratio}), ax0 (${ax0}), ax1 (${ax1})"
+	echo -e "${TRACLINES}\n" "${INITLINES}" | sed -e "s/%ax0l/${ax0}/g" -e "s/%ax1l/${ax1}/g" -e "s/%ratiol/${ratio}/g" > ${sixdeskjobs_logs}/${tempFort3Dir}/${sixdesktunes}/fortl.3.mask_basic__${Ampl}__${Angle}
+	cat ${sixdeskjobs_logs}/${tempFort3Dir}/${sixdesktunes}/fortl.3.mask_basic >> ${sixdeskjobs_logs}/${tempFort3Dir}/${sixdesktunes}/fortl.3.mask_basic__${Ampl}__${Angle}
+    fi
     #
-    sed -e 's/%turnsl/'$turnsl'/g' \
-	-e 's/%ax0l/'$ax0'/g' \
-	-e 's/%ax1l/'$ax1'/g' \
-	-e 's/%ratiol/'$ratio'/g' \
-	-e 's/%tunex/'$tunexx'/g' \
-	-e 's/%tuney/'$tuneyy'/g' \
-	-e 's/%inttunex/'$inttunexx'/g' \
-	-e 's/%inttuney/'$inttuneyy'/g' \
-	-e 's/%Runnam/'$Runnam'/g' \
-	-e 's/%writebinl/'$writebinl'/g' $sixdeskjobs_logs/fortl.3.mask > $sixdeskjobs_logs/fort.3
+    printf "${GEOMLINES}\n" "${Runnam}" > fort.3
+    cat ${sixdeskjobs_logs}/${tempFort3Dir}/${sixdesktunes}/fortl.3.mask_basic__${Ampl}__${Angle} >> $sixdeskjobs_logs/fort.3
     let __lerr+=${PIPESTATUS[0]}
     return ${__lerr}
 }
@@ -1801,6 +1798,7 @@ NrenewKerberosDef=10000
 NrenewKerberos=${NrenewKerberosDef}
 nMaxJobsSubmitHTCondorDef=15000
 nMaxJobsSubmitHTCondor=${nMaxJobsSubmitHTCondorDef}
+tempFort3Dir=fort.3.masks
 
 # get options (heading ':' to disable the verbose error handling)
 while getopts  ":hgo:sctakfvBSCMid:p:R:P:n:N:wU" opt ; do
@@ -2382,6 +2380,7 @@ else
     fi
     let iTotal=${iTotalMad}*${iTotalTunes}*${iTotalAmplitudeSteps}*${iTotalAngles}
     sixdeskmess -1 "for a total of ${iTotal} points."
+
 fi
 
 # main loop
@@ -2403,6 +2402,21 @@ else
     else
         iMadStart=${ista}
     fi
+    if ${lgenerate} || ${lfix} ; then
+	if [ $long -eq 1 ] ; then
+	    sixdeskmess -1 "--> pre-processing of fort.3: setting up, turnsl (${turnsl}), writebinl (${writebinl}) and GEOM block (\%s)"
+	    # splitting generation of fort.3 files
+	    [ -d ${sixdeskjobs_logs}/${tempFort3Dir} ] || mkdir -p ${sixdeskjobs_logs}/${tempFort3Dir}
+	    # things that can be replaced immediately:
+	    sed -e "s/%turnsl/${turnsl}/g" \
+		-e "s/%writebinl/${writebinl}/g" ${sixdeskjobs_logs}/fortl.3.mask > ${sixdeskjobs_logs}/${tempFort3Dir}/fortl.3.mask_basic
+	    # get blocks
+	    sixDeskSplitFort3 ${sixdeskjobs_logs}/${tempFort3Dir}/fortl.3.mask_basic
+	    # prepare GEOMLINES to be used with printf
+	    GEOMLINES=`echo "${GEOMLINES}" | sed "s/%Runnam/%s/g"`
+	fi
+    fi
+    lFirstSeed=true
     for (( iMad=${iMadStart}; iMad<=$iend; iMad++ )) ; do
         echo ""
         echo ""
@@ -2505,7 +2519,21 @@ else
     	            Ay=`gawk 'END{Ay='$nsr'*sqrt('$emit'/'$gamma'*'$beta_y');print Ay}' /dev/null`
     	            echo "$Qx $Qy $Ax $Ay $N1 $N2" > $sixdeskjobs_logs/resonance
     		fi
-    		
+
+		# pre-processing of fort.3
+		if ${lgenerate} || ${lfix} ; then
+		    if [ $long -eq 1 ] ; then
+			if ${lFirstSeed} ; then
+			    sixdeskmess -1 "--> pre-processing of fort.3: tunex (${tunexx}) and tuney (${tuneyy}), inttunex (${inttunexx}) and inttuney (${inttuneyy})"
+			    [ -d ${sixdeskjobs_logs}/${tempFort3Dir}/${sixdesktunes} ] || mkdir -p ${sixdeskjobs_logs}/${tempFort3Dir}/${sixdesktunes}
+			    sed -e "s/%tunex/${tunexx}/g" \
+				-e "s/%tuney/${tuneyy}/g" \
+				-e "s/%inttunex/${inttunexx}/g" \
+				-e "s/%inttuney/${inttuneyy}/g" ${sixdeskjobs_logs}/${tempFort3Dir}/fortl.3.mask_basic > ${sixdeskjobs_logs}/${tempFort3Dir}/${sixdesktunes}/fortl.3.mask_basic
+			fi
+		    fi
+		fi
+		
     	        # further actions depend on type of job
     		if [ $short -eq 1 ] ; then
     	            treatShort
@@ -2526,7 +2554,11 @@ else
     		rm -f $sixtrack_input/fort.${iFort}
     	    done
         fi	    
+	lFirstSeed=false
     done
+    if ${lgenerate} || ${lfix} ; then
+	rm -rf ${sixdeskjobs_logs}/${tempFort3Dir}
+    fi
 fi
 
 # restart check

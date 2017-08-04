@@ -1466,3 +1466,64 @@ function sixdeskRenewKerberosToken(){
 	fi
     fi
 }
+function sixDeskGetiLinesBlockFort3() {
+    # get index of lines of a data input block in fort.3
+    # be careful: block name as parsed by 6T, thus of 4 characters!
+    # - input arguments
+    local __blockName=$1
+    local __fort3file=$2
+    # - get line numbers of block (start-stop)
+    local __iLines=`grep -n -e "^${__blockName}" -e "^NEXT" ${__fort3file} | grep -v '^/' | grep -A1 ${__blockName} | cut -d\: -f1`;
+    iBlock=`echo "${__iLines}" | head -1`
+    iNext=`echo "${__iLines}" | tail -1`
+}
+function sixDeskSplitSingleBlockFort3() {
+    # split the fort.3 in three parts:
+    # 1. before requested block
+    # 2. the requested block
+    # 3. after requested block
+    # - input arguments
+    local __blockName=$1
+    local __fort3file=$2
+    # - get index of lines where block is
+    sixDeskGetiLinesBlockFort3 ${__blockName} ${__fort3file}
+    # - some reference numbers:
+    local __nLines
+    local __nHead
+    local __nTail
+    local __wcLines=`\wc -l < ${__fort3file}`
+    let __nLines=${iNext}-${iBlock}+1
+    let __nHead=${iBlock}-1
+    let __nTail=${__wcLines}-${iNext}
+    # - part before block:
+    linesBeforeBlock=`head -n ${__nHead} ${__fort3file}`
+    # - block:
+    linesBlock=`head -n ${iNext} ${__fort3file} | tail -n ${__nLines}`
+    # - part after block:
+    linesAfterBlock=`tail -n ${__nTail} ${__fort3file}`
+}
+function sixDeskSplitFort3(){
+    # - input arguments
+    local __iFile=$1
+    # - returns linesBlock, linesBeforeBlock, linesAfterBlock
+    sixDeskSplitSingleBlockFort3 GEOM ${__iFile}
+    GEOMLINES="${linesBlock}"
+    #   re-generate file
+    rm -f ${__iFile}
+    [ -z "${linesBeforeBlock}" ] || echo "${linesBeforeBlock}" >> ${__iFile}
+    [ -z "${linesAfterBlock}" ] || echo "${linesAfterBlock}" >> ${__iFile}
+    # - returns linesBlock, linesBeforeBlock, linesAfterBlock
+    sixDeskSplitSingleBlockFort3 TRAC ${__iFile}
+    TRACLINES="${linesBlock}"
+    #   re-generate file
+    rm -f ${__iFile}
+    [ -z "${linesBeforeBlock}" ] || echo "${linesBeforeBlock}" >> ${__iFile}
+    [ -z "${linesAfterBlock}" ] || echo "${linesAfterBlock}" >> ${__iFile}
+    # - returns linesBlock, linesBeforeBlock, linesAfterBlock
+    sixDeskSplitSingleBlockFort3 INIT ${__iFile}
+    INITLINES="${linesBlock}"
+    #   re-generate file
+    rm -f ${__iFile}
+    [ -z "${linesBeforeBlock}" ] || echo "${linesBeforeBlock}" >> ${__iFile}
+    [ -z "${linesAfterBlock}" ] || echo "${linesAfterBlock}" >> ${__iFile}
+}
