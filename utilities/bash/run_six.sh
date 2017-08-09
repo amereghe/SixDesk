@@ -19,8 +19,6 @@ function how_to_use() {
    -f      fix compromised directory structure
            similar to -g, but it fixes folders which miss any of the input files
               (i.e. the fort.*.gz) - BOINC .zip/.desc files are not re-generated;
-           ./run_six.sh -f DB
-              checks the consistency of the database and corrects it if necessary
    -C      clean .zip/.desc after submission in boinc
            NB: this is done by default in case of submission to boinc
    -t      report the current status of simulations
@@ -572,8 +570,8 @@ function submitChromaJobs(){
 	exit
     fi
     # save all interesting files from first job
-    rm -rf chromaJob01
-    mkdir chromaJob01
+    [ -d chromaJob01 ] || mkdir chromaJob01
+    rm -f chromaJob01/*
     cp fort.2 fort.3 fort.8 fort.16 fort.10 first_oneturn chromaJob01
     gzip -f chromaJob01/*
     mv fort.10 fort.10_first_oneturn
@@ -594,8 +592,8 @@ function submitChromaJobs(){
 	exit
     fi
     # save all interesting files from second job
-    rm -rf chromaJob02
-    mkdir chromaJob02
+    [ -d chromaJob02 ] || mkdir chromaJob02
+    rm -f chromaJob02/*
     cp fort.2 fort.3 fort.8 fort.16 fort.10 second_oneturn chromaJob02
     gzip -f chromaJob02/*
     mv fort.10 fort.10_second_oneturn
@@ -674,8 +672,8 @@ function submitBetaJob(){
 	exit
     fi
     # save all interesting files from beta job
-    rm -rf betaJob/*
-    mkdir betaJob
+    [ -d betaJob ] || mkdir betaJob
+    rm -f betaJob/*
     cp fort.2 fort.3 fort.8 fort.16 fort.10 lin betaJob
     gzip -f betaJob/*
     mv lin lin_old
@@ -856,27 +854,6 @@ function fixDir(){
     return ${__iFixed}
 }
 
-
-function fix_DB_entry(){
-    # correct the database
-    local __RunDirFullPath=$1
-    local __actualDirNameFullPath=$2
-
-    
-
-    if [ ! -d $__RunDirFullPath ] ; then
-	sixdeskmess -1 "...directory path has problems: recreating it!!!"
-	rm -rf $__RunDirFullPath
-	mkdir -p $__RunDirFullPath
-    fi
-    if [ ! -L $__actualDirNameFullPath ] ; then
-	sixdeskmess -1 "...directory link has problems: recreating it!!!"
-	rm -rf $__actualDirNameFullPath
-	ln -fs $__RunDirFullPath $__actualDirNameFullPath
-    fi
-}
-
-
 function fixInputFiles(){
     local __RunDirFullPath=$1
     local __iFixed=0
@@ -977,140 +954,6 @@ function checkDirAlreadyRun(){
     return $__lstatus
 
 }
-
-
-function check_job_complete(){
-
-    local __lstatus=0
-
-    if [ -s ${RundirFullPath}/fort.10.gz ] ; then
-	sixdeskmess 1 "fort.10.gz existing in $RundirFullPath!"
-	let __lstatus+=1
-    fi
-
-    return $__lstatus
-
-}
-
-
-
-function db_status(){
-
-    local __backupfn_ext
-    local __backupfn
-    
-    sixdeskmess -1 "Summary of database of study $LHCDescrip:"
-
-    
-    
-    cases=$(cat ${sixdeskwork}/taskids           | wc -l)
-    icases=$(cat ${sixdeskwork}/incomplete_cases | wc -l)
-    ccases=$(cat ${sixdeskwork}/completed_cases  | wc -l)
-    micases=$(cat ${sixdeskwork}/myincomplete_cases | wc -l)
-    mccases=$(cat ${sixdeskwork}/mycompleted_cases  | wc -l)    
-    
-
-    echo
-    sixdeskmess -1 "FILE                 LINES      "
-    sixdeskmess -1 "--------------------------"    
-    message=$(printf "%-21s %4s" "taskids" "${cases}")
-    sixdeskmess -1 "${message}"
-    message=$(printf "%-21s %4s" "completed_cases" "${ccases}")
-    sixdeskmess -1 "${message}"
-    message=$(printf "%-21s %4s" "incomplete_cases" "${icases}")
-    sixdeskmess -1 "${message}"    
-    sixdeskmess -1 "--------------------------"    
-    message=$(printf "%-21s %4s" "mycompleted_cases" "${mccases}")
-    sixdeskmess -1 "${message}"
-    message=$(printf "%-21s %4s" "myincomplete_cases" "${micases}")
-    sixdeskmess -1 "${message}"        
-    sixdeskmess -1 "--------------------------"    
-
-
-    # backup the present database in case something goes wrong
-    
-    __backupfn_ext=$(date +%Y-%m-%d-%H-%M-%S)
-    __backupfn="backup_${__backupfn_ext}"
-    
-    sixdeskmess -1 "Backing up database"
-    tar --exclude="${sixdeskwork}/*.tar.gz" -zcvf ${sixdeskwork}/${__backupfn}.tar.gz ${sixdeskwork}/* > /dev/null
-
-    exit
-
-
-}
-
-
-function db_find_old_entry(){
-    local __line_taskids
-    local __line_boinctasks
-    local __line_lsftasks
-
-    if grep -q "${Runnam}" ${sixdeskwork}/taskids; then
-	# if the point in scan can be found in the taskids, take this line and add it to the new taskids
-	sixdeskmess 2 "line found in taskids"
-	__line_taskids=$(grep ${} ${sixdeskwork}/taskids | tail -n 1)
-	sixdeskmess 2 "${__line_taskids}"
-    else
-	if [ -e ${sixdeskwork}/boincjobs/tasks ] && grep -q "${}" ${sixdeskwork}/boincjobs/tasks; then
-	    sixdeskmess 2 "line NOT found in taskids but in boincjobs/tasks"
-	    __line_boinctasks=$(grep ${} ${sixdeskwork}/boincjobs/tasks | tail -n 1)
-	    sixdeskmess 2 "${__line_boinctasks}"
-	fi
-
-	if [ -e ${sixdeskwork}/lsfjobs/jobs ] && grep -q "${}" ${sixdeskwork}/lsfjobs/jobs; then
-	    sixdeskmess 2 "line NOT found in taskids but in lsfjobs/tasks"
-	    __line_lsftasks=$(grep ${} ${sixdeskwork}/lsfjobs/jobs | tail -n 1)
-	    sixdeskmess 2 "${__line_lsftasks}"
-	fi
-    fi
-	
-}
-
-
-function db_add_complete_job(){
-    echo "not yet implemented"
-
-}
-
-function db_add_incomplete_job(){
-    echo "not yet implemented"
-
-}
-
-
-function db_correction_summary(){
-
-    # print the summary after the database was corrected
-      
-    casesf=$(cat ${sixdeskwork}/taskids           | wc -l)
-    icasesf=$(cat ${sixdeskwork}/incomplete_cases | wc -l)
-    ccasesf=$(cat ${sixdeskwork}/completed_cases  | wc -l)
-    micasesf=$(cat ${sixdeskwork}/myincomplete_cases | wc -l)
-    mccasesf=$(cat ${sixdeskwork}/mycompleted_cases  | wc -l)    
-    
-
-    echo
-    sixdeskmess -1 "FILE                 LINES      "
-    sixdeskmess -1 "--------------------------"    
-    message=$(printf "%-21s %4s" "taskids" "${cases}")
-    sixdeskmess -1 "${message}"
-    message=$(printf "%-21s\t%4s\t" "completed_cases" "${ccases}")
-    sixdeskmess -1 "${message}"
-    message=$(printf "%-21s %4s" "incomplete_cases" "${icases}")
-    sixdeskmess -1 "${message}"    
-    sixdeskmess -1 "--------------------------"    
-    message=$(printf "%-21s %4s" "mycompleted_cases" "${mccases}")
-    sixdeskmess -1 "${message}"
-    message=$(printf "%-21s %4s" "myincomplete_cases" "${micases}")
-    sixdeskmess -1 "${message}"        
-    sixdeskmess -1 "--------------------------"    
-
-
-
-
-}
-
 
 function dot_bsub(){
 
@@ -1345,7 +1188,7 @@ function updateTaskIdsCases(){
 
 function treatShort(){
 
-    if ${lgenerate} || [ ${lfix} && ${lfixdir} ] ; then
+    if ${lgenerate} || ${lfix} ; then
 	if [ $sussix -eq 1 ] ; then
 	    # and now we get fractional tunes to plug in qx/qy
             qx=`gawk 'END{qx='$fhtune'-int('$fhtune');print qx}' /dev/null`
@@ -1641,19 +1484,18 @@ function treatLong(){
 	    if ! ${lquiet}; then
 		echo ""
 	    fi
-
+	    sixdeskmess  1 "Point in scan $Runnam $Rundir"
+	    sixdeskmess -1 "study: ${LHCDescrip} - Job: ${nConsidered}/${iTotal} - Seed: $iMad [${iMadStart}:${iend}] - Ampl: $Ampl - Angle: $Angle"
 	    
 	    # ----------------------------------------------------------------------
 	    if ${lfix} ; then
             # ----------------------------------------------------------------------
 
-		if ${lfixdir}; then
 		# fix dir
-
 		fixDir $RundirFullPath $actualDirNameFullPath
 		let __iFixed+=$?
 		# finalise generation of fort.3
-		    submitCreateFinalFort3Long
+		submitCreateFinalFort3Long
 		# fix input files
 		fixInputFiles $RundirFullPath
 		let __iFixed+=$?
@@ -1940,8 +1782,6 @@ lmegazip=false
 loutform=false
 lbackcomp=true
 lverbose=false
-lfixdb=false
-lfixdir=false
 lrestart=false
 lrestartLast=false
 lincomplete=false
@@ -2010,14 +1850,6 @@ while getopts  ":hgo:sctakfvBSCMid:p:R:P:n:N:wU" opt ; do
 	f)
 	    # fix directories
 	    lfix=true
-	    
-	    if [ ${OPTARG} == 'DB' ]; then
-		# correct the database
-		lfixdb=true
-	    elif [ ${OPTARG} == 'DIR' ]; then
-		# correct the directory structure
-	        lfixdir=true
-	    fi
 	    ;;
 	C)
 	    # the user requests to delete .zip/.desc files
@@ -2167,19 +1999,12 @@ fi
 echo ""
 if ${lfix} ; then
     #
+    sixdeskmess -1 "Fixing sixtrack input files for study $LHCDescrip"
+    #
     lockingDirs=( "$sixdeskstudy" "$sixdeskjobs_logs" )
     #
-    if ${lfixdir}; then
-	sixdeskmess -1 "Fixing sixtrack input files for study $LHCDescrip"    
-	sixdeskmess  2 "Using sixtrack_input ${sixtrack_input}"
-	sixdeskmess  2 "Using ${sixdeskjobs_logs}"
-    fi
-
-    # initialize the correction of the SixDesk database
-    if ${lfixdb}; then
-	sixdeskmess -1 "User selected fixing the SixDesk database"
-	db_status
-    fi
+    sixdeskmess  2 "Using sixtrack_input ${sixtrack_input}"
+    sixdeskmess  2 "Using ${sixdeskjobs_logs}"
 fi
 if ${lgenerate} ; then
     #
@@ -2221,7 +2046,6 @@ if ${lstatus} ; then
     # - actually found:
     nFound=( 0 0 0 0 0 0 )
     foundNames=( 'dirs' 'fort.2.gz' 'fort.3.gz' 'fort.8.gz' 'fort.16.gz' 'fort.10.gz' )
-
 fi
 
 # - unlocking
@@ -2308,7 +2132,7 @@ if ${lFinaliseHTCondor} ; then
 fi
 
 # preparation to main loop
-if ${lgenerate} || ${lfixdir} ; then
+if ${lgenerate} || ${lfix} ; then
     # - check that all the necessary MadX input is ready
     #   NB: -e option, to skip set_env.sh another time
     echo ""
@@ -2863,7 +2687,7 @@ if ${lstatus} ; then
 	if [ ${nFound[$iFound]} == ${nConsidered} ] ; then
 	    expectation="AS EXPECTED!"
 	else
-	    expectation="NOT as expected: MISMATCH!"
+	    expectation="NOT as expected: MIMATCH!"
 	fi
 	sixdeskmess -1 "- number of ${foundNames[$iFound]} FOUND: ${nFound[$iFound]} - ${expectation}"
     done
