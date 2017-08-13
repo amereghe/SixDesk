@@ -752,10 +752,20 @@ function submitCreateFinalFort3Long(){
     sixdeskax0 $factor $beta_x $beta_x2 $beta_y $beta_y2 $ratio $kang $square $fampstart $fampend $lbackcomp
     [ -n "${ax0}" ] || let __lerr+=1
     [ -n "${ax1}" ] || let __lerr+=1
+
+    # amplitude extremes and ratio
+    local __allLines=`echo -e "${TRACLINES}\n${INITLINES}"`
+    local __placeHolders=(  '%ax0l'  '%ax1l'  '%ratiol' )
+    local __actualValues=( "${ax0}" "${ax1}" "${ratio}" )
+    for (( ii=0; ii<${#__placeHolders[@]}; ii++ )) ; do
+	__allLines=${__allLines//${__placeHolders[$ii]}/${__actualValues[$ii]}}
+    done
+    
+    # actually generate fort.3
     printf "${GEOMLINES}\n" "${Runnam}" > $sixdeskjobs_logs/fort.3
-    echo -e "${TRACLINES}\n" "${INITLINES}" | sed -e "s/%ax0l/${ax0}/g" -e "s/%ax1l/${ax1}/g" -e "s/%ratiol/${ratio}/g" >> $sixdeskjobs_logs/fort.3
+    echo "${__allLines}" >> $sixdeskjobs_logs/fort.3
     cat ${sixdeskjobs_logs}/${tempFort3Dir}/fortl.3.mask_basic_${sixdesktunes} >> $sixdeskjobs_logs/fort.3
-    #
+
     return ${__lerr}
 }
 
@@ -2405,7 +2415,7 @@ else
 	    # things that can be replaced immediately:
 	    sed -e "s/%turnsl/${turnsl}/g" \
 		-e "s/%writebinl/${writebinl}/g" ${sixdeskjobs_logs}/fortl.3.mask > ${sixdeskjobs_logs}/${tempFort3Dir}/fortl.3.mask_basic
-	    # get blocks
+	    # get blocks - it returns GEOMLINES, TRACLINES, and INITLINES
 	    sixDeskSplitFort3 ${sixdeskjobs_logs}/${tempFort3Dir}/fortl.3.mask_basic
 	    # prepare GEOMLINES to be used with printf
 	    GEOMLINES=`echo "${GEOMLINES}" | sed "s/%Runnam/%s/g"`
