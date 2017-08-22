@@ -1,52 +1,51 @@
 
-#!/bin/sh
+##########################################################################################
+#                                                                                        #
+#                                SCAN DEFINITIONS                                        #
+#                                                                                        #
+##########################################################################################
 
-#################
-## Definitions ##
-#################
 
-export SixDeskDev="/afs/cern.ch/work/p/phermes/private/SixDesk/utilities/bash"
 
-export MADbasedir="/afs/cern.ch/work/p/phermes/private/161207_MBH_TF/sixtrack_input/"
+############################## DEFINE SIXDESK/SIXDB DIRECTORY ############################
 
+# specify the sixdeskdev directory
+export SixDeskDev="/afs/cern.ch/work/p/phermes/private/development/SixDesk/utilities/bash/"
+
+# specify the sixdb directory to automatize the analysis
 export sixdbdir="/home/phermes/development/SixDeskDB/"
 
 
-############################## SCAN OVER CHROMA AND IOCT ################################
+############################## SCAN OVER A CARTESIAN GRID ################################
 
-# definitions to scan over octupole current and chromaticity
-# name of the mother mask file (without extension .mask)
+# specify the variable names to be used in naming the studies
+scan_variables="B MBH10M ICOT QPV"
 
-# define the scan vars in the mask file, e.g.
-# I_MO=%OCV; will relate to scan_var1="OC"
+# specify the placeholders in the mask file
+scan_placeholders="%BV %MBH10MV %IOCTV %QPV"                 
+
+# specify the prefix of the study name 
+scan_prefix="HLLHC_inj"                            
+
+# specify the values to be taken by the different variables
+scan_vals_B="1 4"                                
+scan_vals_MBH10M="-1 0 1"
+scan_vals_IOCT="0 4 8"
+scan_vals_QP="0 1"
+
+############################## SCAN OVER SPECIFIC MASKS  ################################
+
+# THIS OPTION REQUIRES THE MASK FILES TO BE EXISTING
+
+scan_masks=false                                        # (de)activate the scan over specific masks
+scan_studies="
+HLLHC_inj_B_4_MBH10M_-1 
+HLLHC_inj_B_4_MBH10M_0 
+HLLHC_inj_B_4_MBH10M_1
+"
 
 
-export mask_prefix="HLLHC_inj"
 
-# logical switches
-
-export lscan_var1=false
-export lscan_var2=false
-export lscan_var3=false
-export lscan_var4=false
-
-export scan_var1="B"
-export scan_var2="MBH10M"
-
-export scan_var1_vals="1 4"
-export scan_var2_vals="0 1"
-
-
-
-############################## SCAN OVER SPECIFIC MASKS ################################
-
-# scan over specific mask files (which have to be existing)
-
-scan_masks=true
-
-export mask_names="HLLHC_inj_B_4_MBH10M_-1 HLLHC_inj_B_4_MBH10M_0 HLLHC_inj_B_4_MBH10M_1"
-#export mask_names="HLLHC_inj_B_1_MBH10M_1"
-#export mask_names="HLLHC_inj_B_1_MBH10M_1"
 
 
 
