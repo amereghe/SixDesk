@@ -85,9 +85,9 @@ function generate_mask_file(){
     local _placeholders=(${scan_placeholders})
     local _placeholder
     local _
-    local _tmpmask="mask/${scan_pref}_temp.mask"
+    local _tmpmask="mask/${scan_prefix}_temp.mask"
     
-    cp mask/${scan_pref}.mask ${_tmpmask}              # copy mask template to other name to be working on
+    cp mask/${scan_prefix}.mask ${_tmpmask}              # copy mask template to other name to be working on
     
     mask_vals=${mask_values[i]:2}                      # read the mask variable values for the particular studies
     
@@ -157,7 +157,7 @@ function doCommand(){
 function runmad6t(){
     _cmnd="${SixDeskDev}/mad6t.sh"
 
-    # this part could be done in getopts but it's clearer to do it hear
+    # this part could be done in getopts but it's clearer to do it here
     if ${lsubmit}; then
 	_cmnd="${_cmnd} -s"
     elif ${lcheck}; then
@@ -232,7 +232,7 @@ done
 shift "$(($OPTIND - 1))"
 
 
-if ! ${lsubmit} && ! ${lcreatemask} && ! ${lrerun} && ! ${lcheck} && ! ${laddargs}; then
+if ! ${lsubmit} && ! ${lcreatemask} && ! ${lrerun} && ! ${lcheck} && ! ${laddargs} && ! ${lunlock}; then
     sixdeskmess -1 "ERROR: no action specified"
     how_to_use
     exit 1
