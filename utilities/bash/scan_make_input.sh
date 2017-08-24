@@ -109,6 +109,7 @@ function generate_mask_file(){
 	((_j++))
     done
 
+    sixdeskmess -1 "Generated mask file: ${study}.mask"
     mv ${_tmpmask} mask/${study}.mask                  # move tmp mask file to definite name
 
     
@@ -244,8 +245,13 @@ if ${lcreatemask}; then
     scan_loop generate_mask_file
 fi
 
-if ${lsubmit} || ${lcheck} || ${laddargs} || ${lwrongseeds} || ${lunlock}; then
-    scan_loop generate_mask_file    
+
+if ${lsubmit} || ${laddargs}; then
+    scan_loop generate_mask_file
+    scan_loop runmad6t    
+fi
+
+if ${lcheck} || ${lwrongseeds} || ${lunlock}; then
     scan_loop runmad6t
 fi
 
