@@ -187,13 +187,6 @@ function get_study_names(){
 }
 
 
-function initialize_scan(){
-    
-    get_study_names
-    
-    }
-
-
 function set_env_to_mask(){   
     cat sixdeskenv |\
       sed -e "s/export LHCDescrip=.*/export LHCDescrip=${study}/" > sixdeskenv.new
