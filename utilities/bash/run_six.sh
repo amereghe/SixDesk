@@ -818,14 +818,22 @@ function submitCreateFinalInputs(){
 	sixdeskmess  1 "sixdesktaskid: $sixdesktaskid - $sixdeskTaskId"
 	# - return sixdeskTaskName and workunitName
 	sixdeskDefineWorkUnitName $workspace $Runnam $sixdesktaskid
+	# check if boinc or htboinc and adjust the zip filename accordingly
+	if [ "$sixdeskplatform" == "boinc" ] ; then
+	    zipfilename="$workunitName.zip"
+	elif [ "${sixdeskplatform}" == "htboinc" ]; then
+	    zipfilename="SixIn.zip"
+	fi
+	
 	let __lerr+=$?
 	if [ ${__lerr} -eq 0 ] ; then
 	    # - generate zip file
 	    #   NB: -j option, to store only the files, and not the source paths
-	    multipleTrials "zip -j $RundirFullPath/$workunitName.zip $sixdeskjobs_logs/fort.3 $sixtrack_input/fort.2 $sixtrack_input/fort.8 $sixtrack_input/fort.16 > $RundirFullPath/zip.log 2>&1; local __zip_exit_status=\$? ; grep warning $RundirFullPath/zip.log >/dev/null 2>&1 ; local __zip_warnings=\$? ; rm -f $RundirFullPath/zip.log" "[ \${__zip_exit_status} -eq 0 ] && [ \${__zip_warnings} -eq 1 ]" "Failing to generate .zip file for WU ${workunitName}"
+	    multipleTrials "zip -j $RundirFullPath/${zipfilename} $sixdeskjobs_logs/fort.3 $sixtrack_input/fort.2 $sixtrack_input/fort.8 $sixtrack_input/fort.16 > $RundirFullPath/zip.log 2>&1; local __zip_exit_status=\$? ; grep warning $RundirFullPath/zip.log >/dev/null 2>&1 ; local __zip_warnings=\$? ; rm -f $RundirFullPath/zip.log" "[ \${__zip_exit_status} -eq 0 ] && [ \${__zip_warnings} -eq 1 ]" "Failing to generate .zip file for WU ${workunitName}"
 	    let __lerr+=$?
 	    # - generate the workunit description file
-	    cat > $RundirFullPath/$workunitName.desc <<EOF
+	    if [ "$sixdeskplatform" == "boinc" ] ; then
+		cat > $RundirFullPath/$workunitName.desc <<EOF
 $workunitName
 $fpopsEstimate 
 $fpopsBound
@@ -838,7 +846,8 @@ $errors
 $numIssues
 $resultsWithoutConcensus
 EOF
-	    let __lerr+=$?
+		let __lerr+=$?
+	    fi
   	    # - update MegaZip file:
 	    if ${lmegazip} ; then
 		echo "$RundirFullPath/$workunitName.desc" >> ${sixdeskjobs_logs}/megaZipList.txt
@@ -939,7 +948,24 @@ function checkDirReadyForSubmission(){
 	    workunitName="${fileNames[0]}"
 	    sixdeskmess  1 ".desc and .zip files present in $RundirFullPath!"
 	fi
-    fi
+    elif [ "$sixdeskplatform" == "htboinc" ] ; then
+	# - there should be only 1 .desc/.zip files
+	fileNames=""
+	for extension in .zip ; do
+	    tmpFileName=`ls -1tr $RundirFullPath/*${extension} 2> /dev/null | tail -1`
+	    tmpPath="${tmpFileName%/*}"
+	    tmpFileName="${tmpFileName#$tmpPath/*}"
+	    tmpFileName="${tmpFileName%$extension}"
+	    if [ -z "${tmpFileName}" ] ; then
+		sixdeskmess -1 "no ${extension} file in $RundirFullPath!!!"
+		let __lerr+=1
+		let __llerr+=1
+	    else
+		sixdeskGetFileName "${tmpFileName}" tmpName
+		fileNames="${fileNames} ${tmpName}"
+	    fi
+	done
+    fi    
     if [ $sussix -eq 1 ] ; then
 	sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -s sussix.inp.1.gz sussix.inp.2.gz sussix.inp.3.gz
 	let __lerr+=$?
@@ -1996,7 +2022,7 @@ sixdeskDefineUserTree $basedir $scratchdir $workspace
 sixDeskSetBOINCVars
 
 # - htboinc variables
-sixDeskSetHTBBOINCVars
+sixDeskSetHTBOINCVars
 
 # - preliminary checks
 preliminaryChecksRS
@@ -2171,7 +2197,7 @@ if ${lsubmit} ; then
     if [ "$sixdeskplatform" == "lsf" ] || [ "$sixdeskplatform" == "htcondor" ] ; then
 	touch $sixdeskjobs/jobs
 	touch $sixdeskjobs/incomplete_jobs
-    elif [ "$sixdeskplatform" == "boinc" ] ; then
+    elif [ "$sixdeskplatform" == "boinc" ] || [ "$sixdeskplatform" == "htboinc" ] ; then
 	touch $sixdeskjobs/tasks
 	touch $sixdeskjobs/incomplete_tasks
     fi
@@ -2189,6 +2215,18 @@ if ${lsubmit} ; then
 	sed -i "s#^queue dirname from.*#queue dirname from ${sixdeskjobs}/${LHCDesName}.list#g" ${sixdeskjobs}/htcondor_run_six.sub
 	sed -i "s#^+JobFlavour =.*#+JobFlavour = \"${HTCq}\"#g" ${sixdeskjobs}/htcondor_run_six.sub
     fi
+
+    if [ "$sixdeskplatform" == "htboinc" ] ; then
+#	cp ${SCRIPTDIR}/templates/htcondor/htboinc_job.sh ${sixdeskjobs}/htboinc_job.sh
+	cp ${SCRIPTDIR}/templates/htcondor/htboinc_run_six.sub ${sixdeskjobs}/htboinc_run_six.sub
+# 	sed -i "s#^exe=.*#exe=${SIXTRACKEXE}#g" ${sixdeskjobs}/htboinc_job.sh
+#	sed -i "s#^runDirBaseName=.*#runDirBaseName=${sixdesktrack}#g" ${sixdeskjobs}/htboinc_job.sh
+#	chmod +x ${sixdeskjobs}/htboinc_job.sh
+#	sed -i "s#^executable = .*#executable = ${sixdeskjobs}/htboinc_job.sh#g" ${sixdeskjobs}/htboinc_run_six.sub
+	sed -i "s#^queue dirname from.*#queue dirname from ${sixdeskjobs}/${LHCDesName}.list#g" ${sixdeskjobs}/htboinc_run_six.sub
+	sed -i "s#^+JobFlavour =.*#+JobFlavour = \"${HTCq}\"#g" ${sixdeskjobs}/htboinc_run_six.sub
+    fi
+    
 fi
 # - MegaZip: get file name
 if ${lmegazip} ; then
@@ -2491,8 +2529,6 @@ if ${lsubmit} ; then
 	    cd - > /dev/null 2>&1
 	fi
     elif [ "$sixdeskplatform" == "htboinc" ] ; then
-	sixdeskmess -1 "htboinc selected. not yet implemented. finishing script"
-	exit
 	if [ ! -e ${sixdeskjobs}/${LHCDesName}.list ] ; then
 	    sixdeskmess -1 "List of tasks not there: ${sixdeskjobs}/${LHCDesName}.list"
 	elif [ `wc -l ${sixdeskjobs}/${LHCDesName}.list 2> /dev/null | awk '{print ($1)}'` -eq 0 ] ; then
@@ -2508,15 +2544,17 @@ if ${lsubmit} ; then
 	    # let's renew the kerberos token just before submitting
 	    sixdeskmess 2 "renewing kerberos token before submission to HTCondor"
 	    sixdeskRenewKerberosToken
-	    multipleTrials "terseString=\"\`condor_submit -batch-name ${batch_name} -terse ${sixdeskjobs}/htcondor_run_six.sub\`\" " "[ -n \"\${terseString}\" ]" "Problem at condor_submit"
+	    #	    multipleTrials "terseString=\"\`condor_submit -batch-name ${batch_name} -terse ${sixdeskjobs}/htcondor_run_six.sub\`\" " "[ -n \"\${terseString}\" ]" "Problem at condor_submit"
+	    sixdeskmess -1 "condor_submit -pool ${remoteHost}${htboincport} -name ${remoteHost} -spool ${sixdeskjobs}/htboinc_run_six.sub"
+	    multipleTrials "terseString=\"\`condor_submit -pool ${remoteHost}${htboincport} -name ${remoteHost} -spool ${sixdeskjobs}/htboinc_run_six.sub \`\" " "[ -n \"\${terseString}\" ]" "Problem at condor_submit"
 	    let __lerr+=$?
 	    if [ ${__lerr} -ne 0 ] ; then
 		sixdeskmess -1 "Something wrong with htboinc submission: submission didn't work properly - exit status: ${__lerr}"
 		jobIDmax=${#allCases[@]}
 		# clean
-		for (( ii=0; ii<${jobIDmax}; ii++ )) ; do
-		    rm -f ${allCases[$ii]}/JOB_NOT_YET_STARTED 
-		done
+#		for (( ii=0; ii<${jobIDmax}; ii++ )) ; do
+#		    rm -f ${allCases[$ii]}/JOB_NOT_YET_STARTED 
+#		done
 	    else
 		sixdeskmess -1 "Submission was successful"
 		# parse terse output (example: "23548.0 - 23548.4")
@@ -2524,12 +2562,9 @@ if ${lsubmit} ; then
 		clusterID=${clusterID//\ /}
 		jobIDmax=`echo "${terseString}" | head -1 | cut -d\- -f2 | cut -d\. -f2`
 		let jobIDmax+=1
-		if [ ${jobIDmax} -ne ${#allCases[@]} ] ; then
-		    sixdeskmess -1 "Something wrong with htcondor submission: I requested ${#allCases[@]} to be submitted, and only ${jobIDmax} actually made it!"
-		    if [ ${#allCases[@]} -lt ${jobIDmax} ] ; then
-			jobIDmax=${#allCases[@]}
-		    fi
-		fi
+		sixdeskmess -1 "clusterID  : ${clusterID}"
+#		sixdeskmess -1 "jobIDmax   : ${jobIDmax}"
+		sixdeskmess -1 "terseString: ${terseString}"
 		# save taskIDs
 		sixdeskmess -1 "Updating DB..."
 		sixdeskmess  1 "Depending on the number of points in the scan, this operation can take up to few minutes."

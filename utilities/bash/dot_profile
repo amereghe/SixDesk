@@ -1325,6 +1325,10 @@ sixDeskSetHTBOINCVars(){
     # --------------------------------------------------------------------------
     # for megaZip
     # export megaZipPath=$boincdir/boinc/upload
+
+    export remoteHost="vccondorce02.cern.ch"
+    export htboincport=":9619"
+    
 }
 sixdeskSetCPSSVars(){
     # sixdeskprog/uploadProgram Variables
