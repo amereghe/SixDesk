@@ -97,7 +97,6 @@ if test $# -le 2
 then
   if test $sixdeskplatform = "lsf" -o $sixdeskplatform = "htcondor" -o $sixdeskplatform = "htboinc" 
   then
-	echo "PHDEBUG ENTERING first if"	      
     if test ! -d "$sixdeskjobs"
     then
 
@@ -126,7 +125,6 @@ then
       sixdesklock
 #MACRO mylock
       lsfjobs=0
-      echo "PHDEBUG: sixdeskjobs: ${sixdeskjobs}"
       if test -s "$sixdeskjobs/jobs"
       then
         lsfjobs=`wc -l "$sixdeskjobs/jobs"`
@@ -143,11 +141,9 @@ then
       sixdeskmesslevel=0
       sixdeskmess -1 "Found $lsfjobs jobs $ijobs incomplete"
 #MACRO mymess
-      echo "PHDEBUG ENTERING TEST LSFJOBS -ne 0"	      
 
       if test "$lsfjobs" -ne 0 -a "$ijobs" -ne 0 
       then
-      echo "PHDEBUG AFTER ENTERING TEST LSFJOBS -ne 0"	      
 
 #MACRO mymktmpdir lsftmp /tmp/$LOGNAME
         sixdesktmpdirname=lsftmp
@@ -328,7 +324,6 @@ then
         rm -f missing_jobs
         touch missing_jobs
         rm -f really_completed_jobs
-	echo "PHDEBUG ENTERING READ LINE"	
         while read line
         do
           Runnam=`echo $line | cut -d" " -f1`
