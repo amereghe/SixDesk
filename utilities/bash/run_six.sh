@@ -1649,7 +1649,7 @@ function treatLong(){
 	        	if [ "$sixdeskplatform" == "lsf" ] ; then
 	        	    dot_bsub
 			    local __subSuccess=$?
-	        	elif [ "$sixdeskplatform" == "htcondor" ] | [ "$sixdeskplatform" == "htboinc" ] ; then
+	        	elif [ "$sixdeskplatform" == "htcondor" ] || [ "$sixdeskplatform" == "htboinc" ] ; then
 	        	    dot_htcondor
 			    local __subSuccess=1
 			    let nQueued+=1
