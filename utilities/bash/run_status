@@ -45,15 +45,15 @@ if test $sixdeskplatform = "htboinc"; then
 	outstring=$(condor_transfer_data -pool vccondorce02.cern.ch:9619 -name vccondorce02.cern.ch ${id})
 	sixdeskmess -1 "clusterID: ${id}   ${outstring}"
     done
+
+
+    ## show the number of jobs that is still running
+    uname=$(whoami)
+    for id in ${clusterIDs[@]}; do
+	condor_q -pool vccondorce02.cern.ch:9619 -name vccondorce02.cern.ch ${uname} ${id}
+    done
+    
 fi
-
-
-## show the number of jobs that is still running
-uname=$(whoami)
-for id in ${clusterIDs[@]}; do
-    condor_q -pool vccondorce02.cern.ch:9619 -name vccondorce02.cern.ch ${uname} ${id}
-done
-
 
 
 
@@ -364,8 +364,8 @@ then
 	       then
 		   if test -s $where/fort.10
 		   then
-		       gzip ${where}/fort.10
-		       rm   ${where}/JOB_NOT_YET_COMPLETED
+		       gzip -f ${where}/fort.10
+		       rm      ${where}/JOB_NOT_YET_COMPLETED
 		   fi
 	      fi
 	       
