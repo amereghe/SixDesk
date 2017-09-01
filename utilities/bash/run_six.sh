@@ -491,7 +491,7 @@ function preProcessBoinc(){
 function submitChromaJobs(){
 
     local __destination=$1
-    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock'
+    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?'
     
     # --------------------------------------------------------------------------
     # generate appropriate fort.3 files as: fort.3.tx + fort.3.mad + fort.3.m2
@@ -570,8 +570,8 @@ function submitChromaJobs(){
 	exit
     fi
     # save all interesting files from first job
-    [ -d chromaJob01 ] || mkdir chromaJob01
-    rm -f chromaJob01/*
+    rm -rf chromaJob01
+    mkdir chromaJob01
     cp fort.2 fort.3 fort.8 fort.16 fort.10 first_oneturn chromaJob01
     gzip -f chromaJob01/*
     mv fort.10 fort.10_first_oneturn
@@ -592,8 +592,8 @@ function submitChromaJobs(){
 	exit
     fi
     # save all interesting files from second job
-    [ -d chromaJob02 ] || mkdir chromaJob02
-    rm -f chromaJob02/*
+    rm -rf chromaJob02
+    mkdir chromaJob02
     cp fort.2 fort.3 fort.8 fort.16 fort.10 second_oneturn chromaJob02
     gzip -f chromaJob02/*
     mv fort.10 fort.10_second_oneturn
@@ -616,7 +616,7 @@ function submitChromaJobs(){
 function submitBetaJob(){
     
     local __destination=$1
-    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:lin*'
+    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:lin*:betaJob'
     
     # --------------------------------------------------------------------------
     # generate appropriate fort.3 files as: fort.3.m1 + fort.3.mad + fort.3.m2
@@ -672,8 +672,8 @@ function submitBetaJob(){
 	exit
     fi
     # save all interesting files from beta job
-    [ -d betaJob ] || mkdir betaJob
-    rm -f betaJob/*
+    rm -rf betaJob
+    mkdir betaJob
     cp fort.2 fort.3 fort.8 fort.16 fort.10 lin betaJob
     gzip -f betaJob/*
     mv lin lin_old
