@@ -1039,6 +1039,19 @@ function dot_htboinc(){
     # add current point in scan to list of points to be submitted:
     echo "$Rundir" >> ${sixdeskjobs}/${LHCDesName}.list
 
+    if [ ${__lerr} -eq 0 ] ; then
+        # the job has just started
+	touch $RundirFullPath/JOB_NOT_YET_COMPLETED
+        # keep track of the $Runnam-taskid couple
+	updateTaskIdsCases $sixdeskjobs/jobs $sixdeskjobs/incomplete_jobs $sixdesktaskid $Runnam
+    fi
+
+    # in case of LSF, this operation is done either by:
+    # - dot_bsub, in case of un-successful submission;
+    # - the job at statup, in case of successful submission;
+    rm -f $RundirFullPath/JOB_NOT_YET_STARTED
+
+    
     return $__lerr
 }
 
@@ -2194,10 +2207,10 @@ if ${lsubmit} ; then
     touch $sixdeskwork/incomplete_cases
     touch $sixdeskwork/myincomplete_cases
     touch $sixdeskwork/taskids
-    if [ "$sixdeskplatform" == "lsf" ] || [ "$sixdeskplatform" == "htcondor" ] ; then
+    if [ "$sixdeskplatform" == "lsf" ] || [ "$sixdeskplatform" == "htcondor" ] || [ "$sixdeskplatform" == "htboinc" ] ; then
 	touch $sixdeskjobs/jobs
 	touch $sixdeskjobs/incomplete_jobs
-    elif [ "$sixdeskplatform" == "boinc" ] || [ "$sixdeskplatform" == "htboinc" ] ; then
+    elif [ "$sixdeskplatform" == "boinc" ] ; then
 	touch $sixdeskjobs/tasks
 	touch $sixdeskjobs/incomplete_tasks
     fi
@@ -2557,24 +2570,28 @@ if ${lsubmit} ; then
 #		done
 	    else
 		sixdeskmess -1 "Submission was successful"
-		# parse terse output (example: "23548.0 - 23548.4")
-		clusterID=`echo "${terseString}" | head -1 | cut -d\- -f2 | cut -d\. -f1`
-		clusterID=${clusterID//\ /}
-		jobIDmax=`echo "${terseString}" | head -1 | cut -d\- -f2 | cut -d\. -f2`
-		let jobIDmax+=1
+
+		# Get the clusterid and write it to a file to maintain it for condor_transfer_data
+		clusterID=(${terseString})
+		clusterID=${clusterID[${#clusterID[@]}-1]}
+		clusterID=${clusterID//.}
+		echo ${clusterID} >> ${sixdeskwork}/htboincjobs/clusterids 
 		sixdeskmess -1 "clusterID  : ${clusterID}"
-#		sixdeskmess -1 "jobIDmax   : ${jobIDmax}"
-		sixdeskmess -1 "terseString: ${terseString}"
-		# save taskIDs
-		sixdeskmess -1 "Updating DB..."
-		sixdeskmess  1 "Depending on the number of points in the scan, this operation can take up to few minutes."
-		for (( ii=0; ii<${jobIDmax}; ii++ )) ; do
-		    let jj=$ii-1
-		    taskid="htcondor${clusterID}.${ii}"
-		    Runnam=$(sixdeskFromJobDirToJobName ${allCases[$ii]} ${lbackcomp})
-		    updateTaskIdsCases $sixdeskjobs/jobs $sixdeskjobs/incomplete_jobs $taskid $Runnam
-		    let NsuccessSub+=1
+		sixdeskmess -1 "${terseString}"
+		
+		# remove the SixIn.zip files after the submission
+		for c in ${allCases[@]}; do
+		    rm $sixdesktrack/${c}/SixIn.zip
 		done
+#		sixdeskmess -1 "Updating DB..."
+#		sixdeskmess  1 "Depending on the number of points in the scan, this operation can take up to few minutes."
+#		for (( ii=0; ii<${jobIDmax}; ii++ )) ; do
+#		    let jj=$ii-1
+#		    taskid="htcondor${clusterID}.${ii}"
+#		    Runnam=$(sixdeskFromJobDirToJobName ${allCases[$ii]} ${lbackcomp})
+#		    updateTaskIdsCases $sixdeskjobs/tasks $sixdeskjobs/incomplete_tasks $taskid $Runnam
+#		    let NsuccessSub+=1
+#		done
 		rm -f ${sixdeskjobs}/${LHCDesName}.list
 	    fi
 	    cd - > /dev/null 2>&1

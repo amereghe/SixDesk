@@ -32,6 +32,31 @@ sixdeskmess -1 "Checking Study $LHCDescrip"
 # DON'T LOCK unless we are modifying.....
 # at the expense of possibly inconsistent reports
 
+
+## get results for htboinc
+
+if test $sixdeskplatform = "htboinc"; then
+    sixdeskmess -1 "Retrieving data for htboinc"
+    # get the clusterids of the jobs submitted via htboinc
+    clusterIDs=($(cat work/htboincjobs/clusterids))
+
+    # transfer back the data for every clusterid
+    for id in ${clusterIDs[@]}; do
+	outstring=$(condor_transfer_data -pool vccondorce02.cern.ch:9619 -name vccondorce02.cern.ch ${id})
+	sixdeskmess -1 "clusterID: ${id}   ${outstring}"
+    done
+fi
+
+
+## show the number of jobs that is still running
+uname=$(whoami)
+for id in ${clusterIDs[@]}; do
+    condor_q -pool vccondorce02.cern.ch:9619 -name vccondorce02.cern.ch ${uname} ${id}
+done
+
+
+
+
 #MACRO mylock $sixdeskwork
 #sixdesklockdir=$sixdeskwork
 #sixdesklock
@@ -70,8 +95,9 @@ sixdeskmess -1 "Found $cases cases, $ccases complete ($icases incomplete)"
 
 if test $# -le 2
 then
-  if test $sixdeskplatform = "lsf" -o $sixdeskplatform = "htcondor" 
+  if test $sixdeskplatform = "lsf" -o $sixdeskplatform = "htcondor" -o $sixdeskplatform = "htboinc" 
   then
+	echo "PHDEBUG ENTERING first if"	      
     if test ! -d "$sixdeskjobs"
     then
 
@@ -100,6 +126,7 @@ then
       sixdesklock
 #MACRO mylock
       lsfjobs=0
+      echo "PHDEBUG: sixdeskjobs: ${sixdeskjobs}"
       if test -s "$sixdeskjobs/jobs"
       then
         lsfjobs=`wc -l "$sixdeskjobs/jobs"`
@@ -116,9 +143,11 @@ then
       sixdeskmesslevel=0
       sixdeskmess -1 "Found $lsfjobs jobs $ijobs incomplete"
 #MACRO mymess
+      echo "PHDEBUG ENTERING TEST LSFJOBS -ne 0"	      
 
       if test "$lsfjobs" -ne 0 -a "$ijobs" -ne 0 
       then
+      echo "PHDEBUG AFTER ENTERING TEST LSFJOBS -ne 0"	      
 
 #MACRO mymktmpdir lsftmp /tmp/$LOGNAME
         sixdesktmpdirname=lsftmp
@@ -299,6 +328,7 @@ then
         rm -f missing_jobs
         touch missing_jobs
         rm -f really_completed_jobs
+	echo "PHDEBUG ENTERING READ LINE"	
         while read line
         do
           Runnam=`echo $line | cut -d" " -f1`
@@ -329,7 +359,16 @@ then
             fi
           else
            if test "$BNL" = ""
-            then
+           then
+	       if test $sixdeskplatform = "htboinc"
+	       then
+		   if test -s $where/fort.10
+		   then
+		       gzip ${where}/fort.10
+		       rm   ${where}/JOB_NOT_YET_COMPLETED
+		   fi
+	      fi
+	       
               if test ! -s $where/fort.10.gz
               then
 
@@ -574,7 +613,7 @@ then
   for myplatform in lsf boinc cpss grid
   do
     myname=tasks
-    if test "$myplatform" = "lsf" -o "$myplatform" = "htcondor"
+    if test "$myplatform" = "lsf" -o "$myplatform" = "htcondor" -o "$myplatform" = "htboinc" 
     then
       myname=jobs
     fi
@@ -737,4 +776,3 @@ fi
 sixdeskexitparam=0
 sixdeskexit
 #MACRO myexit
-
