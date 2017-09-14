@@ -28,6 +28,8 @@ function how_to_use() {
            recognised platforms: LSF, BOINC, HTCONDOR
    -e      just parse the concerned input files (${necessaryInputFiles[@]}),
                without overwriting
+   -l      use fort.3.local. This file will be added to the list of necessary
+               input files only in case this flag will be issued.
    -P      python path
    -v      verbose (OFF by default)
 
@@ -93,37 +95,69 @@ function consistencyChecks(){
 	fi
     fi
 
+    # - sixtrack app name
+    sixDeskCheckAppName ${appName}
+    if [ $? -ne 0 ] ; then
+	sixdeskexit 9
+    fi
+
     return 0
 }
 
+function getInfoFromFort3Local(){
+    export fort3localLines=`awk 'NF' ${envFilesPath}/fort.3.local`
+    local __activeLines=`echo "${fort3localLines}" | grep -v '/'`
+    local __firstActiveBlock=`echo "${__activeLines}" | head -1 | cut -c1-4`
+    local __otherActiveBlocks=`echo "${__activeLines}" | grep -A1 NEXT | grep -v NEXT | grep -v '^\-\-' | cut -c1-4`
+    local __allActiveBlocks="${__firstActiveBlock} ${__otherActiveBlocks}"
+    __allActiveBlocks=( ${__allActiveBlocks} )
+    if [ ${#__allActiveBlocks[@]} -gt 0 ] ; then
+	sixdeskmess="active blocks in ${envFilesPath}/fort.3.local:"
+	sixdeskmess
+	for tmpActiveBlock in ${__allActiveBlocks[@]} ; do
+	    sixdeskmess="- ${tmpActiveBlock}"
+	    sixdeskmess
+	done
+	local __nLines=`echo "${__activeLines}" | wc -l`
+	sixdeskmess="for a total of ${__nLines} ACTIVE lines."
+	sixdeskmess
+    fi
+}
+
 function setFurtherEnvs(){
+    # set exes
+    sixdeskSetExes
     # scan angles:
     lReduceAngsWithAmplitude=false
-    ampFactor=1
-    local __ampFactorDef=0.3
-    # - reduce angles with amplitude
+ 
     if [ -n "${reduce_angs_with_aplitude}" ] ; then
-	if [ ${long} -eq 1 ] ; then
-	    local __tmpValues=`echo "${reduce_angs_with_aplitude}" | awk -v "ampFactorDef=${__ampFactorDef}" '{if ($1<0) {print (ampFactorDef,"true") } else if ($1==0||$1==1) { print(1,"false") } else { print($1,"true") } } '`
-	    __tmpValues=(${__tmpValues})
-	    ampFactor=${__tmpValues[0]}
-	    lReduceAngsWithAmplitude=${__tmpValues[1]}
-	else
-	    sixdeskmess -1 "reduced angles with amplitudes available only for long simulations!"
-	fi
-    elif [ -n "${reduce_angs_with_amplitude}" ] ; then
-	if [ ${long} -eq 1 ] ; then
-	    local __tmpValues=`echo "${reduce_angs_with_amplitude}" | awk -v "ampFactorDef=${__ampFactorDef}" '{if ($1<0) {print (ampFactorDef,"true") } else if ($1==0||$1==1) { print(1,"false") } else { print($1,"true") } } '`
-	    __tmpValues=(${__tmpValues})
-	    ampFactor=${__tmpValues[0]}
-	    lReduceAngsWithAmplitude=${__tmpValues[1]}
-	else
-	    sixdeskmess -1 "reduced angles with amplitudes available only for long simulations!"
-	fi
+        sixdeskmess -1 "wrong spelling of reduce_angs_with_amplitude. Please correct it for future use"
+        reduce_angs_with_amplitude=${reduce_angs_with_aplitude}
+    fi   
+    
+    if [ -z "${reduce_angs_with_amplitude}" ]; then
+        reduce_angs_with_amplitude=0         
+    elif (( $(echo "${reduce_angs_with_amplitude}" | awk '{print ($1 >0)}') )); then 
+        if [ ${long} -ne 1 ]; then
+            sixdeskmess -1 "reduced angles with amplitudes available only for long simulations!"
+	    sixdeskexit 9
+        else
+            if [ ${kinil} -ne 1 ] || [ ${kendl} -ne ${kmaxl} ] || [ ${kstep} -ne 1 ]; then
+                sixdeskmess -1 "reduced angles with amplitudes available only for kmin=1, kend=kmax and kstep=1"
+		sixdeskexit 10
+            elif (( $(echo "${reduce_angs_with_amplitude} ${ns2l}" | awk '{print ($1 >= $2)}') )); then
+                sixdeskmess -1 "reduced angles with amplitudes flag greater than maximum amplitude. Please de-activate the flag"
+		sixdeskexit 11
+            else 
+                lReduceAngsWithAmplitude=true
+            fi 
+        fi
+    else
+        sixdeskmess -1 "reduced angles with amplitudes accepts only positive values (sigma)!"
+	sixdeskexit 12
     fi
     export totAngle=90
     export lReduceAngsWithAmplitude
-    export ampFactor
 }
 
 # ==============================================================================
@@ -150,13 +184,16 @@ lload=false
 lcptemplate=false
 loverwrite=true
 lverbose=false
+llocalfort3=false
 lunlock=false
 currPlatform=""
 currStudy=""
 tmpPythonPath=""
 
+# variables set based on parsing fort.3.local
+
 # get options (heading ':' to disable the verbose error handling)
-while getopts  ":hsvd:ep:P:nU" opt ; do
+while getopts  ":hsvld:ep:P:nU" opt ; do
     case $opt in
 	h)
 	    how_to_use
@@ -182,6 +219,10 @@ while getopts  ":hsvd:ep:P:nU" opt ; do
 	p)
 	    # the user is requesting a specific platform
 	    currPlatform="${OPTARG}"
+	    ;;
+	l)
+	    # use fort.3.local
+	    llocalfort3=true
 	    ;;
 	P)
 	    # the user is requesting a specific path to python
@@ -233,6 +274,12 @@ fi
 if [ -n "${currPlatform}" ] ; then
     echo "--> User required a specific platform: ${currPlatform}"
 fi
+if ${llocalfort3} ; then
+    echo ""
+    echo "--> User requested inclusion of fort.3.local"
+    echo ""
+    necessaryInputFiles=( sixdeskenv sysenv fort.3.local )
+fi
 
 # ------------------------------------------------------------------------------
 # preparatory steps
@@ -243,7 +290,7 @@ export sixdeskname=`basename $0`
 export sixdesknameshort=`echo "${sixdeskname}" | cut -b 1-15`
 export sixdeskroot=`basename $PWD`
 export sixdeskwhere=`dirname $PWD`
-# Set up some temporary values until we execute sixdeskenv/sysenv
+# Set up some temporary values until we parse input files
 # Don't issue lock/unlock debug text (use 2 for that)
 export sixdesklogdir=""
 export sixdeskhome="."
@@ -272,7 +319,7 @@ if ${lunlock} ; then
     fi
 fi
    
-# - path to active sixdeskenv/sysenv
+# - path to input files
 if ${lset} ; then
     envFilesPath="."
 elif ${lload} ; then
@@ -300,11 +347,12 @@ if ${lcptemplate} ; then
     for tmpFile in ${necessaryInputFiles[@]} ; do
 	# preserve original time stamps
 	cp -p ${SCRIPTDIR}/templates/input/${tmpFile} .
+	sixdeskmess 2 "${tmpFile}"
     done
 
 else
 
-    # - make sure we have sixdeskenv/sysenv files
+    # - make sure we have sixdeskenv/sysenv/fort.3.local files
     sixdeskInspectPrerequisites ${lverbose} $envFilesPath -s ${necessaryInputFiles[@]}
     if [ $? -gt 0 ] ; then
         sixdeskmess -1 "not all necessary files are in $envFilesPath dir:"
@@ -317,6 +365,9 @@ else
     # - source active sixdeskenv/sysenv
     source ${envFilesPath}/sixdeskenv
     source ${envFilesPath}/sysenv
+    if ${llocalfort3} ; then
+	getInfoFromFort3Local
+    fi
 
     # - perform some consistency checks on parsed info
     consistencyChecks
@@ -324,7 +375,7 @@ else
     # - set further envs
     setFurtherEnvs
 
-    # - save sixdeskenv/sysenv
+    # - save input files
     if ${loverwrite} ; then
 	__lnew=false
 	if ${lset} ; then
@@ -345,16 +396,22 @@ else
 	if ${lset} ; then
 	    cp ${envFilesPath}/sixdeskenv studies/${LHCDescrip}
 	    cp ${envFilesPath}/sysenv studies/${LHCDescrip}
+	    if ${llocalfort3} ; then
+		cp ${envFilesPath}/fort.3.local studies/${LHCDescrip}
+	    fi
 	    if ${__lnew} ; then
   	        # new study
 		sixdeskmess -1 "Created a NEW study $LHCDescrip"
 	    else
  	        # updating an existing study
-		sixdeskmess -1 "Updated sixdeskenv/sysenv for $LHCDescrip"
+		sixdeskmess -1 "Updated sixdeskenv/sysenv(/fort.3.local) for $LHCDescrip"
 	    fi
 	elif ${lload} ; then
 	    cp ${envFilesPath}/sixdeskenv .
 	    cp ${envFilesPath}/sysenv .
+	    if ${llocalfort3} ; then
+		cp ${envFilesPath}/fort.3.local .
+	    fi
 	    sixdeskmess -1 "Switched to study $LHCDescrip"
 	fi
     fi
@@ -383,13 +440,16 @@ else
     if [ "$BNL" != "" ] ; then
 	BTEXT="BNL flag active"
     fi
-    NTEXT="["$sixdeskhostname"]"
+    NTEXT="[$sixdeskhostname]"
+    ETEXT="[$appName - ${SIXTRACKEXE}]"
 
     echo
     sixdeskmess -1 "STUDY          ${STEXT}"
     sixdeskmess -1 "WSPACE         ${WTEXT}"
     sixdeskmess -1 "PLATFORM       ${PTEXT}"
-    sixdeskmess -1 "HOSTNAME       ${NTEXT} - ${BTEXT}"
+    sixdeskmess -1 "HOSTNAME       ${NTEXT}"
+    sixdeskmess -1 "${BTEXT}"
+    sixdeskmess -1 "APPNAME/EXE    ${ETEXT}"
     echo
     
     if [ -e "$sixdeskstudy"/deleted ] ; then
