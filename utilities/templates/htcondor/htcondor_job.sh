@@ -11,8 +11,7 @@ exe=
 echo "exe: ${exe}"
 
 # prepare dir
-rm -f fort.10.gz
-gunzip fort.*.gz
+unzip SixIn.zip
 cp $exe sixtrack
 ls -al
 
@@ -27,4 +26,3 @@ if [ ! -s fort.10 ] ; then
     rm -f fort.10
     touch fort.10
 fi
-gzip fort.10

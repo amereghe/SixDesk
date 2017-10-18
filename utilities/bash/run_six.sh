@@ -2318,10 +2318,10 @@ if ${lsubmit} ; then
                ${sixdeskwork}/htcondor_run_six.sub
         if ${llocalfort3} && ${lZipF} ; then
             # we have a ZIPF block - hence update list of files to be transferred back
-	    sed -i 's#^transfer_output_remaps.*#transfer_output_remaps = "fort.10.gz=$(dirname)/fort.10.gz;Sixout.zip=$(dirname)/Sixout.zip"#g' \
+	    sed -i 's#^transfer_output_remaps.*#transfer_output_remaps = "fort.10=$(dirname)/fort.10;Sixout.zip=$(dirname)/Sixout.zip"#g' \
                 ${sixdeskwork}/htcondor_run_six.sub
         else
-	    sed -i 's#^transfer_output_remaps.*#transfer_output_remaps = "fort.10.gz=$(dirname)/fort.10.gz"#g' \
+	    sed -i 's#^transfer_output_remaps.*#transfer_output_remaps = "fort.10=$(dirname)/fort.10"#g' \
                 ${sixdeskwork}/htcondor_run_six.sub
         fi
     fi

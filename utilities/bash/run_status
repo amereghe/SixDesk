@@ -516,6 +516,9 @@ then
           else
            if test "$BNL" = ""
             then
+	      if [ -s $where/fort.10 ] ; then
+		gzip $where/fort.10
+	      fi
               if test ! -s $where/fort.10.gz
               then
 

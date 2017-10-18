@@ -13,7 +13,7 @@ error = $(dirname)/htcondor.err
 log = $(dirname)/htcondor.log
 # do not ask htcondor to take care of output files, otherwise empty ones will be created while the simulation proceeds
 transfer_input_files = $(dirname)/SixIn.zip
-transfer_output_remaps = "fort.10.gz=$(dirname)/fort.10.gz"
+transfer_output_remaps = "fort.10=$(dirname)/fort.10"
 ShouldTransferFiles = YES
 WhenToTransferOutput = ON_EXIT_OR_EVICT
 +JobFlavour = "tomorrow"
