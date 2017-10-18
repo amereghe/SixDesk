@@ -122,17 +122,20 @@ function getInfoFromFort3Local(){
     local __otherActiveBlocks=`echo "${__activeLines}" | grep -A1 NEXT | grep -v NEXT | grep -v '^\-\-' | cut -c1-4`
     local __allActiveBlocks="${__firstActiveBlock} ${__otherActiveBlocks}"
     __allActiveBlocks=( ${__allActiveBlocks} )
+    lZipF=false
     if [ ${#__allActiveBlocks[@]} -gt 0 ] ; then
 	sixdeskmess="active blocks in ${envFilesPath}/fort.3.local:"
 	sixdeskmess
 	for tmpActiveBlock in ${__allActiveBlocks[@]} ; do
 	    sixdeskmess="- ${tmpActiveBlock}"
 	    sixdeskmess
+            [ "${tmpActiveBlock}" != "ZIPF" ] || lZipF=true
 	done
 	local __nLines=`echo "${__activeLines}" | wc -l`
 	sixdeskmess="for a total of ${__nLines} ACTIVE lines."
 	sixdeskmess
     fi
+    export lZipF
 }
 
 function setFurtherEnvs(){

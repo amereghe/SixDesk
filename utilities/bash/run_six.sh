@@ -2309,13 +2309,21 @@ if ${lsubmit} ; then
         [ -e ${sixdeskwork}/htcondor_job.sh ] || cp -p ${SCRIPTDIR}/templates/htcondor/htcondor_job.sh ${sixdeskwork}
         [ -e ${sixdeskwork}/htcondor_run_six.sub ] || cp -p ${SCRIPTDIR}/templates/htcondor/htcondor_run_six.sub ${sixdeskwork}
 	# some set up of htcondor submission scripts
- 	sed -i -e "s#^exe=.*#exe=${SIXTRACKEXE}#g" \
+ 	sed -i -e "s#^exe.*#exe=${SIXTRACKEXE}#g" \
             ${sixdeskwork}/htcondor_job.sh
 	chmod +x ${sixdeskwork}/htcondor_job.sh
-	sed -i -e "s#^executable = .*#executable = ${sixdeskwork}/htcondor_job.sh#g" \
+	sed -i -e "s#^executable.*#executable = ${sixdeskwork}/htcondor_job.sh#g" \
 	       -e "s#^queue dirname from.*#queue dirname from ${sixdeskjobs}/${LHCDesName}.list#g" \
-	       -e "s#^+JobFlavour =.*#+JobFlavour = \"${HTCq}\"#g" \
+	       -e "s#^+JobFlavour.*#+JobFlavour = \"${HTCq}\"#g" \
                ${sixdeskwork}/htcondor_run_six.sub
+        if ${llocalfort3} && ${lZipF} ; then
+            # we have a ZIPF block - hence update list of files to be transferred back
+	    sed -i 's#^transfer_output_remaps.*#transfer_output_remaps = "fort.10.gz=$(dirname)/fort.10.gz;Sixout.zip=$(dirname)/Sixout.zip"#g' \
+                ${sixdeskwork}/htcondor_run_six.sub
+        else
+	    sed -i 's#^transfer_output_remaps.*#transfer_output_remaps = "fort.10.gz=$(dirname)/fort.10.gz"#g' \
+                ${sixdeskwork}/htcondor_run_six.sub
+        fi
     fi
 fi
 # - MegaZip: get file name
