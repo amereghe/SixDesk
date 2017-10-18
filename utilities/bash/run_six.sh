@@ -1086,7 +1086,7 @@ function condor_sub(){
 	# let's renew the kerberos token just before submitting
 	sixdeskmess 2 "renewing kerberos token before submission to HTCondor"
 	sixdeskRenewKerberosToken
-	multipleTrials "terseString=\"\`condor_submit -batch-name ${batch_name} -terse ${sixdeskwork}/htcondor_run_six.sub\`\" " "[ -n \"\${terseString}\" ]" "Problem at condor_submit"
+	multipleTrials "terseString=\"\`condor_submit -spool -batch-name ${batch_name} -terse ${sixdeskwork}/htcondor_run_six.sub\`\" " "[ -n \"\${terseString}\" ]" "Problem at condor_submit"
 	let __lerr+=$?
 	if [ ${__lerr} -ne 0 ] ; then
 	    sixdeskmess -1 "Something wrong with htcondor submission: submission didn't work properly - exit status: ${__lerr}"

@@ -309,37 +309,38 @@ then
 #MACRO mymess
 
         rm -f $tmp
-        touch $tmp
-        bjobs -u $LOGNAME -w > blsfjobs 2>$tmp
-        if test $? -ne 0
-        then
+        if [ "$sixdeskplatform" == "lsf" ] ; then
+            touch $tmp
+            bjobs -u $LOGNAME -w > blsfjobs 2>$tmp
+            if test $? -ne 0
+            then
 
 #MACRO mymess 0 Error return from bjobs!!!
-           sixdeskmesslevel=0
-           sixdeskmess -1 "Error return from bjobs!!!"
+                sixdeskmesslevel=0
+                sixdeskmess -1 "Error return from bjobs!!!"
 #MACRO mymess
 
 
 #MACRO myunlock $sixdeskstudy
-           sixdesklockdir=$sixdeskstudy
-           sixdeskunlock
+                sixdesklockdir=$sixdeskstudy
+                sixdeskunlock
 #MACRO myunlock
 
-           rm -f $tmp
+                rm -f $tmp
 
 #MACRO myexit 4
-           sixdeskexitparam=4
-           sixdeskexit
+                sixdeskexitparam=4
+                sixdeskexit
 #MACRO myexit
 
-        fi
-        grep "End of file" $tmp > /dev/null 2>&1
-        if test $? -eq 0
-        then
+            fi
+            grep "End of file" $tmp > /dev/null 2>&1
+            if test $? -eq 0
+            then
 
 #MACRO mymess 0 End of File error on LSF bjobs query: please try later !!!
-          sixdeskmesslevel=0
-          sixdeskmess -1 "End of File error on LSF bjobs query: please try later !!!"
+                sixdeskmesslevel=0
+                sixdeskmess -1 "End of File error on LSF bjobs query: please try later !!!"
 #MACRO mymess
 
 
@@ -356,97 +357,130 @@ then
 
 
 #MACRO myunlock $sixdeskstudy
-          sixdesklockdir=$sixdeskstudy
-          sixdeskunlock
+                sixdesklockdir=$sixdeskstudy
+                sixdeskunlock
 #MACRO myunlock
 
-          rm -f $tmp
+                rm -f $tmp
 
 #MACRO myexit 3
-          sixdeskexitparam=3
-          sixdeskexit
+                sixdeskexitparam=3
+                sixdeskexit
 #MACRO myexit
 
-        fi
-        grep " $LHCDesName""%" blsfjobs > $tmp
-        mv $tmp blsfjobs
-        nlsfjobs=`wc -l blsfjobs`
-        nlsfjobs=`echo "$nlsfjobs" | sed -e 's? *\([0-9]*\).*?\1?'`
-        if test "$nlsfjobs" = ""
-        then
-          nlsfjobs="0"
-        fi
+            fi
+            grep " $LHCDesName""%" blsfjobs > $tmp
+            mv $tmp blsfjobs
+            nlsfjobs=`wc -l blsfjobs`
+            nlsfjobs=`echo "$nlsfjobs" | sed -e 's? *\([0-9]*\).*?\1?'`
+            if test "$nlsfjobs" = ""
+            then
+                nlsfjobs="0"
+            fi
 
 #MACRO mymess 0 LSF bjobs found $nlsfjobs batch jobs (running, pending, or suspended)
-        sixdeskmesslevel=0
-        sixdeskmess -1 "LSF bjobs found $nlsfjobs batch jobs (running, pending, or suspended)"
+            sixdeskmesslevel=0
+            sixdeskmess -1 "LSF bjobs found $nlsfjobs batch jobs (running, pending, or suspended)"
 #MACRO mymess
 
 # new test for Massimo
-        egrep 'UNKWN|ZOMBI' blsfjobs > $tmp
-        if test $? -eq 0
-        then
+            egrep 'UNKWN|ZOMBI' blsfjobs > $tmp
+            if test $? -eq 0
+            then
 
 #MACRO mymess 0 There appear to be some UNKNOWN or ZOMBIE LSF jobs.
-          sixdeskmesslevel=0
-          sixdeskmess -1 "There appear to be some UNKNOWN or ZOMBIE LSF jobs."
+                sixdeskmesslevel=0
+                sixdeskmess -1 "There appear to be some UNKNOWN or ZOMBIE LSF jobs."
 #MACRO mymess
 
 
 #MACRO mymess 0 You may want to kill them (list appended).
-          sixdeskmesslevel=0
-          sixdeskmess -1 "You may want to kill them (list appended)."
+                sixdeskmesslevel=0
+                sixdeskmess -1 "You may want to kill them (list appended)."
 #MACRO mymess
 
-          while read aline
-          do
+                while read aline
+                do
 
 #MACRO mymess 0 $aline
-            sixdeskmesslevel=0
-            sixdeskmess -1 "$aline"
+                    sixdeskmesslevel=0
+                    sixdeskmess -1 "$aline"
 #MACRO mymess
 
-          done < $tmp
-        fi
-        rm -f $tmp
-        touch $sixdeskjobs/incomplete_jobs
-        cp $sixdeskjobs/incomplete_jobs .
-        touch $sixdeskjobs/completed_jobs
-        cp $sixdeskjobs/completed_jobs .
-        cp incomplete_jobs newcompleted_jobs
-        touch blsfjobs
-        while read qrjob
-        do
-          qrjob=`echo $qrjob | sed -e's/  */ /g'`
-          taskno=`echo $qrjob | cut -d" " -f1`
-          taskid=lsf$taskno
-          Runnam=`echo $qrjob | cut -d" " -f7`
-          if test $? -ne 0
-          then
-
+                done < $tmp
+            fi
+            rm -f $tmp
+            touch $sixdeskjobs/incomplete_jobs
+            cp $sixdeskjobs/incomplete_jobs .
+            touch $sixdeskjobs/completed_jobs
+            cp $sixdeskjobs/completed_jobs .
+            cp incomplete_jobs newcompleted_jobs
+            touch blsfjobs
+            while read qrjob
+            do
+                qrjob=`echo $qrjob | sed -e's/  */ /g'`
+                taskno=`echo $qrjob | cut -d" " -f1`
+                taskid=lsf$taskno
+                Runnam=`echo $qrjob | cut -d" " -f7`
+                if test $? -ne 0
+                then
+                    
 #MACRO mymess 0 The job $taskid / $Runnam can NOT be found in $sixdeskjobs/jobs!!!
-            sixdeskmesslevel=0
-            sixdeskmess -1 "The job $taskid / $Runnam can NOT be found in $sixdeskjobs/jobs!!!"
+                    sixdeskmesslevel=0
+                    sixdeskmess -1 "The job $taskid / $Runnam can NOT be found in $sixdeskjobs/jobs!!!"
 #MACRO mymess
 
-          else
-            sed -e'/'"$Runnam $taskid"'/d' newcompleted_jobs > $tmp
-            mv $tmp newcompleted_jobs
-          fi   
-        done < blsfjobs
-        ncjobs=`wc -l newcompleted_jobs`
-        ncjobs=`echo "$ncjobs" | sed -e 's? *\([0-9]*\).*?\1?'`
-        if test "$ncjobs" -eq 0
-        then
-          ncjobs="0" 
-        fi
+                else
+                    sed -e'/'"$Runnam $taskid"'/d' newcompleted_jobs > $tmp
+                    mv $tmp newcompleted_jobs
+                fi   
+            done < blsfjobs
+            ncjobs=`wc -l newcompleted_jobs`
+            ncjobs=`echo "$ncjobs" | sed -e 's? *\([0-9]*\).*?\1?'`
+            if test "$ncjobs" -eq 0
+            then
+                ncjobs="0" 
+            fi
 
 #MACRO mymess 0 Found $ncjobs jobs apparently completed
-        sixdeskmesslevel=0
-        sixdeskmess -1 "Found $ncjobs jobs apparently completed"
+            sixdeskmesslevel=0
+            sixdeskmess -1 "Found $ncjobs jobs apparently completed"
 #MACRO mymess
 
-        rm -f blsfjobs
+            rm -f blsfjobs
+        else
+            # get list of clusters
+            __clusterIDs=`awk '{gsub(/htcondor/,"",$2); print ($2)}' ${sixdeskjobs}/jobs | cut -d\. -f1 | sort -u -g`
+            __clusterIDs=( ${__clusterIDs} )
+            for __clusterID in ${__clusterIDs[@]} ; do
+                sixdeskmess -1 " checking if there are jobIDs NOT COMPLETE in cluster ${__clusterID}..."
+                local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus != 4' | grep ProcId | awk '{print ($NF)}'`
+                local __treatIDs=(${__treatIDs})
+                if [ ${#__treatIDs[@]} -eq 0 ] ; then
+                    sixdeskmess -1 " ...all jobs finished regularly - retrieving all data..."
+                    condor_transfer_data ${__clusterID}
+                    [ $? -ne 0 ] || condor_rm ${__clusterID}
+                else
+                    sixdeskmess -1 " getting COMPLETE jobIDs in cluster ${__clusterID} one by one..."
+                    local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus == 4' | grep ProcId | awk '{print ($NF)}'`
+                    local __treatIDs=(${__treatIDs})
+                    if [ ${#__treatIDs[@]} -gt 0 ] ; then
+                        sixdeskmess -1 " retrieving ${#__treatIDs[@]} results..."
+                        for __treatID in ${__treatIDs[@]} ; do
+                            condor_transfer_data ${__clusterID}.${__treatID}
+                            [ $? -ne 0 ] || condor_rm ${__clusterID}.${__treatID}
+                        done
+                    else
+                        sixdeskmess -1 " no completed jobs for cluster ${__clusterID}"
+                    fi
+                fi
+            done
+            touch $sixdeskjobs/incomplete_jobs
+            cp $sixdeskjobs/incomplete_jobs .
+            touch $sixdeskjobs/completed_jobs
+            cp $sixdeskjobs/completed_jobs .
+            cp incomplete_jobs newcompleted_jobs
+        fi
         # Now let us look for really completed lsfjobs....
         rm -f missing_jobs
         touch missing_jobs

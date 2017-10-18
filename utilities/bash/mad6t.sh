@@ -196,7 +196,7 @@ function submit(){
 	
     if [ "$sixdeskplatform" == "htcondor" ] && ! ${linter} ; then
 	sed -i "s#^+JobFlavour =.*#+JobFlavour = \"${madHTCq}\"#" ${sixtrack_input}/mad6t.sub
-	condor_submit -batch-name "mad/$workspace/$LHCDescrip" ${sixtrack_input}/mad6t.sub
+	condor_submit -spool -batch-name "mad/$workspace/$LHCDescrip" ${sixtrack_input}/mad6t.sub
 	if [ $? -eq 0 ] ; then
 	    rm -f jobs.list
 	fi
@@ -260,6 +260,27 @@ function check(){
 		sixdeskmess -1 "echo of condor_q ${__clusterID} -run -wide"
 		condor_q ${__clusterID} -run -wide
 		echo ""
+                sixdeskmess -1 " checking if there are jobIDs NOT COMPLETE in cluster ${__clusterID}..."
+                local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus != 4' | grep ProcId | awk '{print ($NF)}'`
+                local __treatIDs=(${__treatIDs})
+                if [ ${#__treatIDs[@]} -eq 0 ] ; then
+                    sixdeskmess -1 " ...all jobs finished regularly - retrieving all data..."
+                    condor_transfer_data ${__clusterID}
+                    [ $? -ne 0 ] || condor_rm ${__clusterID}
+                else
+                    sixdeskmess -1 " getting COMPLETE jobIDs in cluster ${__clusterID} one by one..."
+                    local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus == 4' | grep ProcId | awk '{print ($NF)}'`
+                    local __treatIDs=(${__treatIDs})
+                    if [ ${#__treatIDs[@]} -gt 0 ] ; then
+                        sixdeskmess -1 " retrieving ${#__treatIDs[@]} results..."
+                        for __treatID in ${__treatIDs[@]} ; do
+                            condor_transfer_data ${__clusterID}.${__treatID}
+                            [ $? -ne 0 ] || condor_rm ${__clusterID}.${__treatID}
+                        done
+                    else
+                        sixdeskmess -1 " no completed jobs for cluster ${__clusterID}"
+                    fi
+                fi
 	    fi
 	fi
     fi
