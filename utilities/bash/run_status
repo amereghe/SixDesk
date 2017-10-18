@@ -557,6 +557,9 @@ then
             sed -e'/'"$line"'/d' incomplete_jobs > $tmp
             mv $tmp incomplete_jobs
             echo "$line" >> completed_jobs
+            if [ "$sixdeskplatform" == "htcondor" ] ; then
+                rm $where/JOB_NOT_YET_COMPLETED
+            fi
           fi
         done < newcompleted_jobs 
         sort --unique completed_jobs > $tmp

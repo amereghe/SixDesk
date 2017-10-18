@@ -806,11 +806,10 @@ function submitCreateFinalInputs(){
     for iFort in 2 8 16 ; do
 	[ ! -e $RundirFullPath/fort.${iFort}.gz ] || rm -f $RundirFullPath/fort.${iFort}.gz
 	ln -s $sixtrack_input/fort.${iFort}_$iMad.gz $RundirFullPath/fort.${iFort}.gz
+	let __lerr+=$?
     done
 	
     if [ "$sixdeskplatform" == "boinc" ] ; then
-	
-	# generate zip/description file
 	# - generate new taskid
 	sixdeskTaskId=`awk '{print ($1+1)}' $sixdeskhome/sixdeskTaskIds/$LHCDescrip/sixdeskTaskId`
 	echo $sixdeskTaskId > $sixdeskhome/sixdeskTaskIds/$LHCDescrip/sixdeskTaskId
@@ -820,10 +819,6 @@ function submitCreateFinalInputs(){
 	sixdeskDefineWorkUnitName $workspace $Runnam $sixdesktaskid
 	let __lerr+=$?
 	if [ ${__lerr} -eq 0 ] ; then
-	    # - generate zip file
-	    #   NB: -j option, to store only the files, and not the source paths
-	    multipleTrials "zip -j $RundirFullPath/$workunitName.zip $sixdeskjobs_logs/fort.3 $sixtrack_input/fort.2 $sixtrack_input/fort.8 $sixtrack_input/fort.16 > $RundirFullPath/zip.log 2>&1; local __zip_exit_status=\$? ; grep warning $RundirFullPath/zip.log >/dev/null 2>&1 ; local __zip_warnings=\$? ; rm -f $RundirFullPath/zip.log" "[ \${__zip_exit_status} -eq 0 ] && [ \${__zip_warnings} -eq 1 ]" "Failing to generate .zip file for WU ${workunitName}"
-	    let __lerr+=$?
 	    # - generate the workunit description file
 	    #   NB: appName from sysenv (+ sanity checks in dot_profile)
 	    cat > $RundirFullPath/$workunitName.desc <<EOF
@@ -847,8 +842,18 @@ EOF
 		echo "$RundirFullPath/$workunitName.zip" >> ${sixdeskjobs_logs}/megaZipList.txt
 	    fi
 	fi
+    elif [ "$sixdeskplatform" == "htcondor" ] ; then
+        workunitName="SixIn"
     fi
     
+    if [ ${__lerr} -eq 0 ] ; then
+        if [ "$sixdeskplatform" == "boinc" ] || [ "$sixdeskplatform" == "htcondor" ] ; then
+	    # - generate zip file
+	    #   NB: -j option, to store only the files, and not the source paths
+	    multipleTrials "zip -j $RundirFullPath/$workunitName.zip $sixdeskjobs_logs/fort.3 $sixtrack_input/fort.2 $sixtrack_input/fort.8 $sixtrack_input/fort.16 > $RundirFullPath/zip.log 2>&1; local __zip_exit_status=\$? ; grep warning $RundirFullPath/zip.log >/dev/null 2>&1 ; local __zip_warnings=\$? ; rm -f $RundirFullPath/zip.log" "[ \${__zip_exit_status} -eq 0 ] && [ \${__zip_warnings} -eq 1 ]" "Failing to generate .zip file for WU ${workunitName}"
+	    let __lerr+=$?
+        fi
+    fi
     return $__lerr
 }
 
@@ -1113,6 +1118,8 @@ function condor_sub(){
 		taskid="htcondor${clusterID}.${ii}"
 		Runnam=$(sixdeskFromJobDirToJobName ${tmpDir} ${lbackcomp})
 		updateTaskIdsCases $sixdeskjobs/jobs $sixdeskjobs/incomplete_jobs $taskid $Runnam
+                rm -f $tmpDir/JOB_NOT_YET_STARTED
+                touch $tmpDir/JOB_NOT_YET_COMPLETED
 		let NsuccessSub+=1
 		let ii+=1
 	    done < ${sixdeskjobs}/${LHCDesName}.list
@@ -2303,7 +2310,6 @@ if ${lsubmit} ; then
         [ -e ${sixdeskwork}/htcondor_run_six.sub ] || cp -p ${SCRIPTDIR}/templates/htcondor/htcondor_run_six.sub ${sixdeskwork}
 	# some set up of htcondor submission scripts
  	sed -i -e "s#^exe=.*#exe=${SIXTRACKEXE}#g" \
-	    -e "s#^runDirBaseName=.*#runDirBaseName=${sixdesktrack}#g" \
             ${sixdeskwork}/htcondor_job.sh
 	chmod +x ${sixdeskwork}/htcondor_job.sh
 	sed -i -e "s#^executable = .*#executable = ${sixdeskwork}/htcondor_job.sh#g" \

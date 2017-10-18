@@ -3,24 +3,14 @@
 # A.Mereghetti, 2017-03-07
 # job file for HTCondor as replacement of LSF
 
-# exe/runDirBaseName are filled by run_six.sh
-# please do not tuch these lines
+# exe is filled by run_six.sh
+# please do not touch these lines
 exe=
-runDirBaseName=
-# $1 is received from HTCONDOR
-WUdir=$1
 
 # echo input parameters
 echo "exe: ${exe}"
-echo "runDirBaseName: ${runDirBaseName}"
-echo "WUdir: ${WUdir}"
-
-# declare job has started
-rm -f ${runDirBaseName}/${WUdir}/JOB_NOT_YET_STARTED
-touch ${runDirBaseName}/${WUdir}/JOB_NOT_YET_COMPLETED
 
 # prepare dir
-cp ${runDirBaseName}/${WUdir}/fort.*.gz .
 rm -f fort.10.gz
 gunzip fort.*.gz
 cp $exe sixtrack
@@ -35,28 +25,6 @@ ls -al
 # usual results for DA
 if [ ! -s fort.10 ] ; then
     rm -f fort.10
-else
-    gzip fort.10
-    cp fort.10.gz ${runDirBaseName}/${WUdir}
+    touch fort.10
 fi
-
-# sixout.zip
-if [ -f Sixout.zip ] ; then
-    cp Sixout.zip ${runDirBaseName}/${WUdir}
-elif [ -f fma_sixtrack ] ; then
-    # (old) results for fma analysis
-    gzip fma_sixtrack
-    cp fma_sixtrack.gz ${runDirBaseName}/${WUdir}
-    # for debugging also copy files with particle coordinates
-    dumpFiles=`ls -1 *_DUMP_* 2> /dev/null`
-    if [ -n "${dumpFiles}" ] ; then
-	for tmpDumpFile in ${dumpFiles} ; do
-	    gzip ${tmpDumpFile}
-	    cp ${tmpDumpFile}.gz ${runDirBaseName}/${WUdir}
-	done
-    fi
-fi
-
-# mark run as finished
-rm -f ${runDirBaseName}/${WUdir}/JOB_NOT_YET_COMPLETED
-
+gzip fort.10
