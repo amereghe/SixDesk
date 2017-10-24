@@ -5,11 +5,11 @@
 # jobs.list contains the list of mad6t_<iMad>.sh files to be submitted,
 #   the list is automatically deleted after a successful submission
 universe = vanilla
-filejob="%filejob%"
+filejob = %filejob%
 executable = mad6t_$(seedID).sh
-output = $Fn(filename).$(ClusterId).$(ProcId).out
-error = $Fn(filename).$(ClusterId).$(ProcId).err
-log = $Fn(filename).$(ClusterId).$(ProcId).log
+output = $(filejob).$(ClusterId).$(ProcId).out
+error = $(filejob).$(ClusterId).$(ProcId).err
+log = $(filejob).$(ClusterId).$(ProcId).log
 transfer_input_files = $(filejob).$(seedID)
 transfer_output_files = $(filejob).out.$(seedID)
 transfer_output_remaps = "fort.2.gz=../fort.2.gz,fort.8.gz=../fort.8.gz,fort.16.gz=../fort.16.gz"
