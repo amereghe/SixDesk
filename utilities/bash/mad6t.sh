@@ -146,19 +146,26 @@ function submit(){
 	if [ "$sixdeskplatform" == "htcondor" ] ; then
 	    rm -f jobs.list
 	fi
-
-        [ -e ${sixtrack_input}/mad6t1.sh ] || cp -p $lsfFilesPath/mad6t1.sh ${sixtrack_input}
+        
+        # in case, create .previous files
+        for tmpFile in fort.3.mad fort.3.aux ; do
+            if [ -e ${sixtrack_input}/${tmpFile} ] ; then
+                mv ${sixtrack_input}/${tmpFile} ${sixtrack_input}/${tmpFile}.previous
+            fi
+        done
+        
         [ -e ${sixtrack_input}/mad6t.sh ] || cp -p $lsfFilesPath/mad6t.sh ${sixtrack_input}
         [ -e ${sixtrack_input}/mad6t.sub ] || cp -p ${SCRIPTDIR}/templates/htcondor/mad6t.sub ${sixtrack_input}
         
 	# Loop over seeds
-	mad6tjob=${sixtrack_input}/mad6t1.sh
 	for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
 	    
-	    # clean away any existing results for this seed
-	    for f in 2 8 16 34 ; do
-		rm -f $sixtrack_input/fort.$f"_"$iMad.gz
-	    done
+	    # in case, create .previous files
+            for tmpFile in fort.2 fort.8 fort.16 fort.34 MCSSX_errors MCOSX_errors MCOX_errors MCSX_errors MCTX_errors ; do
+                if [ -e ${sixtrack_input}/${tmpFile}_$iMad.gz ] ; then
+                    mv ${sixtrack_input}/${tmpFile}_$iMad.gz ${sixtrack_input}/${tmpFile}_$iMad.previous.gz
+                fi
+            done
 	    
 	    sed -e 's?%NPART?'$bunch_charge'?g' \
 		-e 's?%EMIT_BEAM?'$emit_beam'?g' \
@@ -172,13 +179,13 @@ function submit(){
 		-e 's?%FORT_34%?'$fort_34'?g' \
 		-e 's?%MADX_PATH%?'$MADX_PATH'?g' \
 		-e 's?%MADX%?'$MADX'?g' \
-		-e 's?%SIXTRACK_INPUT%?'$sixtrack_input'?g' $mad6tjob > mad6t_"$iMad".sh
+		-e 's?%SIXTRACK_INPUT%?'$sixtrack_input'?g' ${sixtrack_input}/mad6t.sh > mad6t_"$iMad".sh
 	    chmod 755 mad6t_"$iMad".sh
 	    
 	    if ${linter} ; then
 		sixdeskmktmpdir batch ""
 		cd $sixdesktmpdir
-		../mad6t_"$iMad".sh | tee $junktmp/"${LHCDescrip}_mad6t_$iMad".log 2>&1
+		../mad6t_"$iMad".sh 2>&1 | tee $junktmp/"${LHCDescrip}_mad6t_$iMad".log
 		cd ../
 		rm -rf $sixdesktmpdir
 	    else
@@ -187,15 +194,16 @@ function submit(){
 		    tmpString=$(printf "Seed %2i        %40s\n" ${iMad} "${BSUBOUT}")
 		    sixdeskmess -1 "${tmpString}"
 		elif [ "$sixdeskplatform" == "htcondor" ] ; then
-		    echo mad6t_${iMad}.sh >> jobs.list
+		    echo "${iMad}" >> jobs.list
 		fi
 	    fi
-	    mad6tjob=${sixtrack_input}/mad6t.sh
 	done
     fi
 	
     if [ "$sixdeskplatform" == "htcondor" ] && ! ${linter} ; then
-	sed -i "s#^+JobFlavour =.*#+JobFlavour = \"${madHTCq}\"#" ${sixtrack_input}/mad6t.sub
+	sed -i -e "s#^+JobFlavour =.*#+JobFlavour = \"${madHTCq}\"#" \
+               -e "s#%filejob%#$filejob#" \
+                  ${sixtrack_input}/mad6t.sub
 	condor_submit -spool -batch-name "mad/$workspace/$LHCDescrip" ${sixtrack_input}/mad6t.sub
 	if [ $? -eq 0 ] ; then
 	    rm -f jobs.list
