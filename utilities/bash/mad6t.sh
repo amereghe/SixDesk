@@ -147,6 +147,12 @@ function submit(){
 	if [ "$sixdeskplatform" == "htcondor" ] ; then
 	    rm -f jobs.list
 	fi
+
+	# use AFS absolute paths
+	local __lAFS=false
+	if [ "$sixdeskplatform" == "lsf" ] ; then
+	    local __lAFS=true
+	fi
         
         # in case, create .previous files
         for tmpFile in fort.3.mad fort.3.aux ; do
@@ -180,7 +186,7 @@ function submit(){
 		-e 's?%FORT_34%?'$fort_34'?g' \
 		-e 's?%MADX_PATH%?'$MADX_PATH'?g' \
 		-e 's?%MADX%?'$MADX'?g' \
-		-e 's?%SIXTRACK_INPUT%?'$sixtrack_input'?g' ${sixtrack_input}/mad6t.sh > mad6t_"$iMad".sh
+		-e "s?%lAFS%?${__lAFS}?g" ${sixtrack_input}/mad6t.sh > mad6t_"$iMad".sh
 	    chmod 755 mad6t_"$iMad".sh
 	    
 	    if ${linter} ; then
