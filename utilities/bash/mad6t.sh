@@ -91,13 +91,13 @@ function submit(){
     fi
 
     # copy templates...
-    cp $controlFilesPath/fort.3.mother1_${runtype} $sixtrack_input/fort.3.mother1.tmp
-    cp $controlFilesPath/fort.3.mother2_${runtype}${appendbeam} $sixtrack_input/fort.3.mother2.tmp
+    cp ${controlFilesPath}/fort.3.mother1_${runtype} ${sixtrack_input}/fort.3.mother1.tmp
+    cp ${controlFilesPath}/fort.3.mother2_${runtype}${appendbeam} ${sixtrack_input}/fort.3.mother2.tmp
 
     # ...and make sure we set the optional value for the proton mass
-    sed -i -e 's?%pmass?'$pmass'?g' \
-	   -e 's?%emit_beam?'$emit_beam'?g' \
-	   $sixtrack_input/fort.3.mother1.tmp
+    sed -i -e "s?%pmass?${pmass}?g" \
+	   -e "s?%emit_beam?${emit_beam}?g" \
+	   ${sixtrack_input}/fort.3.mother1.tmp
 
     # ...take care of crossing angle in bbLens, in case appropriate
     xing_rad=0
@@ -105,88 +105,80 @@ function submit(){
 	# variable is defined
 	xing_rad=`echo "$xing" | awk '{print ($1*1E-06)}'`
 	sixdeskmess  1 " --> crossing defined: $xing ${xing_rad}"
-	sed -i -e 's?%xing?'$xing_rad'?g' \
-  	    -e 's?/ bb_ho5b1_0?bb_ho5b1_0?g' \
-	    -e 's?/ bb_ho1b1_0?bb_ho5b1_0?g' $sixtrack_input/fort.3.mother1.tmp
+	sed -i -e "s?%xing?${xing_rad}?g" \
+  	       -e "s?/ bb_ho5b1_0?bb_ho5b1_0?g" \
+	       -e "s?/ bb_ho1b1_0?bb_ho5b1_0?g" ${sixtrack_input}/fort.3.mother1.tmp
     else
-	sed -i -e 's?^bb_ho5b1_0?/ bb_ho5b1_0?g' \
-	       -e 's?^bb_ho1b1_0?/ bb_ho5b1_0?g' $sixtrack_input/fort.3.mother1.tmp
+	sed -i -e "s?^bb_ho5b1_0?/ bb_ho5b1_0?g" \
+	       -e "s?^bb_ho1b1_0?/ bb_ho5b1_0?g" ${sixtrack_input}/fort.3.mother1.tmp
     fi
      
     # Clear flags for checking
     for tmpFile in CORR_TEST ERRORS WARNINGS ; do
-	rm -f $sixtrack_input/$tmpFile
+	rm -f ${sixtrack_input}/${tmpFile}
     done
 
-    if ${lwrong} ; then
+    cd ${sixtrack_input}
 
-	junktmp=`dirname ${lastJobsList}`
-	cd ${junktmp}
-	sixdeskmess 1 "Using junktmp: $junktmp"
-
-	tmpFiles=`cat ${lastJobsList}`
-	tmpFiles=( ${tmpFiles} )
-	for tmpFile in ${tmpFiles[@]} ; do
-	    for extension in .err .log .out ; do
-		rm -f ${tmpFile//.sh/${extension}}
-	    done
-	done
-	
-    else
-
-	sixdeskmktmpdir mad $sixtrack_input
-	export junktmp=$sixdesktmpdir
-	sixdeskmess 1 "Using junktmp: $junktmp"
-	
-	cd $junktmp
-	filejob=$LHCDescrip
-	cp $maskFilesPath/$filejob.mask .
+    if ! ${lwrong} ; then
 
 	# remove any previous list of jobs
 	if [ "$sixdeskplatform" == "htcondor" ] ; then
-	    rm -f jobs.list
-	fi
+            rm -f jobs.list
+        fi
+
+        # in case, create .previous files
+        for tmpFile in fort.3.mad fort.3.aux ; do
+            if [ -e ${sixtrack_input}/${tmpFile} ] ; then
+                mv ${sixtrack_input}/${tmpFile} ${sixtrack_input}/${tmpFile}.previous
+            fi
+        done
 
 	# Loop over seeds
-	mad6tjob=$lsfFilesPath/mad6t1.sh
 	for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
+
+            if [ -d ${sixtrack_input}/${iMad} ] ; then
+                # in case, create .previous files
+                for tmpFile in fort.2 fort.8 fort.16 fort.34 ; do
+                    if [ -e ${sixtrack_input}/${iMad}/${tmpFile}.gz ] ; then
+                        mv ${sixtrack_input}/${iMad}/${tmpFile}.gz ${sixtrack_input}/${iMad}/${tmpFile}.previous.gz
+                    fi
+                done
+            else
+                rm -rf ${sixtrack_input}/${iMad}
+                mkdir ${sixtrack_input}/${iMad}
+            fi
 	    
-	    # clean away any existing results for this seed
-	    for f in 2 8 16 34 ; do
-		rm -f $sixtrack_input/fort.$f"_"$iMad.gz
-	    done
-	    
-	    sed -e 's?%NPART?'$bunch_charge'?g' \
-		-e 's?%EMIT_BEAM?'$emit_beam'?g' \
-		-e 's?%XING?'$xing'?g' \
-		-e 's?%SEEDSYS?'$iMad'?g' \
-		-e 's?%SEEDRAN?'$iMad'?g' $filejob.mask > $filejob."$iMad"
-	    sed -e 's?%SIXJUNKTMP%?'$junktmp'?g' \
-		-e 's?%SIXI%?'$iMad'?g' \
-		-e 's?%SIXFILEJOB%?'$filejob'?g' \
-		-e 's?%CORR_TEST%?'$CORR_TEST'?g' \
-		-e 's?%FORT_34%?'$fort_34'?g' \
-		-e 's?%MADX_PATH%?'$MADX_PATH'?g' \
-		-e 's?%MADX%?'$MADX'?g' \
-		-e 's?%SIXTRACK_INPUT%?'$sixtrack_input'?g' $mad6tjob > mad6t_"$iMad".sh
-	    chmod 755 mad6t_"$iMad".sh
+	    sed -e "s?%NPART?${bunch_charge}?g" \
+		-e "s?%EMIT_BEAM?${emit_beam}?g" \
+		-e "s?%XING?${xing}?g" \
+		-e "s?%SEEDSYS?${iMad}?g" \
+		-e "s?%SEEDRAN?${iMad}?g" ${maskFilesPath}/${LHCDescrip}.mask > ${sixtrack_input}/${iMad}/${LHCDescrip}.madx
+            [ ${iMad} == ${istamad} ] ; lFirst=$? 
+	    sed -e "s?%SIXJUNKTMP%?${junktmp}?g" \
+		-e "s?%SIXI%?${iMad}?g" \
+		-e "s?%SIXFILEJOB%?${LHCDescrip}?g" \
+		-e "s?%CORR_TEST%?${CORR_TEST}?g" \
+		-e "s?%FORT_34%?${fort_34}?g" \
+		-e "s?%MADX_PATH%?${MADX_PATH}?g" \
+		-e "s?%MADX%?${MADX}?g" \
+                -e "s?%lFirst%?${lFirst}?g" \
+		-e "s?%SIXTRACK_INPUT%?${sixtrack_input}?g" ${lsfFilesPath}/mad6t.sh > ${sixtrack_input}/${iMad}/mad6t.sh
+	    chmod 755 ${iMad}/mad6t.sh
 	    
 	    if ${linter} ; then
-		sixdeskmktmpdir batch ""
-		cd $sixdesktmpdir
-		../mad6t_"$iMad".sh | tee $junktmp/"${LHCDescrip}_mad6t_$iMad".log 2>&1
-		cd ../
-		rm -rf $sixdesktmpdir
+                cd ${iMad}
+		./mad6t.sh 2>&1 | tee ${LHCDescrip}_mad6t.log
+                cd ../
 	    else
 		if [ "$sixdeskplatform" == "lsf" ] ; then
-		    read BSUBOUT <<< $(bsub -q $madlsfq -o $junktmp/"${LHCDescrip}_mad6t_$iMad".log -J ${workspace}_${LHCDescrip}_mad6t_$iMad mad6t_"$iMad".sh)
+		    read BSUBOUT <<< $(bsub -q $madlsfq -o ${sixtrack_input}/${iMad}/${LHCDescrip}_lsf.log -J "mad/${workspace}/${LHCDescrip}/${iMad}" ${iMad}/mad6t.sh)
 		    tmpString=$(printf "Seed %2i        %40s\n" ${iMad} "${BSUBOUT}")
 		    sixdeskmess -1 "${tmpString}"
 		elif [ "$sixdeskplatform" == "htcondor" ] ; then
-		    echo mad6t_${iMad}.sh >> jobs.list
+		    echo ${iMad} >> jobs.list
 		fi
 	    fi
-	    mad6tjob=$lsfFilesPath/mad6t.sh
 	done
     fi
 	
@@ -600,8 +592,7 @@ if ${lsub} ; then
 	    # set the platform to htcondor
 	    sixdeskSetPlatForm "htcondor"
 	fi
-	lastJobsList=`ls -tr ${sixtrack_input}/*/jobs.list 2> /dev/null | tail -1`
-	if [ -z "${lastJobsList}" ] ; then
+	if ! [ -s ${sixtrack_input}/jobs.list ] ; then
 	    sixdeskmess -1 "no jobs list previously generated! - I need one for using -w option"
 	    exit
 	fi
