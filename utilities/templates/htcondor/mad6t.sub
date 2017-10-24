@@ -11,7 +11,7 @@ output = $(filejob).$(ClusterId).$(ProcId).out
 error = $(filejob).$(ClusterId).$(ProcId).err
 log = $(filejob).$(ClusterId).$(ProcId).log
 transfer_input_files = $(filejob).$(seedID)
-transfer_output_files = $(filejob).out.$(seedID)
-transfer_output_remaps = "fort.2.gz=../fort.2.gz,fort.8.gz=../fort.8.gz,fort.16.gz=../fort.16.gz"
+transfer_output_files = $(filejob).out.$(seedID),fort.3.mad_$(seedID).gz,fort.3.aux_$(seedID).gz,fort.2_$(seedID).gz,fort.8_$(seedID).gz,fort.16_$(seedID).gz
+#transfer_output_remaps = "fort.2_$(seedID).gz=../fort.2_$(seedID).gz,fort.8_$(seedID).gz=../fort.8_$(seedID).gz,fort.16_$(seedID).gz=../fort.16_$(seedID).gz"
 +JobFlavour = "microcentury"
 queue seedID from jobs.list
