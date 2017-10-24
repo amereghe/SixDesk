@@ -451,6 +451,7 @@ function check(){
 function postProcess(){
     sixdeskmess 1 "Performing post-processing of MADX runs for study $LHCDescrip in ${sixtrack_input}"
     local __lerr=0
+    cd ${sixtrack_input}
     
     # check jobs still running
     if [ "$sixdeskplatform" == "lsf" ] ; then
@@ -516,7 +517,6 @@ function postProcess(){
     fi
 
     # do the actual post-processing
-    cd ${sixtrack_input}
     [ -d /tmp/${LOGNAME} ] || mkdir -p /tmp/${LOGNAME}
     filejob=$LHCDescrip
     # - last junk dir
@@ -525,12 +525,12 @@ function postProcess(){
     # - check single jobs
     for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
         # - MADX has run correctly
-        grep -i "finished normally" $sixtrack_input/${__lastJunkDir}${filejob}.out.${iMad} 2>&1 /dev/null
+        grep -i "finished normally" $sixtrack_input/${__lastJunkDir}${filejob}.out.${iMad} 2>&1 > /dev/null
         if [ $? -ne 0 ] ; then
             echo "${filejob}.${iMad} MADX has NOT completed properly!" | tee -a $sixtrack_input/ERRORS
             let __lerr+=1
         fi
-        grep -i "TWISS fail" $sixtrack_input/${__lastJunkDir}${filejob}.out.${iMad} 2>&1 /dev/null
+        grep -i "TWISS fail" $sixtrack_input/${__lastJunkDir}${filejob}.out.${iMad} 2>&1 > /dev/null
         if [ $? -eq 0 ] ; then
             echo "${filejob}.${iMad} MADX TWISS appears to have failed!" | tee -a $sixtrack_input/ERRORS
             let __lerr+=1
@@ -540,7 +540,7 @@ function postProcess(){
             echo "${filejob}.${iMad} MADX has produced an empty fort.2!" | tee -a $sixtrack_input/ERRORS
             let __lerr+=1
         fi
-        if [ "$fort.34" != "" ] ; then
+        if [ "$fort_34" != "" ] ; then
             if [ `zgrep -v '/' $sixtrack_input/${__lastJunkDir}fort.34_${iMad}.gz | wc -l` -eq 0 ] ; then
                 echo "${filejob}.${iMad} MADX has produced an empty fort.34!" | tee -a $sixtrack_input/ERRORS
                 let __lerr+=1
@@ -549,14 +549,13 @@ function postProcess(){
         # - check against previous versions of the files
         #   . all files but pieces of fort.3
         local __checkFiles="fort.2 fort.8 fort.16"
-        if [ "$fort.34" != "" ] ; then
+        if [ "$fort_34" != "" ] ; then
             __checkFiles="${__checkFiles} fort.34"
         fi
         if [ "$CORR_TEST" -ne 0 ] ; then
             __checkFiles="${__checkFiles} MCSSX_errors MCOSX_errors MCOX_errors MCSX_errors MCTX_errors"
         fi
         for fil in ${__checkFiles} ; do
-            echo $fil
             if [ -s $sixtrack_input/${fil}_${iMad}.previous.gz ] ; then
                 gunzip -c $sixtrack_input/${fil}_${iMad}.previous.gz > /tmp/${LOGNAME}/${fil}.previous
                 gunzip -c $sixtrack_input/${__lastJunkDir}${fil}_${iMad}.gz > /tmp/${LOGNAME}/${fil}
@@ -812,7 +811,9 @@ else
         # - actually do post-processing
         postProcess
     fi
-    check
+    if ${lcheck} ; then
+	check
+    fi
 fi
 
 # - redefine traps
