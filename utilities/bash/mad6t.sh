@@ -231,9 +231,10 @@ function check(){
     
     # check jobs still running
     if [ "$sixdeskplatform" == "lsf" ] ; then
-	__njobs=`bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t | wc -l`
+        local __jobLines=`bjobs -w | grep "mad/${workspace}/${LHCDescrip}"`
+	__njobs=`echo "${__jobLines}" | wc -l`
 	if [ ${__njobs} -gt 0 ] ; then
-	    bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t
+	    echo "${__jobLines}"
 	    sixdeskmess -1 "There appear to be some mad6t jobs still not finished"
 	    let __lerr+=1
 	fi
@@ -282,21 +283,21 @@ function check(){
 	# - the expected number of files have been generated
 	nFort=0
 	local __fileNames=""
-	sixdeskmess 1 "Checking that a fort.${iFort}_??.gz exists for each MADX seed requested..."
+	sixdeskmess 1 "Checking that a \$iMad/fort.${iFort}.gz exists for each MADX seed requested..."
 	for (( iMad=${istamad}; iMad<=${iendmad}; iMad++ )) ; do
-	    if [ `ls -1 fort.${iFort}_${iMad}.gz 2> /dev/null | wc -l` -eq 1 ] ; then
+	    if [ `ls -1 ${iMad}/fort.${iFort}.gz 2> /dev/null | wc -l` -eq 1 ] ; then
 		let nFort+=1
-		__fileNames="${__fileNames} fort.${iFort}_${iMad}.gz"
+		__fileNames="${__fileNames} ${iMad}/fort.${iFort}.gz"
 	    else
-		iMadsResubmit="${iMadsResubmit}\n${iMad}"
+		iMadsResubmit="${iMadsResubmit}\n${iMad}" 
 	    fi
 	done
 	if [ ${nFort} -ne ${__njobs} ] ; then
-	    sixdeskmess -1 "...discrepancy!!! Found ${nFort} fort.${iFort}_??.gz (expected $__njobs)"
+	    sixdeskmess -1 "...discrepancy!!! Found ${nFort} \$iMad/fort.${iFort}.gz (expected $__njobs)"
 	    let __lerr+=1
 	    continue
 	else
-	    sixdeskmess -1 "...found ${nFort} fort.${iFort}_??.gz (as expected)"
+	    sixdeskmess -1 "...found ${nFort} \$iMad/fort.${iFort}.gz (as expected)"
 	fi
         # - files are all of comparable dimensions
 	tmpFilesDimensions=`\gunzip -l ${__fileNames} 2> /dev/null | grep -v -e compressed -e totals | awk '{print ($2,$4)}'`
@@ -333,24 +334,10 @@ function check(){
     done
     # - unique list of seeds
     iMadsResubmit=`echo -e "${iMadsResubmit}" | sort -u`
-    iMadsResubmit=( ${iMadsResubmit} )
-    if [ ${#iMadsResubmit[@]} -gt 0 ] ; then
+    if [ -n "${iMadsResubmit}" ] ; then
 	# prepare jobs.list file
-	# - last junk dir, in case it is needed to re-run selected seeds
-	local __lastJunkDir=`\ls -trd */ 2> /dev/null | tail -1`
-	if [ -z "${__lastJunkDir}" ] ; then
-	    sixdeskmktmpdir mad
-	    __lastJunkDir=$sixdesktmpdir
-	else
-	    # remove trailing '/'
-	    __lastJunkDir=`echo "${__lastJunkDir}" | sed 's/\/$//'`
-	fi
-	# - actual list
-	sixdeskmess 1 "generating list of missing MADX seed in ${__lastJunkDir}/jobs.list"
-	rm -f ${__lastJunkDir}/jobs.list
-	for iMadResubmit in ${iMadsResubmit[@]} ; do
-	    echo mad6t_${iMadResubmit}.sh >> ${__lastJunkDir}/jobs.list
-	done
+	sixdeskmess 1 "generating list of missing MADX seed in jobs.list"
+        echo "${iMadsResubmit}" > jobs.list
     fi
 
     # check mother files
@@ -367,9 +354,8 @@ function check(){
 	for tmpCorr in MCSSX MCOSX MCOX MCSX MCTX ; do
 	    rm -f ${tmpCorr}_errors
 	    for (( iMad=$istamad; iMad<=$iendmad; iMad++ )) ; do
-		ls $tmpCorr"_errors_"$iMad
-		if [ -f $tmpCorr"_errors_"$iMad ] ; then
-		    cat  $tmpCorr"_errors_"$iMad >> $tmpCorr"_errors"
+		if [ -f ${iMad}/${tmpCorr}_errors.gz ] ; then
+		    gunzip -c ${iMad}/${tmpCorr}_errors.gz >> ${tmpCorr}_errors
 		else
 		    let sixdeskmiss+=1
 		fi
