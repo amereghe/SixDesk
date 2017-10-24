@@ -805,7 +805,7 @@ function submitCreateFinalInputs(){
     # input from MADX: fort.2/.8/.16
     for iFort in 2 8 16 ; do
 	[ ! -e $RundirFullPath/fort.${iFort}.gz ] || rm -f $RundirFullPath/fort.${iFort}.gz
-	ln -s $sixtrack_input/fort.${iFort}_$iMad.gz $RundirFullPath/fort.${iFort}.gz
+	ln -s $sixtrack_input/${iMad}/fort.${iFort}.gz $RundirFullPath/fort.${iFort}.gz
     done
 	
     if [ "$sixdeskplatform" == "boinc" ] ; then
@@ -888,7 +888,7 @@ function fixInputFiles(){
     for iFort in 2 8 16 ; do
 	if [ ! -f $RundirFullPath/fort.${iFort}.gz ] ; then
 	    sixdeskmess -1 "...fort.${iFort}.gz has problems: recreating it!!!"
-	    ln -s $sixtrack_input/fort.${iFort}_$iMad.gz $RundirFullPath/fort.${iFort}.gz
+	    ln -s $sixtrack_input/${iMad}/fort.${iFort}.gz $RundirFullPath/fort.${iFort}.gz
 	    let __iFixed+=1
 	fi
     done
@@ -2436,7 +2436,7 @@ else
     	    fi
     	    # required not only by boinc, but also by chroma/beta jobs
     	    for iFort in ${iForts} ; do
-    		gunzip -c $sixtrack_input/fort.${iFort}_$iMad.gz > $sixtrack_input/fort.${iFort}
+    		gunzip -c $sixtrack_input/${iMad}/fort.${iFort}.gz > $sixtrack_input/fort.${iFort}
     	    done
         fi
     
