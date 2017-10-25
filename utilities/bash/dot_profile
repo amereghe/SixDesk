@@ -1560,7 +1560,7 @@ function sixdeskCheckRunningJobs(){
         for __clusterID in ${clusterIDs} ; do
             local __lines=`condor_q ${__clusterID} -l -const 'JobStatus != 4' | grep '^ProcId' | cut -d\= -f2 | awk -v "__clusterID=${__clusterID}" '{print (__clusterID"."$1)}'`
             if [ -n "${__lines}" ] ; then
-                sixdeskmess -1 "...missing jobs in cluster ID ${__clusterID}!"
+                sixdeskmess -1 "...missing `echo "${__lines}" | wc -l` jobs in cluster ID ${__clusterID}!"
 	        echo "${__lines}"
                 sixdeskmess -1 "Ouput of condor_q -wide ${__clusterID}:"
                 condor_q -wide ${__clusterID}
