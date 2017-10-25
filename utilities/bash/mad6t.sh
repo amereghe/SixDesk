@@ -212,7 +212,7 @@ function submit(){
         fi
 	sed -i -e "s#^transfer_output_files.*#${__transferOutputFiles}#" \
                ${sixtrack_input}/mad6t.sub
-	# condor_submit -spool -batch-name "mad/$workspace/$LHCDescrip" ${sixtrack_input}/mad6t.sub
+	condor_submit -spool -batch-name "mad/$workspace/$LHCDescrip" ${sixtrack_input}/mad6t.sub
 	if [ $? -eq 0 ] ; then
 	    rm -f jobs.list
 	fi
