@@ -449,32 +449,15 @@ then
 
             rm -f blsfjobs
         else
-            # get list of clusters
-            __clusterIDs=`awk '{gsub(/htcondor/,"",$2); print ($2)}' ${sixdeskjobs}/jobs | cut -d\. -f1 | sort -u -g`
-            __clusterIDs=( ${__clusterIDs} )
-            for __clusterID in ${__clusterIDs[@]} ; do
-                sixdeskmess -1 " checking if there are jobIDs NOT COMPLETE in cluster ${__clusterID}..."
-                local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus != 4' | grep ProcId | awk '{print ($NF)}'`
-                local __treatIDs=(${__treatIDs})
-                if [ ${#__treatIDs[@]} -eq 0 ] ; then
-                    sixdeskmess -1 " ...all jobs finished regularly - retrieving all data..."
-                    condor_transfer_data ${__clusterID}
-                    [ $? -ne 0 ] || condor_rm ${__clusterID}
-                else
-                    sixdeskmess -1 " getting COMPLETE jobIDs in cluster ${__clusterID} one by one..."
-                    local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus == 4' | grep ProcId | awk '{print ($NF)}'`
-                    local __treatIDs=(${__treatIDs})
-                    if [ ${#__treatIDs[@]} -gt 0 ] ; then
-                        sixdeskmess -1 " retrieving ${#__treatIDs[@]} results..."
-                        for __treatID in ${__treatIDs[@]} ; do
-                            condor_transfer_data ${__clusterID}.${__treatID}
-                            [ $? -ne 0 ] || condor_rm ${__clusterID}.${__treatID}
-                        done
-                    else
-                        sixdeskmess -1 " no completed jobs for cluster ${__clusterID}"
-                    fi
-                fi
-            done
+            sixdeskmess -1 "Checking if I need to run condor_transfer_data ..."
+            # get clusterIDs
+            sixdeskGetHTClusterIDs "run_six/$workspace/$LHCDescrip"
+            if [ -n "${clusterIDs}" ] ; then
+                for __clusterID in ${clusterIDs} ; do
+                    sixdeskHTCondorTransferData ${__clusterID}
+                    let lerr+=$?
+                done
+            fi
             touch $sixdeskjobs/incomplete_jobs
             cp $sixdeskjobs/incomplete_jobs .
             touch $sixdeskjobs/completed_jobs
