@@ -272,8 +272,8 @@ function check(){
 	    if [ -z "${__clusterID}" ] ; then
 		sixdeskmess -1 "cannot get cluster ID from htcondor log file ${__lastLogFile}!!"
 	    else
-		sixdeskmess -1 "echo of condor_q ${__clusterID} -run -wide"
-		condor_q ${__clusterID} -run -wide
+		sixdeskmess -1 "echo of condor_q ${__clusterID} -wide"
+		condor_q ${__clusterID} -wide
 		echo ""
                 sixdeskmess -1 " checking if there are jobIDs NOT COMPLETE in cluster ${__clusterID}..."
                 local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus != 4' | grep ProcId | awk '{print ($NF)}'`
@@ -467,31 +467,41 @@ function postProcess(){
         local __clusterIDs=`condor_q $LOGNAME -l -const 'JobBatchName=="'mad/$workspace/$LHCDescrip'"' | grep '^ClusterId' | cut -d\= -f2 | sort -u`
         __clusterIDs=(${__clusterIDs})
 	if [ ${#__clusterIDs[@]} -eq 0 ] ; then
-	    sixdeskmess -1 "...no cluster IDs found."
-	    let __lerr+=1
+	    sixdeskmess -1 "...no cluster IDs found - I assume all the jobs are over."
 	else
             for __clusterID in ${__clusterIDs[@]} ; do
 		echo ""
-		sixdeskmess -1 "Echo of condor_q ${__clusterID} -run -wide"
-		condor_q ${__clusterID} -run -wide
+		sixdeskmess -1 "Echo of condor_q ${__clusterID} -wide"
+		condor_q ${__clusterID} -wide
 		echo ""
-                sixdeskmess -1 "Checking if there are jobIDs NOT COMPLETE in cluster ${__clusterID}..."
+                sixdeskmess -1 "Checking if there are COMPLETE jobIDs in cluster ${__clusterID}..."
                 local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus == 4' | grep '^ProcId' | awk '{print ($NF)}'`
                 __treatIDs=(${__treatIDs})
                 if [ ${#__treatIDs[@]} -gt 0 ] ; then
-                    sixdeskmess -1 " getting COMPLETE jobIDs in cluster ${__clusterID} ..."
+                    sixdeskmess -1 "...getting COMPLETE jobIDs in cluster ${__clusterID} ..."
                     for __treatID in ${__treatIDs[@]} ; do
                         condor_transfer_data ${__clusterID}.${__treatID}
 			let __lerr+=$?
                         condor_rm ${__clusterID}.${__treatID}
                         let __lerr+=$?
                     done
+                    sixdeskmess -1 "Checking if there are jobIDs NOT yet complete in cluster ${__clusterID}..."
+                    local __nNotComplete=`condor_q ${__clusterID} -l -const 'JobStatus != 4' | grep '^ProcId' | wc -l`
+                    if [ ${__nNotComplete} -ne 0 ] ; then
+                        sixdeskmess -1 " ...still ${__nNotComplete} to go!"
+                        let __lerr+=1
+                    fi
                 else
-                    sixdeskmess -1 "No completed jobs for cluster ${__clusterID}"
+                    sixdeskmess -1 "...no completed jobs for cluster ${__clusterID}"
                     let __lerr+=1
                 fi
             done
 	fi
+    fi
+
+    if [ ${__lerr} -gt 0 ] ; then
+        sixdeskmess -1 "Not all mad6t jobs are over -- cannot proceed any further..."
+        return ${__lerr}
     fi
 
     # do the actual post-processing
@@ -510,7 +520,7 @@ function postProcess(){
     # - check single jobs
     for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
         # - job is over
-        local __lastJunkDir=`ls -1 $sixtrack_input/*/${__filejob}.out.${iMad} 2> /dev/null | tail -1`
+        local __lastJunkDir=`ls -1tr $sixtrack_input/*/${__filejob}.out.${iMad} 2> /dev/null | tail -1`
         if [ -z "${__lastJunkDir}" ] ; then
             sixdeskmess -1 "Seed ${iMad} not finished yet - skipping..."
             condor_q $LOGNAME -const 'JobBatchName=="'mad/$workspace/$LHCDescrip'" && Cmq=="'mad6t_${iMad}.sh'"' 
@@ -568,25 +578,21 @@ function postProcess(){
             mv ${__lastJunkDir}/${fil}_${iMad}.gz $sixtrack_input/${fil}_${iMad}.gz
         done
         #   . pieces of fort.3
-        local __suffix=""
+        local __suffix=".previous"
         if [ ${iMad} -eq ${istamad} ] ; then
-            __suffix=".previous"
-        fi
-        for fil in fort.3.mad fort.3.aux ; do
-            gunzip -c ${__lastJunkDir}/${fil}_${iMad}.gz > /tmp/${LOGNAME}/${fil}
-            if [ -s $sixtrack_input/${fil}${__suffix} ] ; then
-                diff $sixtrack_input/${fil}${__suffix} /tmp/${LOGNAME}/${fil} > /tmp/${LOGNAME}/diffs
-                if [ $? -ne 0 ] ; then
-                    sixdeskmess -1 "${__filejob}.${iMad} MADX has produced a different ${fil}!" | tee -a $sixtrack_input/WARNINGS
-                    cat /tmp/${LOGNAME}/diffs >> $sixtrack_input/WARNINGS
-                    let __lerr+=1
+            for fil in fort.3.mad fort.3.aux ; do
+                gunzip -c ${__lastJunkDir}/${fil}_${iMad}.gz > /tmp/${LOGNAME}/${fil}
+                if [ -s $sixtrack_input/${fil}${__suffix} ] ; then
+                    diff $sixtrack_input/${fil}${__suffix} /tmp/${LOGNAME}/${fil} > /tmp/${LOGNAME}/diffs
+                    if [ $? -ne 0 ] ; then
+                        sixdeskmess -1 "${__filejob}.${iMad} MADX has produced a different ${fil}!" | tee -a $sixtrack_input/WARNINGS
+                        cat /tmp/${LOGNAME}/diffs >> $sixtrack_input/WARNINGS
+                        let __lerr+=1
+                    fi
                 fi
-            fi
-            if [ ${iMad} -eq ${istamad} ] ; then
                 mv /tmp/${LOGNAME}/${fil} $sixtrack_input
-            fi
-        done
-        break
+            done
+        fi
     done
     
     cd $sixdeskhome
@@ -809,6 +815,9 @@ else
         sixdesklockAll
         # - actually do post-processing
         postProcess
+        if [ $? -gt 0 ] ; then
+            exit 1
+        fi
     fi
     if ${lcheck} ; then
 	check
