@@ -255,51 +255,6 @@ function check(){
 
     cd $sixtrack_input
     
-    # check jobs still running
-    if [ "$sixdeskplatform" == "lsf" ] ; then
-	__njobs=`bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t | wc -l`
-	if [ ${__njobs} -gt 0 ] ; then
-	    bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t
-	    sixdeskmess -1 "There appear to be some mad6t jobs still not finished"
-	    let __lerr+=1
-	fi
-    elif [ "$sixdeskplatform" == "htcondor" ] ; then
-	local __lastLogFile=`\ls -trd */*log 2> /dev/null | tail -1`
-	if [ -z "${__lastLogFile}" ] ; then
-	    sixdeskmess -1 "no htcondor log files, hence cannot get cluster ID!!"
-	else
-	    local __clusterID=`head -1 ${__lastLogFile} 2> /dev/null | cut -d\( -f2 | cut -d\. -f1`
-	    if [ -z "${__clusterID}" ] ; then
-		sixdeskmess -1 "cannot get cluster ID from htcondor log file ${__lastLogFile}!!"
-	    else
-		sixdeskmess -1 "echo of condor_q ${__clusterID} -wide"
-		condor_q ${__clusterID} -wide
-		echo ""
-                sixdeskmess -1 " checking if there are jobIDs NOT COMPLETE in cluster ${__clusterID}..."
-                local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus != 4' | grep ProcId | awk '{print ($NF)}'`
-                local __treatIDs=(${__treatIDs})
-                if [ ${#__treatIDs[@]} -eq 0 ] ; then
-                    sixdeskmess -1 " ...all jobs finished regularly - retrieving all data..."
-                    condor_transfer_data ${__clusterID}
-                    [ $? -ne 0 ] || condor_rm ${__clusterID}
-                else
-                    sixdeskmess -1 " getting COMPLETE jobIDs in cluster ${__clusterID} one by one..."
-                    local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus == 4' | grep ProcId | awk '{print ($NF)}'`
-                    local __treatIDs=(${__treatIDs})
-                    if [ ${#__treatIDs[@]} -gt 0 ] ; then
-                        sixdeskmess -1 " retrieving ${#__treatIDs[@]} results..."
-                        for __treatID in ${__treatIDs[@]} ; do
-                            condor_transfer_data ${__clusterID}.${__treatID}
-                            [ $? -ne 0 ] || condor_rm ${__clusterID}.${__treatID}
-                        done
-                    else
-                        sixdeskmess -1 " no completed jobs for cluster ${__clusterID}"
-                    fi
-                fi
-	    fi
-	fi
-    fi
-    
     # check errors/warnings
     if [ -s ERRORS ] ; then
 	sixdeskmess -1 "There appear to be some MADX errors!"
@@ -451,61 +406,8 @@ function check(){
 function postProcess(){
     sixdeskmess 1 "Performing post-processing of MADX runs for study $LHCDescrip in ${sixtrack_input}"
     local __lerr=0
+
     cd ${sixtrack_input}
-    
-    # check jobs still running
-    if [ "$sixdeskplatform" == "lsf" ] ; then
-	__njobs=`bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t | wc -l`
-	if [ ${__njobs} -gt 0 ] ; then
-	    bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t
-	    sixdeskmess -1 "There appear to be some mad6t jobs still not finished"
-	    let __lerr+=1
-	fi
-    elif [ "$sixdeskplatform" == "htcondor" ] ; then
-        # get clusterIDs
-	sixdeskmess -1 "getting cluster IDs matching batch name 'mad/$workspace/$LHCDescrip' ..."
-        local __clusterIDs=`condor_q $LOGNAME -l -const 'JobBatchName=="'mad/$workspace/$LHCDescrip'"' | grep '^ClusterId' | cut -d\= -f2 | sort -u`
-        __clusterIDs=(${__clusterIDs})
-	if [ ${#__clusterIDs[@]} -eq 0 ] ; then
-	    sixdeskmess -1 "...no cluster IDs found - I assume all the jobs are over."
-	else
-            for __clusterID in ${__clusterIDs[@]} ; do
-		echo ""
-		sixdeskmess -1 "Echo of condor_q ${__clusterID} -wide"
-		condor_q ${__clusterID} -wide
-		echo ""
-                sixdeskmess -1 "Checking if there are COMPLETE jobIDs in cluster ${__clusterID}..."
-                local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus == 4' | grep '^ProcId' | awk '{print ($NF)}'`
-                __treatIDs=(${__treatIDs})
-                if [ ${#__treatIDs[@]} -gt 0 ] ; then
-                    sixdeskmess -1 "...getting COMPLETE jobIDs in cluster ${__clusterID} ..."
-                    for __treatID in ${__treatIDs[@]} ; do
-                        condor_transfer_data ${__clusterID}.${__treatID}
-			let __lerr+=$?
-                        condor_rm ${__clusterID}.${__treatID}
-                        let __lerr+=$?
-                    done
-                    sixdeskmess -1 "Checking if there are jobIDs NOT yet complete in cluster ${__clusterID}..."
-                    local __nNotComplete=`condor_q ${__clusterID} -l -const 'JobStatus != 4' | grep '^ProcId' | wc -l`
-                    if [ ${__nNotComplete} -ne 0 ] ; then
-                        sixdeskmess -1 " ...still ${__nNotComplete} to go!"
-                        let __lerr+=1
-                    fi
-                else
-                    sixdeskmess -1 "...no completed jobs for cluster ${__clusterID}"
-                    let __lerr+=1
-                fi
-            done
-	fi
-    fi
-
-    if [ ${__lerr} -gt 0 ] ; then
-        sixdeskmess -1 "Not all mad6t jobs are over -- cannot proceed any further..."
-        return ${__lerr}
-    fi
-
-    # do the actual post-processing
-    sixdeskmess -1 "actual post-processing"
     [ -d /tmp/${LOGNAME} ] || mkdir -p /tmp/${LOGNAME}
     local __filejob=$LHCDescrip
     #   . all files but pieces of fort.3
@@ -577,7 +479,7 @@ function postProcess(){
             fi
             mv ${__lastJunkDir}/${fil}_${iMad}.gz $sixtrack_input/${fil}_${iMad}.gz
         done
-        #   . pieces of fort.3
+        # - pieces of fort.3
         local __suffix=".previous"
         if [ ${iMad} -eq ${istamad} ] ; then
             for fil in fort.3.mad fort.3.aux ; do
@@ -592,6 +494,15 @@ function postProcess(){
                 fi
                 mv /tmp/${LOGNAME}/${fil} $sixtrack_input
             done
+            # update fort.3.mother? files with accelerator length
+            local __myLen=`grep -v '/' $sixtrack_input/fort.3.aux | grep -A1 SYNC | tail -1 | awk '{print ($5)}'`
+            if [ -z "${__myLen}" ] ; then
+                sixdeskmess -1 "Cannot find accelerator length in fort.3.aux - something wrong with SYNC block?"
+            else
+                sed -e "s/%length/${__myLen}/g" $sixtrack_input/fort.3.mother1.tmp > $sixtrack_input/fort.3.mother1
+                sed -e "s/%length/${__myLen}/g" $sixtrack_input/fort.3.mother2.tmp > $sixtrack_input/fort.3.mother2
+                sixdeskmess -1 "...updated fort.3.mother? with accelerator length: ${__myLen}"
+            fi
         fi
     done
     
@@ -809,13 +720,35 @@ if ${lsub} ; then
     submit
     
 else
+
+    sixdeskCheckRunningJobs "${workspace}_${LHCDescrip}_mad6t" "mad/$workspace/$LHCDescrip"
+    if [ $? -ne 0 ] ; then
+        exit 1
+    fi
     
     if ${lpostpr} ; then
+        lerr=0
+        if [ "$sixdeskplatform" == "htcondor" ] ; then
+            sixdeskmess -1 "Checking if I need to run condor_transfer_data ..."
+            # get clusterIDs
+            sixdeskGetHTClusterIDs "mad/$workspace/$LHCDescrip"
+            if [ -n "${clusterIDs}" ] ; then
+                for __clusterID in ${clusterIDs} ; do
+                    sixdeskHTCondorTransferData ${__clusterID}
+                    let lerr+=$?
+                done
+            fi
+        fi
+        if [ $lerr -ne 0 ] ; then
+            sixdeskmess -1 "Something wrong with condor_transfer_data - aborting..."
+            exit 1
+        fi
         # - lock dirs before doing any action
         sixdesklockAll
         # - actually do post-processing
         postProcess
         if [ $? -gt 0 ] ; then
+            sixdeskmess -1 "Something wrong with post-processing - aborting..."
             exit 1
         fi
     fi

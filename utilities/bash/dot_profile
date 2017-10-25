@@ -1539,3 +1539,89 @@ function sixdeskRenewKerberosToken(){
 	fi
     fi
 }
+
+function sixdeskCheckRunningJobs(){
+    # input
+    local __batchNameLSF=$1
+    local __batchNameHTC=$2
+    # returned
+    local __lerr=0
+    if [ "$sixdeskplatform" == "lsf" ] ; then
+        sixdeskmess -1 "Checking if there are jobs NOT yet complete matching ${__batchNameLSF} ..."
+        local __lines=`bjobs -w | grep ${__batchNameLSF}`
+	if [ -n "${__lines}" ] ; then
+	    echo "${__lines}"
+	    let __lerr+=1
+	fi
+    elif [ "$sixdeskplatform" == "htcondor" ] ; then
+        sixdeskmess -1 "Checking if there are jobs NOT yet complete matching ${__batchNameHTC} ..."
+        # get clusterIDs
+	sixdeskGetHTClusterIDs "${__batchNameHTC}"
+        for __clusterID in ${clusterIDs} ; do
+            local __lines=`condor_q ${__clusterID} -l -const 'JobStatus != 4' | grep '^ProcId'`
+            if [ -n "${__lines}" ] ; then
+                sixdeskmess -1 "...missing jobs in cluster ID ${__clusterID}!"
+	        echo "${__lines}"
+                let __lerr+=1
+            fi
+        done
+    fi
+    if [ ${__lerr} -gt 0 ] ; then
+        sixdeskmess -1 "...there appear to be some jobs still not finished!"
+    else
+        sixdeskmess -1 "...all jobs seem to be finished!"
+    fi
+    return ${__lerr}
+}
+
+function sixdeskGetHTClusterIDs(){
+    # input
+    local __batchNameInp=$1
+    # output
+    clusterIDs=""
+    sixdeskmess -1 "Getting cluster IDs matching batch name '${__batchNameInp}' ..."
+    local __batchNames=`condor_q $LOGNAME | grep ${__batchNameInp} | awk '{print ($2)}'`
+    __batchNames=(${__batchNames})
+    if [ ${#__batchNames[@]} -eq 0 ] ; then
+        sixdeskmess -1 "...no matching batch name found - I assume they are over ..."
+    else
+        sixdeskmess -1 "...found ${#__batchNames[@]} matching batch name(s)."
+        for __batchName in ${__batchNames[@]} ; do
+            sixdeskmess -1 "...getting cluster IDs matching batch name '${__batchName}' ..."
+            local __clusterIDs=`condor_q $LOGNAME -l -const 'JobBatchName=="'${__batchName}'"' | grep '^ClusterId' | cut -d\= -f2 | sort -u`
+	    if [ -z "${__clusterIDs}" ] ; then
+	        sixdeskmess -1 "...no cluster IDs found - I assume all the jobs are over."
+            else
+                clusterIDs="${clusterIDs} ${__clusterIDs}"
+                __clusterIDs=(${__clusterIDs})
+	        sixdeskmess -1 "...found ${#__clusterIDs[@]} cluster ID(s)."
+	    fi
+        done
+    fi
+}
+
+function sixdeskHTCondorTransferData(){
+    # input
+    local __clusterID=$1
+    # returned
+    local __lerr=0
+    sixdeskmess -1 "Checking if there are COMPLETE jobIDs in cluster ${__clusterID} ..."
+    local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus == 4' | grep '^ProcId' | awk '{print ($NF)}'`
+    __treatIDs=(${__treatIDs})
+    if [ ${#__treatIDs[@]} -gt 0 ] ; then
+        sixdeskmess -1 "...found ${#__treatIDs[@]} COMPLETE jobIDs - condor_transfer_data them ..."
+        for __treatID in ${__treatIDs[@]} ; do
+            condor_transfer_data ${__clusterID}.${__treatID}
+	    let __lerr+=$?
+            if [ $__lerr -eq 0 ] ; then
+                condor_rm ${__clusterID}.${__treatID}
+                let __lerr+=$?
+            fi
+        done
+    else
+        sixdeskmess -1 "...no completed jobs found!"
+        let __lerr+=1
+    fi
+    return $__lerr
+}
+
