@@ -426,7 +426,6 @@ function postProcess(){
         local __lastJunkDir=`ls -1tr $sixtrack_input/*/${__filejob}.out.${iMad} 2> /dev/null | tail -1`
         if [ -z "${__lastJunkDir}" ] ; then
             sixdeskmess -1 "Seed ${iMad} not finished yet - skipping..."
-            condor_q $LOGNAME -const 'JobBatchName=="'mad/$workspace/$LHCDescrip'" && Cmq=="'mad6t_${iMad}.sh'"' 
             let __lerr+=1
             continue
         else
