@@ -721,28 +721,34 @@ if ${lsub} ; then
     
 else
 
+    # check jobs are over
     sixdeskCheckRunningJobs "${workspace}_${LHCDescrip}_mad6t" "mad/$workspace/$LHCDescrip"
-    if [ $? -ne 0 ] ; then
+    lMissing=$?
+
+    # possibly retrieve data
+    if [ "$sixdeskplatform" == "htcondor" ] ; then
+        lerr=0
+        sixdeskmess -1 "Checking if I need to run condor_transfer_data ..."
+        # get clusterIDs
+        sixdeskGetHTClusterIDs "mad/$workspace/$LHCDescrip"
+        if [ -n "${clusterIDs}" ] ; then
+            for __clusterID in ${clusterIDs} ; do
+                sixdeskHTCondorTransferData ${__clusterID}
+                let lerr+=$?
+            done
+        fi
+        if [ $lerr -ne 0 ] ; then
+            sixdeskmess -1 "Something wrong with condor_transfer_data - aborting..."
+            exit 1
+        fi
+    fi
+        
+    if [ ${lMissing} -ne 0 ] ; then
+        sixdeskmess -1 "Not all jobs are over - aborting..."
         exit 1
     fi
     
     if ${lpostpr} ; then
-        if [ "$sixdeskplatform" == "htcondor" ] ; then
-            lerr=0
-            sixdeskmess -1 "Checking if I need to run condor_transfer_data ..."
-            # get clusterIDs
-            sixdeskGetHTClusterIDs "mad/$workspace/$LHCDescrip"
-            if [ -n "${clusterIDs}" ] ; then
-                for __clusterID in ${clusterIDs} ; do
-                    sixdeskHTCondorTransferData ${__clusterID}
-                    let lerr+=$?
-                done
-            fi
-            if [ $lerr -ne 0 ] ; then
-                sixdeskmess -1 "Something wrong with condor_transfer_data - aborting..."
-                exit 1
-            fi
-        fi
         # - lock dirs before doing any action
         sixdesklockAll
         # - actually do post-processing
