@@ -1562,6 +1562,9 @@ function sixdeskCheckRunningJobs(){
             if [ -n "${__lines}" ] ; then
                 sixdeskmess -1 "...missing jobs in cluster ID ${__clusterID}!"
 	        echo "${__lines}"
+                sixdeskmess -1 "Ouput of condor_q -wide ${__clusterID}:"
+                condor_q -wide ${__clusterID}
+                echo ""
                 let __lerr+=1
             fi
         done
