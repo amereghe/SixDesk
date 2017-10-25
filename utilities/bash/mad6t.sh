@@ -13,7 +13,7 @@ function how_to_use() {
    -r      post-process
    -w      submit wrong seeds
               NB: the list of wrong seeds must be generated beforehand,
-                  by colling `basename $0` -c
+                  by calling `basename $0` -c
    -U      unlock dirs necessary to the script to run
            PAY ATTENTION when using this option, as no check whether the lock
               belongs to this script or not is performed, and you may screw up
@@ -141,9 +141,9 @@ function submit(){
 	fi
 
 	# use AFS absolute paths
-	local __lAFS=false
-	if [ "$sixdeskplatform" == "lsf" ] ; then
-	    local __lAFS=true
+	local __lCP=false
+	if ${linter} || [ "$sixdeskplatform" == "lsf" ] ; then
+	    local __lCP=true
 	fi
         
         # in case, create .previous files
@@ -178,7 +178,7 @@ function submit(){
 		-e 's?%FORT_34%?'$fort_34'?g' \
 		-e 's?%MADX_PATH%?'$MADX_PATH'?g' \
 		-e 's?%MADX%?'$MADX'?g' \
-		-e "s?%lAFS%?${__lAFS}?g" ${sixtrack_input}/mad6t.sh > mad6t_"$iMad".sh
+		-e "s?%lCP%?${__lCP}?g" ${sixtrack_input}/mad6t.sh > mad6t_"$iMad".sh
 	    chmod 755 mad6t_"$iMad".sh
 	    
 	    if ${linter} ; then
