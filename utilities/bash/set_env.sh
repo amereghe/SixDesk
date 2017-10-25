@@ -513,7 +513,7 @@ else
             # copy necessary .sub/.sh files
             sixdeskmess -1 "if absent, copying necessary .sub/.sh files for MADX run in ${sixtrack_input}"
             sixdeskmess -1 "   and necessary .sub/.sh files for 6T runs in ${sixdeskwork}"
-            for tmpFile in htcondor/mad6t.sub lsf/mad6t.sh lsf/mad6t1.sh ; do
+            for tmpFile in htcondor/mad6t.sub lsf/mad6t.sh ; do
                 [ -e ${sixtrack_input}/`basename ${tmpFile}` ] || cp -p ${SCRIPTDIR}/templates/${tmpFile} ${sixtrack_input}
             done
             for tmpFile in htcondor/htcondor_run_six.sub htcondor/htcondor_job.sh ; do
