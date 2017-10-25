@@ -125,14 +125,6 @@ function submit(){
 	cd ${junktmp}
 	sixdeskmess 1 "Using junktmp: $junktmp"
 
-	tmpFiles=`cat ${lastJobsList}`
-	tmpFiles=( ${tmpFiles} )
-	for tmpFile in ${tmpFiles[@]} ; do
-	    for extension in .err .log .out ; do
-		rm -f ${tmpFile//.sh/${extension}}
-	    done
-	done
-	
     else
 
 	sixdeskmktmpdir mad $sixtrack_input
@@ -210,8 +202,17 @@ function submit(){
     if [ "$sixdeskplatform" == "htcondor" ] && ! ${linter} ; then
 	sed -i -e "s#^+JobFlavour =.*#+JobFlavour = \"${madHTCq}\"#" \
                -e "s#%filejob%#$filejob#" \
-                  ${sixtrack_input}/mad6t.sub
-	condor_submit -spool -batch-name "mad/$workspace/$LHCDescrip" ${sixtrack_input}/mad6t.sub
+               ${sixtrack_input}/mad6t.sub
+        local __transferOutputFiles="transfer_output_files = \$(filejob).out.\$(seedID),fort.3.mad_\$(seedID).gz,fort.3.aux_\$(seedID).gz,fort.2_\$(seedID).gz,fort.8_\$(seedID).gz,fort.16_\$(seedID).gz"
+        if [ "$fort_34" != "" ] ; then
+            __transferOutputFiles="${__transferOutputFiles},fort.34__\$(seedID).gz"
+        fi
+        if [ $CORR_TEST -ne 0 ] && [ ! -s CORR_TEST ] ; then
+            __transferOutputFiles="${__transferOutputFiles},MCSSX_errors_\$(seedID).gz,MCOSX_errors_\$(seedID).gz,MCOX_errors_\$(seedID).gz,MCSX_errors_\$(seedID).gz,MCTX_errors_\$(seedID).gz"
+        fi
+	sed -i -e "s#^transfer_output_files.*#${__transferOutputFiles}#" \
+               ${sixtrack_input}/mad6t.sub
+	# condor_submit -spool -batch-name "mad/$workspace/$LHCDescrip" ${sixtrack_input}/mad6t.sub
 	if [ $? -eq 0 ] ; then
 	    rm -f jobs.list
 	fi
