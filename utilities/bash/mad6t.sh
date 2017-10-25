@@ -728,8 +728,8 @@ else
     fi
     
     if ${lpostpr} ; then
-        lerr=0
         if [ "$sixdeskplatform" == "htcondor" ] ; then
+            lerr=0
             sixdeskmess -1 "Checking if I need to run condor_transfer_data ..."
             # get clusterIDs
             sixdeskGetHTClusterIDs "mad/$workspace/$LHCDescrip"
@@ -739,10 +739,10 @@ else
                     let lerr+=$?
                 done
             fi
-        fi
-        if [ $lerr -ne 0 ] ; then
-            sixdeskmess -1 "Something wrong with condor_transfer_data - aborting..."
-            exit 1
+            if [ $lerr -ne 0 ] ; then
+                sixdeskmess -1 "Something wrong with condor_transfer_data - aborting..."
+                exit 1
+            fi
         fi
         # - lock dirs before doing any action
         sixdesklockAll
