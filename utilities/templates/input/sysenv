@@ -22,6 +22,11 @@ export appName=sixtrack
 # # Latest DA version from
 # export SIXTRACKDAEXE=$sixdeskpath/exes/SixTrack_crlibm_da_lf95v4200
 
+# sixtrack for single-turn jobs
+# if not defined, the variable is automatically set by sixdesk, to match
+#    what you set with SIXTRACKEXE
+# export SIXTRACKEXESINGLETURN=/afs/cern.ch/project/sixtrack/build/${appName}
+
 # The following version of mad-X is used by the mad6t jobs.
 # All now call a madx executable so -X is no longer required.
 export MADX_PATH="/afs/cern.ch/user/m/mad/bin"

@@ -579,7 +579,7 @@ function submitChromaJobs(){
     sixdeskmess  1 "Running the first one turn job for chromaticity"
     cat fort.3.t1 fort.3.mad fort.3.m2 > fort.3
     rm -f fort.10
-    $SIXTRACKEXE > first_oneturn
+    $SIXTRACKEXESINGLETURN > first_oneturn
     if test $? -ne 0 -o ! -s fort.10 ; then
         sixdeskmess -1 "The first turn Sixtrack for chromaticity FAILED!!!"
         sixdeskmess -1 "Look in $sixdeskjobs_logs to see SixTrack input and output."
@@ -601,7 +601,7 @@ function submitChromaJobs(){
     sixdeskmess  1 "Running the second one turn job for chromaticity"
     cat fort.3.t2 fort.3.mad fort.3.m2 > fort.3
     rm -f fort.10
-    $SIXTRACKEXE > second_oneturn
+    $SIXTRACKEXESINGLETURN > second_oneturn
     if test $? -ne 0 -o ! -s fort.10 ; then
         sixdeskmess -1 "The second turn Sixtrack for chromaticity FAILED!!!"
         sixdeskmess -1 "Look in $sixdeskjobs_logs to see SixTrack input and output."
@@ -681,7 +681,7 @@ function submitBetaJob(){
     # --------------------------------------------------------------------------
     # actually run
     rm -f fort.10
-    $SIXTRACKEXE > lin
+    $SIXTRACKEXESINGLETURN > lin
     if test $? -ne 0 -o ! -s fort.10 ; then
         sixdeskmess -1 "The one turn Sixtrack for betavalues FAILED!!!"
         sixdeskmess -1 "Look in $sixdeskjobs_logs to see SixTrack input and output."
@@ -2503,12 +2503,12 @@ else
     	    		    [ -d $RundirFullPath ] || mkdir -p $RundirFullPath
     	    		    cd $sixdeskjobs_logs
     	    		    if [ $chrom -eq 0 ] ; then
-    	    			sixdeskmess  1 "Running two `basename $SIXTRACKEXE` (one turn) jobs to compute chromaticity"
+    	    			sixdeskmess  1 "Running two `basename $SIXTRACKEXESINGLETURN` (one turn) jobs to compute chromaticity"
     	    			submitChromaJobs $RundirFullPath
     	    		    else
     	    			sixdeskmess -1 "Using Chromaticity specified as $chromx $chromy"
     	    		    fi
-    	    		    sixdeskmess  1 "Running `basename $SIXTRACKEXE` (one turn) to get beta values"
+    	    		    sixdeskmess  1 "Running `basename $SIXTRACKEXESINGLETURN` (one turn) to get beta values"
     	    		    submitBetaJob $RundirFullPath
     	    		    cd $sixdeskhome
     	    		fi
