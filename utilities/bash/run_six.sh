@@ -2143,11 +2143,8 @@ lrestartAngle=false
 # - define user tree
 sixdeskDefineUserTree $basedir $scratchdir $workspace
 
-# - boinc variables
+# - boinc and htboinc variables
 sixDeskSetBOINCVars
-
-# - htboinc variables
-sixDeskSetHTBOINCVars
 
 # - preliminary checks
 preliminaryChecksRS

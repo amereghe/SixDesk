@@ -1223,12 +1223,6 @@ sixDeskSetBOINCVars(){
 	sixdeskfpopse=$sixdeskfpopse"000000"
 	sixdeskfpopse=`expr $sixdeskturns \* $sixdeskparts`
     fi
-    sixdeskfpopse=`expr $sixdeskturns \* $sixdeskparts`
-    #sixdeskfpopse=`expr $sixdeskfpopse \* 2`
-    #sixdeskfpopse=`expr $sixdeskfpopse / 3`
-    sixdeskfpopse=`expr $sixdeskfpopse / 2`
-    #sixdeskfpopse=`expr $sixdeskfpopse \* 3`
-    sixdeskfpopse=$sixdeskfpopse"000000"
 
     # --------------------------------------------------------------------------
     # from uploadWorkunit
@@ -1284,87 +1278,16 @@ sixDeskSetBOINCVars(){
     # --------------------------------------------------------------------------
     # for megaZip
     [ -n "${megaZipPath}" ] || export megaZipPath=$boincdir/boinc/upload
-}
 
-
-sixDeskSetHTBOINCVars(){
-    # The SixTrack executable is now ????.
-    export boincdir=/afs/cern.ch/work/b/boinc
-    export sixdeskboincdirname=$workspace"_"$LHCDescrip
-    sixdeskboincdir=$boincdir/boinc/$sixdeskboincdirname
-    if [ -z ${sixdeskboinctest+x} ] ; then
-	if [ "$sixdeskboinctest" == "true" ] ; then
-	    sixdeskboincdir=$boincdir/boinctest/$sixdeskboincdirname
-	fi
-    fi
-    if [ -z "${sixdeskfpopse}" ] ; then
-	sixdeskfpopse=`expr $sixdeskturns \* $sixdeskparts`
-	#sixdeskfpopse=`expr $sixdeskfpopse \* 2`
-	#sixdeskfpopse=`expr $sixdeskfpopse / 3`
-	sixdeskfpopse=`expr $sixdeskfpopse / 2`
-	#sixdeskfpopse=`expr $sixdeskfpopse \* 3`
-	sixdeskfpopse=$sixdeskfpopse"000000"
-	sixdeskfpopse=`expr $sixdeskturns \* $sixdeskparts`
+    # assign the variables for htboinc
+    if [ "$sixdeskplatform" == "htboinc" ]; then
+	export remoteHost="vccondorce02.cern.ch"
+	export htboincport=":9619"
     fi
 
-    # --------------------------------------------------------------------------
-    # from uploadWorkunit
-    # The workunit will only be sent to clients with at least this much
-    # available RAM. If exceeded the workunit will be aborted.
-    # Measured in bytes.
-    [ -n "${memBound}" ] || export memBound=100000000
     
-    # An upper bound on the amount of disk space required to process the
-    # workunit. The workunit will only be sent to clients with at least this
-    # much available disk space. If exceeded the workunit will be aborted.
-    # Measured in bytes.
-    # diskBound=200,000,000  ~200MB
-    [ -n "${diskBound}" ] || export diskBound=200000000
-    
-    # An upper bound on the time (in seconds) between sending a result to a
-    # client and receiving a reply. If the client doesn't respond within this
-    # interval, the server 'gives up' on the result and generates a new result,
-    # to be assigned to another client. Don't set this too low. 
-    # 20 times the "normal" execution time will probably be a good value.
-    # about 30 days
-    [ -n "${delayBound}" ] || export delayBound=2400000
-    
-    # The number of redundant calculations. Set to two or more to achieve
-    # redudancy.
-    [ -n "${redundancy}" ] || export redundancy=2
-    
-    # The number of copies of the workunit to issue to clients. Must be at
-    # least the number of redundant calculations or higher if a loss of results
-    # is expected or if the result should to be obtained fast.
-    [ -n "${copies}" ] || export copies=2
-    
-    # The number of errors from clients before the workunit is declared to have
-    # an error.
-    [ -n "${errors}" ] || export errors=5
-    
-    # The total number of clients to issue the workunit to before it is declared
-    # to have an error.
-    [ -n "${numIssues}" ] || export numIssues=5
-
-    # The total number of returned results without a concensus is found before
-    # the workunit is declared to have an error.
-    [ -n "${resultsWithoutConcensus}" ] || export resultsWithoutConcensus=3
-
-    # Getting the fpops estimate and multiplying it with 10 to get the bound.
-    # Multiply by 4 for the moment but watch for complaints!
-    # Try 6 for pentium 4
-    [ -n "${fpopsEstimate}" ] || export fpopsEstimate=`expr $sixdeskfpopse \* 6`
-    [ -n "${fpopsBound}" ] || export fpopsBound=`expr $fpopsEstimate \* 1000`
-    
-    # --------------------------------------------------------------------------
-    # for megaZip
-    # export megaZipPath=$boincdir/boinc/upload
-
-    export remoteHost="vccondorce02.cern.ch"
-    export htboincport=":9619"
-    
-    [ -n "${megaZipPath}" ] || export megaZipPath=$boincdir/boinc/upload
 }
+
 
 sixdeskSetCPSSVars(){
     # sixdeskprog/uploadProgram Variables
@@ -1544,15 +1467,15 @@ function sixdeskRenewKerberosToken(){
     else
 	local __lKlist=true
     fi
-    sixdeskmess 1 " --> kinit;"
+    sixdeskmess -1 " --> kinit;"
     multipleTrials "kinit -R ; local __exit_status=\$?" "[ \$__exit_status -eq 0 ]"
     if [ $? -gt 0 ] ; then
 	sixdeskmess -1 "--> kinit -R failed - AFS/Kerberos credentials expired??? aborting..."
 	exit
     else
 	if ${__lKlist} ; then
-	    sixdeskmess 1 " --> klist output after kinit -R:"
-	    #klist
+	    sixdeskmess -1 " --> klist output after kinit -R:"
+	    klist
 	fi
     fi
 }
