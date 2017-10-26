@@ -32,6 +32,7 @@ sixdeskmess -1 "Checking Study $LHCDescrip"
 # DON'T LOCK unless we are modifying.....
 # at the expense of possibly inconsistent reports
 
+sixDeskSetBOINCVars
 
 ## get results for htboinc
 
@@ -42,7 +43,7 @@ if test $sixdeskplatform = "htboinc"; then
 
     # transfer back the data for every clusterid
     for id in ${clusterIDs[@]}; do
-	outstring=$(condor_transfer_data -pool vccondorce02.cern.ch:9619 -name vccondorce02.cern.ch ${id})
+	outstring=$(condor_transfer_data -pool ${remoteHost}${htboincport} -name ${remoteHost} ${id})
 	sixdeskmess -1 "clusterID: ${id}   ${outstring}"
     done
 
@@ -50,7 +51,7 @@ if test $sixdeskplatform = "htboinc"; then
     ## show the number of jobs that is still running
     uname=$(whoami)
     for id in ${clusterIDs[@]}; do
-	condor_q -pool vccondorce02.cern.ch:9619 -name vccondorce02.cern.ch ${uname} ${id}
+	condor_q -pool ${remoteHost}${htboincport} -name ${remoteHost} ${uname} ${id}
     done
     
 fi

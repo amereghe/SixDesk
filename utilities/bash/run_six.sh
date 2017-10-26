@@ -940,23 +940,6 @@ function checkDirReadyForSubmission(){
 	    workunitName="${fileNames[0]}"
 	    sixdeskmess  1 ".desc and .zip files present in $RundirFullPath!"
 	fi
-    elif [ "$sixdeskplatform" == "htboinc" ] ; then
-	# - there should be only 1 .zip files
-	fileNames=""
-	for extension in .zip ; do
-	    tmpFileName=`ls -1tr $RundirFullPath/*${extension} 2> /dev/null | tail -1`
-	    tmpPath="${tmpFileName%/*}"
-	    tmpFileName="${tmpFileName#$tmpPath/*}"
-	    tmpFileName="${tmpFileName%$extension}"
-	    if [ -z "${tmpFileName}" ] ; then
-		sixdeskmess -1 "no ${extension} file in $RundirFullPath!!!"
-		let __lerr+=1
-		let __llerr+=1
-	    else
-		sixdeskGetFileName "${tmpFileName}" tmpName
-		fileNames="${fileNames} ${tmpName}"
-	    fi
-	done
     fi    
     if [ $sussix -eq 1 ] ; then
 	sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -s sussix.inp.1.gz sussix.inp.2.gz sussix.inp.3.gz
@@ -1020,8 +1003,6 @@ function dot_htcondor(){
 
     # add current point in scan to list of points to be submitted:
     echo "$Rundir" >> ${sixdeskjobs}/${LHCDesName}.list
-    touch $RundirFullPath/JOB_NOT_YET_COMPLETED
-    rm -f ${RundirFullPath}/JOB_NOT_YET_STARTED
 
     return $__lerr
 }
@@ -1099,7 +1080,7 @@ function condor_sub(){
 	if [ "$sixdeskplatform" == "htcondor" ]; then
 	    multipleTrials "terseString=\"\`condor_submit -batch-name ${batch_name} -terse ${sixdeskjobs}/htcondor_run_six.sub\`\" " "[ -n \"\${terseString}\" ]" "Problem at condor_submit"
 	elif  [ "$sixdeskplatform" == "htboinc" ]; then
-	    sixdeskmess 2 "condor_submit -pool ${remoteHost}${htboincport} -name ${remoteHost} -spool ${sixdeskjobs}/htboinc_run_six.sub"
+	    sixdeskmess 2 "condor_submit -pool ${remoteHost}${htboincport} -batch-name ${batch_name} -name ${remoteHost} -spool ${sixdeskjobs}/htboinc_run_six.sub"
 	    multipleTrials "terseString=\"\`condor_submit -pool ${remoteHost}${htboincport} -name ${remoteHost} -spool ${sixdeskjobs}/htboinc_run_six.sub \`\" " "[ -n \"\${terseString}\" ]" "Problem at condor_submit"
 	fi
 	let __lerr+=$?
@@ -1143,7 +1124,6 @@ function condor_sub(){
 
 		ii=0
 		while read tmpDir ; do		    
-#		    echo "removing "
 		    rm ${sixdesktrack}/$tmpDir/SixIn.zip
 		    let NsuccessSub+=1
 		    let ii+=1
