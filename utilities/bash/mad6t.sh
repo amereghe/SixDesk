@@ -352,7 +352,7 @@ function check(){
 	sixdeskmess 1 "generating list of missing MADX seed in ${__lastJunkDir}/jobs.list"
 	rm -f ${__lastJunkDir}/jobs.list
 	for iMadResubmit in ${iMadsResubmit[@]} ; do
-	    echo mad6t_${iMadResubmit}.sh >> ${__lastJunkDir}/jobs.list
+	    echo "${iMadResubmit}" >> ${__lastJunkDir}/jobs.list
 	done
     fi
 
