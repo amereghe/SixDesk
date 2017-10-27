@@ -205,7 +205,7 @@ function submit(){
                ${sixtrack_input}/mad6t.sub
         local __transferOutputFiles="transfer_output_files = \$(filejob).out.\$(seedID),fort.3.mad_\$(seedID).gz,fort.3.aux_\$(seedID).gz,fort.2_\$(seedID).gz,fort.8_\$(seedID).gz,fort.16_\$(seedID).gz"
         if [ "$fort_34" != "" ] ; then
-            __transferOutputFiles="${__transferOutputFiles},fort.34__\$(seedID).gz"
+            __transferOutputFiles="${__transferOutputFiles},fort.34_\$(seedID).gz"
         fi
         if [ $CORR_TEST -ne 0 ] && [ ! -s CORR_TEST ] ; then
             __transferOutputFiles="${__transferOutputFiles},MCSSX_errors_\$(seedID).gz,MCOSX_errors_\$(seedID).gz,MCOX_errors_\$(seedID).gz,MCSX_errors_\$(seedID).gz,MCTX_errors_\$(seedID).gz"
