@@ -1584,7 +1584,7 @@ function sixdeskGetHTClusterIDs(){
     # output
     clusterIDs=""
     sixdeskmess -1 "Getting cluster IDs matching batch name '${__batchNameInp}' ..."
-    local __batchNames=`condor_q $LOGNAME | grep ${__batchNameInp} | awk '{print ($2)}'`
+    local __batchNames=`condor_q -wide $LOGNAME | grep ${__batchNameInp} | awk '{print ($2)}'`
     __batchNames=(${__batchNames})
     if [ ${#__batchNames[@]} -eq 0 ] ; then
         sixdeskmess -1 "...no matching batch name found - I assume they are over ..."
