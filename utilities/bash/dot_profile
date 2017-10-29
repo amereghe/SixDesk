@@ -812,7 +812,7 @@ sixdeskDefinePythonPath(){
     fi
     sixdeskmess -1 "--> python set to: `which python`"
 }
-sixdeskGetCurretPaths(){
+sixdeskGetCurrentPaths(){
     tmpDir=`readlink -f $PWD`
     tmpDir=`dirname ${tmpDir}`
     tmpWorkspace=`basename ${tmpDir}`
@@ -840,34 +840,56 @@ sixdeskGetCurretPaths(){
         tmpSixdeskLogs=\$scratchdir/sixdesklogs
     fi
 }
+sixdeskCheckPath(){
+    local __pathName=$1
+    local __defValue=$2
+    # remove trailing slashes
+    __defValue=`echo "${__defValue}" | sed 's:/*$::'`
+    if [ $# -eq 3 ] ; then
+        local __checkSuffixes=$3
+    else
+        local __checkSuffixes=`basename ${__defValue}`
+    fi
+    # debug -> echo ""
+    # debug -> echo ${__pathName}: before: ${!__pathName}
+    # debug -> echo "check_suffix: ${__checkSuffixes}"
+    [ -n "${!__pathName}" ] || export ${__pathName}=${__defValue}
+    for __checkSuffix in ${__checkSuffixes[@]} ; do
+        if [[ "${!__pathName}" == "/${__checkSuffix}"* ]] || [[ "${!__pathName}" == "//${__checkSuffix}"* ]] ; then
+            export ${__pathName}=${__defValue}
+            break
+        fi
+    done
+    # debug -> echo ${__pathName}: after: ${!__pathName}
+}
 sixdeskDefineUserTree(){
     # define the tree in the userspace
 
     # get current paths
-    sixdeskGetCurretPaths
+    sixdeskGetCurrentPaths
     
     # basic paths (back-compatibility)
-    [ -n "${workspace}" ] || export workspace=${tmpWorkspace}
-    [ -n "${basedir}" ] || export basedir=${tmpBaseDir}
-    [ -n "${scratchdir}" ] || export scratchdir=${tmpScratchDir}
-    [ -n "${trackdir}" ] || export trackdir=${tmpTrackDir}
-    [ -n "${sixtrack_input}" ] || export sixtrack_input=${tmpSixtrackInput}
-    [ -n "${sixdeskwork}" ] || export sixdeskwork=${tmpSixdeskWork}
+    [ -n "${workspace}" ] || export workspace=`eval echo "${tmpWorkspace}"`
+    [ -n "${basedir}" ] || export basedir=`eval echo "${tmpBaseDir}"`
+    sixdeskCheckPath scratchdir     `eval echo "${tmpScratchDir}"`
+    sixdeskCheckPath trackdir       `eval echo "${tmpTrackDir}"`
+    sixdeskCheckPath sixtrack_input `eval echo "${tmpSixtrackInput}"`       sixtrack_input
+    sixdeskCheckPath sixdeskwork    `eval echo "${tmpSixdeskWork}"`         work
 
     # dependent paths
-    [ -n "${sixdeskhome}" ] || export sixdeskhome=${basedir}/${workspace}/sixjobs
-    [ -n "${sixdeskhomeStudies}" ] || export sixdeskhomeStudies=${sixdeskhome}/studies
-    [ -n "${sixdeskstudy}" ] || export sixdeskstudy=$sixdeskhomeStudies/$LHCDescrip
-    [ -n "${sixdesktrack}" ] || export sixdesktrack=$trackdir/track
-    [ -n "${sixdesktrackStudy}" ] || export sixdesktrackStudy=$sixdesktrack/$LHCDescrip
+    sixdeskCheckPath sixdeskhome        ${basedir}/${workspace}/sixjobs     "${workspace} sixjobs"
+    sixdeskCheckPath sixdeskhomeStudies ${sixdeskhome}/studies              "${workspace} sixjobs studies"
+    sixdeskCheckPath sixdeskstudy       $sixdeskhomeStudies/$LHCDescrip     "${workspace} sixjobs studies ${LHCDescrip}"
+    sixdeskCheckPath sixdesktrack       $trackdir/track                     "${workspace} track"
+    sixdeskCheckPath sixdesktrackStudy  $sixdesktrack/$LHCDescrip           "${workspace} track ${LHCDescrip}"
 
     # logs/jobs paths
-    [ -n "${sixdesklogs}" ] || export sixdesklogs=${tmpSixdeskLogs}
-    [ -n "${sixdesklogdir}" ] || export sixdesklogdir=$sixdesklogs/$LHCDescrip
-    [ -n "${cronlogs}" ] || export cronlogs=${tmpCronLogs}
-    [ -n "${cronlogdir}" ] || export cronlogdir=$cronlogs/$LHCDescrip
-    [ -n "${sixdeskjobs}" ] || export sixdeskjobs=$sixdeskwork/$sixdeskplatform"jobs"
-    [ -n "${sixdeskjobs_logs}" ] || export sixdeskjobs_logs=$sixdeskjobs/jobs_logs
+    sixdeskCheckPath sixdesklogs        `eval echo "${tmpSixdeskLogs}"`     sixdesklogs
+    sixdeskCheckPath sixdesklogdir      $sixdesklogs/$LHCDescrip            sixdesklogs
+    sixdeskCheckPath cronlogs           `eval echo "${tmpCronLogs}"`        cronlogs
+    sixdeskCheckPath cronlogdir         $cronlogs/$LHCDescrip               cronlogs
+    sixdeskCheckPath sixdeskjobs        $sixdeskwork/$sixdeskplatform"jobs" work
+    sixdeskCheckPath sixdeskjobs_logs   $sixdeskjobs/jobs_logs              work
 }
 sixDeskDefineMADXTree(){
     local __SCRIPTDIR=$1

@@ -434,7 +434,7 @@ if ${lcptemplate} ; then
     done
 
     # get current paths:
-    sixdeskGetCurretPaths
+    sixdeskGetCurrentPaths
     sed -i -e "s#^export workspace=.*#export workspace=${tmpWorkspace}#" \
 	   -e "s#^export basedir=.*#export basedir=${tmpBaseDir}#" \
 	   -e "s#^export scratchdir=.*#export scratchdir=${tmpScratchDir}#" \
