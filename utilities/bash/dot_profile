@@ -1668,54 +1668,54 @@ function sixdeskSubmitChromaJobs(){
     # --------------------------------------------------------------------------
     # generate appropriate fort.3 files as: fort.3.tx + fort.3.mad + fort.3.m2
     # - fort.3.t1 (from .mother1)
-    sed -e 's/%turnss/'1'/g' \
-        -e 's/%nss/'1'/g' \
-        -e 's/%ax0s/'.1'/g' \
-        -e 's/%ax1s/'.1'/g' \
-        -e 's/%imc/'1'/g' \
-        -e 's/%iclo6/'2'/g' \
-        -e 's/%writebins/'1'/g' \
-        -e 's/%ratios/'1'/g' \
-        -e 's/%dp1/'.000'/g' \
-        -e 's/%dp2/'.000'/g' \
-        -e 's/%e0/'$e0'/g' \
-        -e 's/%Runnam/First Turn/g' \
-        -e 's/%idfor/0/g' \
-        -e 's/%ibtype/0/g' \
-        -e 's/%bunch_charge/'$bunch_charge'/g' \
-        -e 's/%ition/'0'/g' ${sixtrack_input}/fort.3.mother1 > fort.3.t1
+    sed -e "s/%turnss/1/g" \
+        -e "s/%nss/1/g" \
+        -e "s/%ax0s/.1/g" \
+        -e "s/%ax1s/.1/g" \
+        -e "s/%imc/1/g" \
+        -e "s/%iclo6/2/g" \
+        -e "s/%writebins/1/g" \
+        -e "s/%ratios/1/g" \
+        -e "s/%dp1/.000/g" \
+        -e "s/%dp2/.000/g" \
+        -e "s/%e0/${e0}/g" \
+        -e "s/%Runnam/First Turn/g" \
+        -e "s/%idfor/0/g" \
+        -e "s/%ibtype/0/g" \
+        -e "s/%bunch_charge/${bunch_charge}/g" \
+        -e "s/%ition/0/g" ${sixtrack_input}/fort.3.mother1 > fort.3.t1
     # - fort.3.t2 (from .mother1)
-    sed -e 's/%turnss/'1'/g' \
-        -e 's/%nss/'1'/g' \
-        -e 's/%ax0s/'.1'/g' \
-        -e 's/%ax1s/'.1'/g' \
-        -e 's/%imc/'1'/g' \
-        -e 's/%iclo6/'2'/g' \
-        -e 's/%writebins/'1'/g' \
-        -e 's/%ratios/'1'/g' \
-        -e 's/%dp1/'$chrom_eps'/g' \
-        -e 's/%dp2/'$chrom_eps'/g' \
-        -e 's/%e0/'$e0'/g' \
-        -e 's/%Runnam/Second Turn/g' \
-        -e 's/%idfor/0/g' \
-        -e 's/%ibtype/0/g' \
-        -e 's/%bunch_charge/'$bunch_charge'/g' \
-        -e 's/%ition/'0'/g' ${sixtrack_input}/fort.3.mother1 > fort.3.t2
+    sed -e "s/%turnss/1/g" \
+        -e "s/%nss/1/g" \
+        -e "s/%ax0s/.1/g" \
+        -e "s/%ax1s/.1/g" \
+        -e "s/%imc/1/g" \
+        -e "s/%iclo6/2/g" \
+        -e "s/%writebins/1/g" \
+        -e "s/%ratios/1/g" \
+        -e "s/%dp1/${chrom_eps}/g" \
+        -e "s/%dp2/${chrom_eps}/g" \
+        -e "s/%e0/${e0}/g" \
+        -e "s/%Runnam/Second Turn/g" \
+        -e "s/%idfor/0/g" \
+        -e "s/%ibtype/0/g" \
+        -e "s/%bunch_charge/${bunch_charge}/g" \
+        -e "s/%ition/0/g" ${sixtrack_input}/fort.3.mother1 > fort.3.t2
     # - fort.3.m2 (from .mother2)
     local __CHROVAL='/'
-    sed -e 's?%CHRO?'$__CHROVAL'?g' \
-        -e 's?%TUNE?'$TUNEVAL'?g' \
-        -e 's/%POST/'POST'/g' \
-        -e 's/%POS1/''/g' \
-        -e 's/%ndafi/'1'/g' \
-        -e 's/%tunex/'$tunexx'/g' \
-        -e 's/%tuney/'$tuneyy'/g' \
-        -e 's/%chromx/'$chromx'/g' \
-        -e 's/%chromy/'$chromy'/g' \
-        -e 's/%inttunex/'$inttunexx'/g' \
-        -e 's/%inttuney/'$inttuneyy'/g' \
-        -e 's/%DIFF/\/DIFF/g' \
-        -e 's/%DIF1/\//g' $sixdeskjobs_logs/fort.3.mother2 > fort.3.m2
+    sed -e "s?%CHRO?${__CHROVAL}?g" \
+        -e "s?%TUNE?${TUNEVAL}?g" \
+        -e "s/%POST/POST/g" \
+        -e "s/%POS1//g" \
+        -e "s/%ndafi/1/g" \
+        -e "s/%tunex/${tunexx}/g" \
+        -e "s/%tuney/${tuneyy}/g" \
+        -e "s/%chromx/${chromx}/g" \
+        -e "s/%chromy/${chromy}/g" \
+        -e "s/%inttunex/${inttunexx}/g" \
+        -e "s/%inttuney/${inttuneyy}/g" \
+        -e "s/%DIFF/\/DIFF/g" \
+        -e "s/%DIF1/\//g" ${sixdeskjobs_logs}/fort.3.mother2 > fort.3.m2
 
     # --------------------------------------------------------------------------
     # prepare the other input files
@@ -1776,11 +1776,11 @@ function sixdeskSubmitChromaJobs(){
 
     # --------------------------------------------------------------------------
     # a bit of arithmetic
-    echo "$chrom_eps" > $__destination/sixdesktunes
-    gawk 'FNR==1{print $3, $4}' < fort.10_first_oneturn >> $__destination/sixdesktunes
-    gawk 'FNR==1{print $3, $4}' < fort.10_second_oneturn >> $__destination/sixdesktunes
-    mychrom=`gawk 'FNR==1{E=$1}FNR==2{A=$1;B=$2}FNR==3{C=$1;D=$2}END{print (C-A)/E,(D-B)/E}' < $__destination/sixdesktunes`
-    echo "$mychrom" > $__destination/mychrom          
+    echo "${chrom_eps}" > ${__destination}/sixdesktunes
+    gawk 'FNR==1{print $3, $4}' < fort.10_first_oneturn >> ${__destination}/sixdesktunes
+    gawk 'FNR==1{print $3, $4}' < fort.10_second_oneturn >> ${__destination}/sixdesktunes
+    mychrom=`gawk 'FNR==1{E=$1}FNR==2{A=$1;B=$2}FNR==3{C=$1;D=$2}END{print (C-A)/E,(D-B)/E}' < ${__destination}/sixdesktunes`
+    echo "$mychrom" > ${__destination}/mychrom          
     sixdeskmess -1 "Chromaticity computed as $mychrom"
     
 }
@@ -1791,35 +1791,35 @@ function sixdeskSubmitBetaJob(){
     
     # --------------------------------------------------------------------------
     # generate appropriate fort.3 files as: fort.3.m1 + fort.3.mad + fort.3.m2
-    sed -e 's/%turnss/'1'/g' \
-        -e 's/%nss/'1'/g' \
-        -e 's/%ax0s/'.1'/g' \
-        -e 's/%ax1s/'.1'/g' \
-        -e 's/%imc/'1'/g' \
-        -e 's/%iclo6/'2'/g' \
-        -e 's/%writebins/'1'/g' \
-        -e 's/%ratios/'1'/g' \
-        -e 's/%dp1/'.000'/g' \
-        -e 's/%dp2/'.000'/g' \
-        -e 's/%e0/'$e0'/g' \
-        -e 's/%Runnam/One Turn/g' \
-        -e 's/%idfor/0/g' \
-        -e 's/%ibtype/0/g' \
-        -e 's/%bunch_charge/'$bunch_charge'/g' \
-        -e 's/%ition/'1'/g' ${sixtrack_input}/fort.3.mother1 > fort.3.m1
-    sed -e 's?%CHRO?'$CHROVAL'?g' \
-        -e 's?%TUNE?'$TUNEVAL'?g' \
-        -e 's/%POST/'POST'/g' \
-        -e 's/%POS1/''/g' \
-        -e 's/%ndafi/'1'/g' \
-        -e 's/%tunex/'$tunexx'/g' \
-        -e 's/%tuney/'$tuneyy'/g' \
-        -e 's/%chromx/'$chromx'/g' \
-        -e 's/%chromy/'$chromy'/g' \
-        -e 's/%inttunex/'$inttunexx'/g' \
-        -e 's/%inttuney/'$inttuneyy'/g' \
-        -e 's/%DIFF/\/DIFF/g' \
-        -e 's/%DIF1/\//g' $sixdeskjobs_logs/fort.3.mother2 > fort.3.m2
+    sed -e "s/%turnss/1/g" \
+        -e "s/%nss/1/g" \
+        -e "s/%ax0s/.1/g" \
+        -e "s/%ax1s/.1/g" \
+        -e "s/%imc/1/g" \
+        -e "s/%iclo6/2/g" \
+        -e "s/%writebins/1/g" \
+        -e "s/%ratios/1/g" \
+        -e "s/%dp1/.000/g" \
+        -e "s/%dp2/.000/g" \
+        -e "s/%e0/${e0}/g" \
+        -e "s/%Runnam/One Turn/g" \
+        -e "s/%idfor/0/g" \
+        -e "s/%ibtype/0/g" \
+        -e "s/%bunch_charge/${bunch_charge}/g" \
+        -e "s/%ition/1/g" ${sixtrack_input}/fort.3.mother1 > fort.3.m1
+    sed -e "s?%CHRO?${CHROVAL}?g" \
+        -e "s?%TUNE?${TUNEVAL}?g" \
+        -e "s/%POST/POST/g" \
+        -e "s/%POS1//g" \
+        -e "s/%ndafi/1/g" \
+        -e "s/%tunex/${tunexx}/g" \
+        -e "s/%tuney/${tuneyy}/g" \
+        -e "s/%chromx/${chromx}/g" \
+        -e "s/%chromy/${chromy}/g" \
+        -e "s/%inttunex/${inttunexx}/g" \
+        -e "s/%inttuney/${inttuneyy}/g" \
+        -e "s/%DIFF/\/DIFF/g" \
+        -e "s/%DIF1/\//g" ${sixdeskjobs_logs}/fort.3.mother2 > fort.3.m2
     cat fort.3.m1 fort.3.mad fort.3.m2 > fort.3
     
     # --------------------------------------------------------------------------
@@ -1856,19 +1856,19 @@ function sixdeskSubmitBetaJob(){
 
     # --------------------------------------------------------------------------
     # regenerate betavalues file
-    echo `gawk 'FNR==1{print $5, $48, $6, $49, $3, $4, $50, $51, $53, $54, $55, $56, $57, $58}' fort.10` > $__destination/betavalues
+    echo `gawk 'FNR==1{print $5, $48, $6, $49, $3, $4, $50, $51, $53, $54, $55, $56, $57, $58}' fort.10` > ${__destination}/betavalues
     # but if chrom=0 we need to update chromx, chromy
     if [ $chrom -eq 0 ] ; then
-        beta_x=`gawk '{print $1}' $__destination/betavalues`
-        beta_x2=`gawk '{print $2}' $__destination/betavalues`
-        beta_y=`gawk '{print $3}' $__destination/betavalues`
-        beta_y2=`gawk '{print $4}' $__destination/betavalues`
-        mychromx=`gawk '{print $1}' $__destination/mychrom`
-        mychromy=`gawk '{print $2}' $__destination/mychrom`
-        htune=`gawk '{print $5}' $__destination/betavalues`
-        vtune=`gawk '{print $6}' $__destination/betavalues`
-        closed_orbit=`awk '{print ($9,$10,$11,$12,$13,$14)}' $__destination/betavalues`
-        echo "$beta_x $beta_x2 $beta_y $beta_y2 $htune $vtune $mychromx $mychromy $closed_orbit" > $__destination/betavalues
+        beta_x=`gawk '{print $1}' ${__destination}/betavalues`
+        beta_x2=`gawk '{print $2}' ${__destination}/betavalues`
+        beta_y=`gawk '{print $3}' ${__destination}/betavalues`
+        beta_y2=`gawk '{print $4}' ${__destination}/betavalues`
+        mychromx=`gawk '{print $1}' ${__destination}/mychrom`
+        mychromy=`gawk '{print $2}' ${__destination}/mychrom`
+        htune=`gawk '{print $5}' ${__destination}/betavalues`
+        vtune=`gawk '{print $6}' ${__destination}/betavalues`
+        closed_orbit=`awk '{print ($9,$10,$11,$12,$13,$14)}' ${__destination}/betavalues`
+        echo "$beta_x $beta_x2 $beta_y $beta_y2 $htune $vtune $mychromx $mychromy $closed_orbit" > ${__destination}/betavalues
     fi
     
 }
