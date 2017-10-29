@@ -1543,11 +1543,11 @@ sixdeskmess -1 "Using sixdesk.log in $sixdesklogdir"
 #MACRO mymess
 
 
-if test $sixdeskplatform = "lsf"
+if test $sixdeskplatform = "lsf" -o $sixdeskplatform != "htcondor"
 then
 
 #MACRO mymess 0 This command is not available for LSF jobs!!!
-  sixdeskmess -1 "This command is not available for LSF jobs!!!"
+  sixdeskmess -1 "This command is not available for CERN batch jobs!!!"
 #MACRO mymess
 
 
