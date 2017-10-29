@@ -2290,12 +2290,12 @@ else
     	    		    cd $sixdeskjobs_logs
     	    		    if [ $chrom -eq 0 ] ; then
     	    			sixdeskmess  1 "Running two `basename $SIXTRACKEXESINGLETURN` (one turn) jobs to compute chromaticity"
-    	    			sixdeskSubmitChromaJobs $RundirFullPath
+    	    			sixdeskSubmitChromaJobs ${RundirFullPath} ${sixtrack_input} ${sixdeskjobs_logs}
     	    		    else
     	    			sixdeskmess -1 "Using Chromaticity specified as $chromx $chromy"
     	    		    fi
     	    		    sixdeskmess  1 "Running `basename $SIXTRACKEXESINGLETURN` (one turn) to get beta values"
-    	    		    sixdeskSubmitBetaJob $RundirFullPath
+    	    		    sixdeskSubmitBetaJob ${RundirFullPath} ${sixtrack_input} ${sixdeskjobs_logs}
     	    		    cd $sixdeskhome
     	    		fi
     	            fi

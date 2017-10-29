@@ -1663,6 +1663,8 @@ function sixdeskHTCondorTransferData(){
 function sixdeskSubmitChromaJobs(){
 
     local __destination=$1
+    local __sixtrack_input=$2
+    local __sixdeskjobs_logs=$3
     local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?:lin*:betaJob'
     
     # --------------------------------------------------------------------------
@@ -1683,7 +1685,7 @@ function sixdeskSubmitChromaJobs(){
         -e "s/%idfor/0/g" \
         -e "s/%ibtype/0/g" \
         -e "s/%bunch_charge/${bunch_charge}/g" \
-        -e "s/%ition/0/g" ${sixtrack_input}/fort.3.mother1 > fort.3.t1
+        -e "s/%ition/0/g" ${__sixtrack_input}/fort.3.mother1 > fort.3.t1
     # - fort.3.t2 (from .mother1)
     sed -e "s/%turnss/1/g" \
         -e "s/%nss/1/g" \
@@ -1700,7 +1702,7 @@ function sixdeskSubmitChromaJobs(){
         -e "s/%idfor/0/g" \
         -e "s/%ibtype/0/g" \
         -e "s/%bunch_charge/${bunch_charge}/g" \
-        -e "s/%ition/0/g" ${sixtrack_input}/fort.3.mother1 > fort.3.t2
+        -e "s/%ition/0/g" ${__sixtrack_input}/fort.3.mother1 > fort.3.t2
     # - fort.3.m2 (from .mother2)
     local __CHROVAL='/'
     sed -e "s?%CHRO?${__CHROVAL}?g" \
@@ -1715,14 +1717,14 @@ function sixdeskSubmitChromaJobs(){
         -e "s/%inttunex/${inttunexx}/g" \
         -e "s/%inttuney/${inttuneyy}/g" \
         -e "s/%DIFF/\/DIFF/g" \
-        -e "s/%DIF1/\//g" ${sixdeskjobs_logs}/fort.3.mother2 > fort.3.m2
+        -e "s/%DIF1/\//g" ${__sixdeskjobs_logs}/fort.3.mother2 > fort.3.m2
 
     # --------------------------------------------------------------------------
     # prepare the other input files
-    ln -sf ${sixtrack_input}/fort.16
-    ln -sf ${sixtrack_input}/fort.2
-    if [ -e ${sixtrack_input}/fort.8 ] ; then
-        ln -sf ${sixtrack_input}/fort.8
+    ln -sf ${__sixtrack_input}/fort.16
+    ln -sf ${__sixtrack_input}/fort.2
+    if [ -e ${__sixtrack_input}/fort.8 ] ; then
+        ln -sf ${__sixtrack_input}/fort.8
     else
         touch fort.8
     fi
@@ -1737,7 +1739,7 @@ function sixdeskSubmitChromaJobs(){
     $SIXTRACKEXESINGLETURN > first_oneturn
     if test $? -ne 0 -o ! -s fort.10 ; then
         sixdeskmess -1 "The first turn Sixtrack for chromaticity FAILED!!!"
-        sixdeskmess -1 "Look in $sixdeskjobs_logs to see SixTrack input and output."
+        sixdeskmess -1 "Look in ${__sixdeskjobs_logs} to see SixTrack input and output."
         sixdeskmess -1 "Check the file first_oneturn which contains the SixTrack fort.6 output."
 	exit
     fi
@@ -1759,7 +1761,7 @@ function sixdeskSubmitChromaJobs(){
     $SIXTRACKEXESINGLETURN > second_oneturn
     if test $? -ne 0 -o ! -s fort.10 ; then
         sixdeskmess -1 "The second turn Sixtrack for chromaticity FAILED!!!"
-        sixdeskmess -1 "Look in $sixdeskjobs_logs to see SixTrack input and output."
+        sixdeskmess -1 "Look in ${__sixdeskjobs_logs} to see SixTrack input and output."
         sixdeskmess -1 "Check the file second_oneturn which contains the SixTrack fort.6 output."
 	exit
     fi
@@ -1787,6 +1789,8 @@ function sixdeskSubmitChromaJobs(){
 function sixdeskSubmitBetaJob(){
     
     local __destination=$1
+    local __sixtrack_input=$2
+    local __sixdeskjobs_logs=$3
     local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?:lin*:betaJob'
     
     # --------------------------------------------------------------------------
@@ -1806,7 +1810,7 @@ function sixdeskSubmitBetaJob(){
         -e "s/%idfor/0/g" \
         -e "s/%ibtype/0/g" \
         -e "s/%bunch_charge/${bunch_charge}/g" \
-        -e "s/%ition/1/g" ${sixtrack_input}/fort.3.mother1 > fort.3.m1
+        -e "s/%ition/1/g" ${__sixtrack_input}/fort.3.mother1 > fort.3.m1
     sed -e "s?%CHRO?${CHROVAL}?g" \
         -e "s?%TUNE?${TUNEVAL}?g" \
         -e "s/%POST/POST/g" \
@@ -1819,15 +1823,15 @@ function sixdeskSubmitBetaJob(){
         -e "s/%inttunex/${inttunexx}/g" \
         -e "s/%inttuney/${inttuneyy}/g" \
         -e "s/%DIFF/\/DIFF/g" \
-        -e "s/%DIF1/\//g" ${sixdeskjobs_logs}/fort.3.mother2 > fort.3.m2
+        -e "s/%DIF1/\//g" ${__sixdeskjobs_logs}/fort.3.mother2 > fort.3.m2
     cat fort.3.m1 fort.3.mad fort.3.m2 > fort.3
     
     # --------------------------------------------------------------------------
     # prepare the other input files
-    ln -sf ${sixtrack_input}/fort.16
-    ln -sf ${sixtrack_input}/fort.2
-    if [ -e ${sixtrack_input}/fort.8 ] ; then
-        ln -sf ${sixtrack_input}/fort.8
+    ln -sf ${__sixtrack_input}/fort.16
+    ln -sf ${__sixtrack_input}/fort.2
+    if [ -e ${__sixtrack_input}/fort.8 ] ; then
+        ln -sf ${__sixtrack_input}/fort.8
     else
         touch fort.8
     fi
@@ -1838,7 +1842,7 @@ function sixdeskSubmitBetaJob(){
     $SIXTRACKEXESINGLETURN > lin
     if test $? -ne 0 -o ! -s fort.10 ; then
         sixdeskmess -1 "The one turn Sixtrack for betavalues FAILED!!!"
-        sixdeskmess -1 "Look in $sixdeskjobs_logs to see SixTrack input and output."
+        sixdeskmess -1 "Look in ${__sixdeskjobs_logs} to see SixTrack input and output."
         sixdeskmess -1 "Check the file lin which contains the SixTrack fort.6 output."
 	exit
     fi
