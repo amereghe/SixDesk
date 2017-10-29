@@ -1637,12 +1637,22 @@ function sixdeskHTCondorTransferData(){
     if [ ${#__treatIDs[@]} -gt 0 ] ; then
         sixdeskmess -1 "...found ${#__treatIDs[@]} COMPLETE jobIDs - condor_transfer_data them ..."
         for __treatID in ${__treatIDs[@]} ; do
+            sixdeskmess 2 "Call: condor_transfer_data ${__clusterID}.${__treatID} ." 
             condor_transfer_data ${__clusterID}.${__treatID}
-	    let __lerr+=$?
-            if [ $__lerr -eq 0 ] ; then
+            local __llerr=$?
+            if [ $__llerr -eq 0 ] ; then
+                sixdeskmess 2 "...call: condor_rm ${__clusterID}.${__treatID} ."
                 condor_rm ${__clusterID}.${__treatID}
-                let __lerr+=$?
+                let __llerr+=$?
+                if [ ${__llerr} -eq 0 ] ; then
+                    sixdeskmess 2 "...${__clusterID}.${__treatID} successfully removed from condor_q."
+                else
+                    sixdeskmess 2 "...error when removing ${__clusterID}.${__treatID} from condor_q!"
+                fi
+            else
+                sixdeskmess 2 "...exit status is not 0: NOT deleting ${__clusterID}.${__treatID}"
             fi
+	    let __lerr+=${__llerr}
         done
     else
         sixdeskmess -1 "...no completed jobs found!"
