@@ -7,6 +7,22 @@ export fort_34=%FORT_34%
 export MADX_PATH=%MADX_PATH%
 export MADX=%MADX%
 export lCP=%lCP%
+# for single-turn sixtrack jobs
+export lOneTurnJobs=false
+export locSCRIPTDIR=./
+export SIXTRACKEXESINGLETURN=sixtrack
+export tunesXX=()
+export tunesYY=()
+export inttunesXX=()
+export inttunesYY=()
+export e0=7000
+export bunch_charge=1.15E11
+export chrom=0
+export chrom_eps=0.000001
+export chromx=2
+export chromy=2
+export TUNEVAL='/'
+export CHROVAL='/'
 
 if ${lCP} ; then
     cp ${junktmp}/${filejob}.${iSeed} .
@@ -57,3 +73,48 @@ if [ "$CORR_TEST" -ne 0 ] ; then
 fi
 
 ls -l
+
+if ${lOneTurnJobs} ; then
+    source ${locSCRIPTDIR}/dot_profile
+    for (( iTuneY=0 ; iTuneY<${#tunesYY[@]} ; iTuneY++ )) ; do
+    	if ${lSquaredTuneScan} ; then
+    	    # squared scan: for a value of Qy, explore all values of Qx
+    	    jmin=0
+    	    jmax=${#tunesXX[@]}
+    	else
+    	    # linear scan: for a value of Qy, run only one value of Qx
+    	    jmin=$iTuneY
+    	    let jmax=$jmin+1
+    	fi
+	for (( iTuneX=$jmin; iTuneX<$jmax ; iTuneX++ )) ; do
+	    # - tunes
+    	    tunexx=${tunesXX[$iTuneX]}
+    	    tuneyy=${tunesYY[$iTuneY]}
+            # - name:
+            sixdesktunes=${tunexx}_${tuneyy}
+            # - output dir
+            outDir=oneTurnJobs_${iSeed}/${sixdesktunes}
+            [ -d ${outDir} ] || mkdir -p ${outDir}
+	    # - int tunes (used in fort.3 for post-processing)
+	    inttunexx=${inttunesXX[$iTuneX]}
+	    inttuneyy=${inttunesYY[$iTuneY]}
+            # - notify user
+    	    sixdeskmess -1 "Tunescan $sixdesktunes"
+            # - comment out SUB block (in case)
+	    sed -i -e 's/%SUB/\//g' ./fort.3.mother2
+    	    # - run jobs
+    	    if [ $chrom -eq 0 ] ; then
+    	    	sixdeskmess  1 "Running two `basename $SIXTRACKEXESINGLETURN` (one turn) jobs to compute chromaticity"
+                # I/O always to local dir
+    	    	sixdeskSubmitChromaJobs ${outDir} ./ ./
+                mv chromaJob01 chromaJob02 ${outDir}
+    	    else
+    	    	sixdeskmess -1 "Using Chromaticity specified as $chromx $chromy"
+    	    fi
+    	    sixdeskmess  1 "Running `basename $SIXTRACKEXESINGLETURN` (one turn) to get beta values"
+            # I/O always to local dir
+    	    sixdeskSubmitBetaJob ${outDir} ./ ./
+            mv betaJob ${outDir}
+        done
+    fi
+fi

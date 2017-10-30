@@ -28,6 +28,12 @@ function how_to_use() {
            this option allows to override the value in sixdeskenv, with no need
               for the user to manually change the corresponding variable. Similarly,
               the variable is NOT automatically updated by the script
+   -j      do no take into account sixtrack single-turn jobs:
+           - submit: sixtrack single-turn jobs are appended to the MADX ones;
+           - post-process: output files of sixtrack single-turn jobs are put in
+                           the proper paths;
+           NB: this option is useless in case of -w, since -w simply re-submits
+               jobs without changing any input parameter
    -P      python path
    -o      define output (preferred over the definition of sixdesklevel in sixdeskenv)
                0: only error messages and basic output 
@@ -155,6 +161,54 @@ function submit(){
         
         [ -e ${sixtrack_input}/mad6t.sh ] || cp -p $lsfFilesPath/mad6t.sh ${sixtrack_input}
         [ -e ${sixtrack_input}/mad6t.sub ] || cp -p ${SCRIPTDIR}/templates/htcondor/mad6t.sub ${sixtrack_input}
+
+        # sixtrack single-turn jobs
+        if ${lOneTurnJobs} ; then
+            # returns tunesXX, tunesYY, inttunesXX, inttunesYY
+            sixdeskAllTunes
+            sixdeskmess -1 "Tune values for single-turn sixtrack jobs:"
+            sixdeskmess -1 "  . Qx: ${tunesXX[@]}"
+            sixdeskmess -1 "  . Qy: ${tunesYY[@]}"
+            if [ -n "${squaredTuneScan}" ] ; then
+	        lSquaredTuneScan=true
+	        let iTotalTunes=${#tunesXX[@]}*${#tunesYY[@]}
+	        sixdeskmess -1 "  --> over a squared domain in (Qx,Qy) - total: ${iTotalTunes} pairs;"
+            else
+	        lSquaredTuneScan=false
+	        if [ ${#tunesXX[@]} -eq ${#tunesYY[@]} ] ;  then
+	            iTotalTunes=${#tunesXX[@]}
+	            sixdeskmess -1 "  --> along a line in (Qx,Qy) - total: ${iTotalTunes} pairs;"
+	        elif [ ${#tunesXX[@]} -lt ${#tunesYY[@]} ] ;  then
+	            iTotalTunes=${#tunesXX[@]}
+	            sixdeskmess -1 "  --> along a line in (Qx,Qy) - total: ${iTotalTunes} pairs;"
+	        else
+	            iTotalTunes=${#tunesYY[@]}
+	            sixdeskmess -1 "  --> along a line in (Qx,Qy) - total: ${iTotalTunes} pairs;"
+	        fi
+            fi
+            # set CHROVAL and TUNEVAL
+            sixdeskSetTunevalChroval
+            # modify mad6t.sh
+	    sed -e "s?^export lOneTurnJobs.*?export lOneTurnJobs=true?g" \
+                -e "s?^export SIXTRACKEXESINGLETURN.*?export SIXTRACKEXESINGLETURN=${SIXTRACKEXESINGLETURN}?g" \
+                -e "s?^export tunesXX.*?export tunesXX=( ${tunesXX[@]} )?g" \
+                -e "s?^export tunesYY.*?export tunesYY=( ${tunesYY[@]} )?g" \
+                -e "s?^export inttunesXX.*?export inttunesXX=( ${inttunesXX[@]} )?g" \
+                -e "s?^export inttunesYY.*?export inttunesYY=( ${inttunesYY[@]} )?g" \
+                -e "s?^export e0.*?export e0=${e0}?g" \
+                -e "s?^export bunch_charge.*?export bunch_charge=${bunch_charge}?g" \
+                -e "s?^export chrom.*?export chrom=${chrom}?g" \
+                -e "s?^export chrom_eps.*?export chrom_eps=${chrom_eps}?g" \
+                -e "s?^export chromx.*?export chromx=${chromx}?g" \
+                -e "s?^export chromy.*?export chromy=${chromy}?g" \
+                -e "s?^export TUNEVAL.*?export TUNEVAL=${TUNEVAL}?g" \
+                -e "s?^export CHROVAL.*?export CHROVAL=${CHROVAL}?g" \
+                -i mad6t.sh
+            if ${__lCP} ; then
+	        sed -e "s?^export locSCRIPTDIR.*?export locSCRIPTDIR=${SCRIPTDIR}/bash?g" \
+                    -i mad6t.sh
+            fi
+        fi
         
 	# Loop over seeds
 	for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
@@ -170,7 +224,7 @@ function submit(){
 		-e 's?%EMIT_BEAM?'$emit_beam'?g' \
 		-e 's?%XING?'$xing'?g' \
 		-e 's?%SEEDSYS?'$iMad'?g' \
-		-e 's?%SEEDRAN?'$iMad'?g' $filejob.mask > $filejob."$iMad"
+		-e 's?%SEEDRAN?'$iMad'?g' $filejob.mask > $filejob.${iMad}
 	    sed -e 's?%SIXJUNKTMP%?'$junktmp'?g' \
 		-e 's?%SIXI%?'$iMad'?g' \
 		-e 's?%SIXFILEJOB%?'$filejob'?g' \
@@ -178,18 +232,18 @@ function submit(){
 		-e 's?%FORT_34%?'$fort_34'?g' \
 		-e 's?%MADX_PATH%?'$MADX_PATH'?g' \
 		-e 's?%MADX%?'$MADX'?g' \
-		-e "s?%lCP%?${__lCP}?g" ${sixtrack_input}/mad6t.sh > mad6t_"$iMad".sh
-	    chmod 755 mad6t_"$iMad".sh
+		-e "s?%lCP%?${__lCP}?g" ${sixtrack_input}/mad6t.sh > mad6t_${iMad}.sh
+	    chmod 755 mad6t_${iMad}.sh
 	    
 	    if ${linter} ; then
 		sixdeskmktmpdir batch ""
 		cd $sixdesktmpdir
-		../mad6t_"$iMad".sh 2>&1 | tee $junktmp/"${LHCDescrip}_mad6t_$iMad".log
+		../mad6t_${iMad}.sh 2>&1 | tee $junktmp/"${LHCDescrip}_mad6t_${iMad}".log
 		cd ../
 		rm -rf $sixdesktmpdir
 	    else
 		if [ "$sixdeskplatform" == "lsf" ] ; then
-		    read BSUBOUT <<< $(bsub -q $madlsfq -o $junktmp/"${LHCDescrip}_mad6t_$iMad".log -J ${workspace}_${LHCDescrip}_mad6t_$iMad mad6t_"$iMad".sh)
+		    read BSUBOUT <<< $(bsub -q $madlsfq -o $junktmp/"${LHCDescrip}_mad6t_$iMad".log -J ${workspace}_${LHCDescrip}_mad6t_$iMad mad6t_${iMad}.sh)
 		    tmpString=$(printf "Seed %2i        %40s\n" ${iMad} "${BSUBOUT}")
 		    sixdeskmess -1 "${tmpString}"
 		elif [ "$sixdeskplatform" == "htcondor" ] ; then
@@ -209,6 +263,9 @@ function submit(){
         fi
         if [ $CORR_TEST -ne 0 ] && [ ! -s CORR_TEST ] ; then
             __transferOutputFiles="${__transferOutputFiles},MCSSX_errors_\$(seedID).gz,MCOSX_errors_\$(seedID).gz,MCOX_errors_\$(seedID).gz,MCSX_errors_\$(seedID).gz,MCTX_errors_\$(seedID).gz"
+        fi
+        if ${lOneTurnJobs} ; then
+            __transferOutputFiles="${__transferOutputFiles},oneTurnJobs_\$(seedID)"
         fi
 	sed -i -e "s#^transfer_output_files.*#${__transferOutputFiles}#" \
                ${sixtrack_input}/mad6t.sub
@@ -534,6 +591,7 @@ loutform=false
 lwrong=false
 lSetEnv=true
 lunlockMad6T=false
+lOneTurnJobs=true
 unlockSetEnv=""
 currStudy=""
 currPythonPath=""
@@ -541,7 +599,7 @@ optArgCurrStudy="-s"
 optArgCurrPlatForm=""
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  ":hiwseo:cd:p:P:Ur" opt ; do
+while getopts  ":hiwseo:cd:p:P:Urj" opt ; do
     case $opt in
 	h)
 	    how_to_use
@@ -583,6 +641,10 @@ while getopts  ":hiwseo:cd:p:P:Ur" opt ; do
 	    # disable checking
 	    lcheck=false
 	    ;;
+        j)
+            # do not take into account
+            lOneTurnJobs=false
+            ;;
 	e)
 	    # skip set_env.sh (only when called from scripts;
 	    #   users should not be made aware of this option!)
@@ -693,6 +755,11 @@ if ${lSetEnv} ; then
 	# set the platform to the default value
 	sixdeskSetPlatForm ""
     fi
+fi
+
+# single-turn sixtrack jobs
+if ${lOneTurnJobs} ; then
+    sixdeskmess -1 "Taking care of single-turn sixtrack jobs!"
 fi
 
 if ${lsub} ; then
