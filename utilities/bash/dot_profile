@@ -1662,6 +1662,19 @@ function sixdeskHTCondorTransferData(){
 }
 function sixdeskSubmitChromaJobs(){
 
+    # required global variables
+    # - e0
+    # - bunch_charge
+    # - chrom_eps, chromx, chromy
+    # - TUNEVAL
+    # - tunexx, tuneyy, inttunexx, inttuneyy
+    # - SIXTRACKEXESINGLETURN
+
+    # output:
+    # - sixdesktunes
+    # - mychrom
+    # - chromaJob01, chromaJob02
+    
     local __destination=$1
     local __sixtrack_input=$2
     local __sixdeskjobs_logs=$3
@@ -1788,6 +1801,18 @@ function sixdeskSubmitChromaJobs(){
 }
 function sixdeskSubmitBetaJob(){
     
+    # required global variables
+    # - e0
+    # - bunch_charge
+    # - chrom_eps, chromx, chromy
+    # - TUNEVAL, CHROVAL
+    # - tunexx, tuneyy, inttunexx, inttuneyy
+    # - SIXTRACKEXESINGLETURN
+
+    # output:
+    # - betaJob
+    # - betavalues
+    
     local __destination=$1
     local __sixtrack_input=$2
     local __sixdeskjobs_logs=$3
@@ -1875,4 +1900,17 @@ function sixdeskSubmitBetaJob(){
         echo "$beta_x $beta_x2 $beta_y $beta_y2 $htune $vtune $mychromx $mychromy $closed_orbit" > ${__destination}/betavalues
     fi
     
+}
+
+function sixdeskSetTunevalChroval(){
+    if [ $chrom -eq 0 ] ; then
+        CHROVAL='/'
+    else
+        CHROVAL=''
+    fi
+    if [ $tune -eq 0 ] ; then
+	TUNEVAL='/'
+    else
+	TUNEVAL=''
+    fi
 }

@@ -1974,16 +1974,8 @@ if ${lgenerate} || ${lfix} ; then
 	fi
     done
     # - set CHROVAL and TUNEVAL
-    if [ $chrom -eq 0 ] ; then
-        CHROVAL='/'
-    else
-        CHROVAL=''
-    fi
-    if [ $tune -eq 0 ] ; then
-	TUNEVAL='/'
-    else
-	TUNEVAL=''
-    fi
+    sixdeskSetTunevalChroval
+    # - pre-process fort.3
     preProcessFort3
     let __lerr+=$?
     # - specific to type of run
