@@ -470,9 +470,8 @@ function check(){
 function postProcess(){
     sixdeskmess 1 "Performing post-processing of MADX runs for study $LHCDescrip in ${sixtrack_input}"
     local __lerr=0
+    local __workDir=`mktemp -d`
 
-    cd ${sixtrack_input}
-    [ -d /tmp/${LOGNAME} ] || mkdir -p /tmp/${LOGNAME}
     local __filejob=$LHCDescrip
     #   . all files but pieces of fort.3
     local __checkFiles="fort.2 fort.8 fort.16"
@@ -484,127 +483,134 @@ function postProcess(){
     fi
     
     # - check single jobs
+    cd ${sixtrack_input}
+    local __lfirst=true
     for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
+        sixdeskmess -1 "Processing seed ${iMad}"
+        local __llerr=0
         # - job is over
         local __lastJunkDir=`ls -1tr $sixtrack_input/*/${__filejob}.out.${iMad} 2> /dev/null | tail -1`
         if [ -z "${__lastJunkDir}" ] ; then
             sixdeskmess -1 "Seed ${iMad} not finished yet - skipping..."
             let __lerr+=1
             continue
-        else
-            __lastJunkDir=`dirname ${__lastJunkDir}`
         fi
-        # - iMad has been already processed
+        __lastJunkDir=`dirname ${__lastJunkDir}`
         local __gzippedFiles=""
         for fil in ${__checkFiles} ; do
             __gzippedFiles="${__gzippedFiles} ${fil}_${iMad}.gz"
         done
-        sixdeskInspectPrerequisites false ${sixtrack_input} -s ${__gzippedFiles}
-        if [ $? -eq 0 ] ; then
-            sixdeskmess -1 "Seed ${iMad} already post-processed - skipping..."
-            continue
-        fi
         # - MADX has run correctly
         grep -i "finished normally" ${__lastJunkDir}/${__filejob}.out.${iMad} 2>&1 > /dev/null
         if [ $? -ne 0 ] ; then
             sixdeskmess -1 "${__filejob}.${iMad} MADX has NOT completed properly!" | tee -a $sixtrack_input/ERRORS
-            let __lerr+=1
+            let __llerr+=1
         fi
         grep -i "TWISS fail" ${__lastJunkDir}/${__filejob}.out.${iMad} 2>&1 > /dev/null
         if [ $? -eq 0 ] ; then
             sixdeskmess -1 "${__filejob}.${iMad} MADX TWISS appears to have failed!" | tee -a $sixtrack_input/ERRORS
-            let __lerr+=1
+            let __llerr+=1
         fi
-        # - a non-NULL fort.2 file has been produced
+        # - empty fort.2 ?
         if [ `zgrep -v '/' ${__lastJunkDir}/fort.2_${iMad}.gz | wc -l` -eq 0 ] ; then
             sixdeskmess -1 "${__filejob}.${iMad} MADX has produced an empty fort.2!" | tee -a $sixtrack_input/ERRORS
-            let __lerr+=1
+            let __llerr+=1
         fi
-        # - a non-NULL fort.34 file has been produced
+        # - empty fort.34 ?
         if [ "$fort_34" != "" ] ; then
             if [ `zgrep -v '/' ${__lastJunkDir}/fort.34_${iMad}.gz | wc -l` -eq 0 ] ; then
                 sixdeskmess -1 "${__filejob}.${iMad} MADX has produced an empty fort.34!" | tee -a $sixtrack_input/ERRORS
-                let __lerr+=1
+                let __llerr+=1
             fi
         fi
         # - check against previous versions of the files
         for fil in ${__checkFiles} ; do
-            if [ -s $sixtrack_input/${fil}_${iMad}.previous.gz ] ; then
-                gunzip -c $sixtrack_input/${fil}_${iMad}.previous.gz > /tmp/${LOGNAME}/${fil}.previous
-                gunzip -c ${__lastJunkDir}/${fil}_${iMad}.gz > /tmp/${LOGNAME}/${fil}
-                diff /tmp/${LOGNAME}/${fil}.previous /tmp/${LOGNAME}/${fil} > /tmp/${LOGNAME}/diffs
-                if [ $? -ne 0 ] ; then
-                    sixdeskmess -1 "${__filejob}.${iMad} MADX has produced a different ${fil}!" | tee -a $sixtrack_input/WARNINGS
-                    cat /tmp/${LOGNAME}/diffs >> $sixtrack_input/WARNINGS
-                    let __lerr+=1
+            if [ -e ${__lastJunkDir}/${fil}_${iMad}.gz ] ; then
+                if [ -s $sixtrack_input/${fil}_${iMad}.previous.gz ] ; then
+                    gunzip -c $sixtrack_input/${fil}_${iMad}.previous.gz > ${__workDir}/${fil}.previous
+                    gunzip -c ${__lastJunkDir}/${fil}_${iMad}.gz > ${__workDir}/${fil}
+                    diff ${__workDir}/${fil}.previous ${__workDir}/${fil} > ${__workDir}/diffs
+                    if [ $? -ne 0 ] ; then
+                        sixdeskmess -1 "${__filejob}.${iMad} MADX has produced a different ${fil}!" | tee -a $sixtrack_input/WARNINGS
+                        cat ${__workDir}/diffs >> $sixtrack_input/WARNINGS
+                        let __lerr+=1
+                    fi
+                    rm $sixtrack_input/${fil}_${iMad}.previous.gz
                 fi
-                rm $sixtrack_input/${fil}_${iMad}.previous.gz
+                cp ${__lastJunkDir}/${fil}_${iMad}.gz $sixtrack_input/${fil}_${iMad}.gz
+            else
+                sixdeskmess -1 "${__filejob}.${iMad} MADX has NOT produced any ${fil}!" | tee -a $sixtrack_input/ERRORS
+                let __llerr+=1
             fi
-            mv ${__lastJunkDir}/${fil}_${iMad}.gz $sixtrack_input/${fil}_${iMad}.gz
         done
         # - pieces of fort.3
         local __suffix=".previous"
-        if [ ${iMad} -eq ${istamad} ] ; then
+        if ${__lfirst} -a [ ${__llerr} -eq 0 ] ; then
             for fil in fort.3.mad fort.3.aux ; do
-                gunzip -c ${__lastJunkDir}/${fil}_${iMad}.gz > /tmp/${LOGNAME}/${fil}
-                if [ -s $sixtrack_input/${fil}${__suffix} ] ; then
-                    diff $sixtrack_input/${fil}${__suffix} /tmp/${LOGNAME}/${fil} > /tmp/${LOGNAME}/diffs
-                    if [ $? -ne 0 ] ; then
-                        sixdeskmess -1 "${__filejob}.${iMad} MADX has produced a different ${fil}!" | tee -a $sixtrack_input/WARNINGS
-                        cat /tmp/${LOGNAME}/diffs >> $sixtrack_input/WARNINGS
-                        let __lerr+=1
+                if [ -e ${__lastJunkDir}/${fil}_${iMad}.gz ] ; then
+                    gunzip -c ${__lastJunkDir}/${fil}_${iMad}.gz > ${__workDir}/${fil}
+                    if [ -s $sixtrack_input/${fil}${__suffix} ] ; then
+                        diff $sixtrack_input/${fil}${__suffix} ${__workDir}/${fil} > ${__workDir}/diffs
+                        if [ $? -ne 0 ] ; then
+                            sixdeskmess -1 "${__filejob}.${iMad} MADX has produced a different ${fil}!" | tee -a $sixtrack_input/WARNINGS
+                            cat ${__workDir}/diffs >> $sixtrack_input/WARNINGS
+                            let __lerr+=1
+                        fi
                     fi
+                    cp ${__workDir}/${fil} $sixtrack_input
+                else
+                    sixdeskmess -1 "${__filejob}.${iMad} MADX has NOT produced any ${fil}!" | tee -a $sixtrack_input/ERRORS
+                    let __llerr+=1
                 fi
-                mv /tmp/${LOGNAME}/${fil} $sixtrack_input
             done
             # update fort.3.mother? files with accelerator length
             local __myLen=`grep -v '/' $sixtrack_input/fort.3.aux | grep -A1 SYNC | tail -1 | awk '{print ($5)}'`
             if [ -z "${__myLen}" ] ; then
-                sixdeskmess -1 "Cannot find accelerator length in fort.3.aux - something wrong with SYNC block?"
+                sixdeskmess -1 "Cannot find accelerator length in fort.3.aux - something wrong with SYNC block?" | tee -a $sixtrack_input/ERRORS
+                let __lerr+=1
             else
                 sed -e "s/%length/${__myLen}/g" $sixtrack_input/fort.3.mother1.tmp > $sixtrack_input/fort.3.mother1
                 sed -e "s/%length/${__myLen}/g" $sixtrack_input/fort.3.mother2.tmp > $sixtrack_input/fort.3.mother2
                 sixdeskmess -1 "...updated fort.3.mother? with accelerator length: ${__myLen}"
             fi
+            __lfirst=false
         fi
+
         # - oneTurnJobs
         if ${lOneTurnJobs} ; then
-            if ! [ -d ${sixtrack_input}/oneTurnJobs_${iMad} ] ; then
-                sixdeskmess -1 "...MADX job with seed ${iMad} has not produced any oneTurnJobDir when they were required!!"
+            if ! [ -d ${__lastJunkDir}/oneTurnJobs_${iMad} ] ; then
+                sixdeskmess -1 "...MADX job with seed ${iMad} has not produced any oneTurnJobDir when they were required!!"  | tee -a $sixtrack_input/WARNINGS
                 let __lerr+=1
             else
-                local __llerr=0
-                for tmpDirName in `ls -1 -d ${sixtrack_input}/oneTurnJobs_${iMad}` ; do
-                    sixdesktunes=`basenane ${tmpDirName}`
+                for tmpDirName in `ls -1 -d ${__lastJunkDir}/oneTurnJobs_${iMad}/*` ; do
+                    sixdesktunes=`basename ${tmpDirName}`
                     # get simul path (storage of beta values), stored in $Rundir (returns Runnam, Rundir, actualDirName)...
     	            sixdeskDefinePointTree $LHCDescrip $iMad "s" $sixdesktunes "" "" "" "" $sixdesktrack
+                    [ -d ${RundirFullPath} ] || mkdir -p ${RundirFullPath}
                     if [ $chrom -eq 0 ] ; then
-                        mv ${sixtrack_input}/oneTurnJobs_${iMad}/${tmpDirName}/mychrom ${RundirFullPath}
+                        cp ${tmpDirName}/mychrom ${RundirFullPath}
                         # mychrom should be there
                         sixdeskInspectPrerequisites false $RundirFullPath -s mychrom
                         if [ $? -gt 0 ] ; then
-                            sixdeskmess -1 "...MADX job with seed ${iMad} has not produced a mychrom file (oneTurnJob) when it was expected to do so!!"
+                            sixdeskmess -1 "...MADX job with seed ${iMad} has not produced a mychrom file (oneTurnJob) when it was expected to do so!!" | tee -a $sixtrack_input/WARNINGS
                             let __lerr+=1
-                            let __llerr+=1
                         fi
                     fi
-                    mv ${sixtrack_input}/oneTurnJobs_${iMad}/${tmpDirName}/betavalues ${RundirFullPath}
+                    cp ${tmpDirName}/betavalues ${RundirFullPath}
                     # betavalues should be there
                     sixdeskInspectPrerequisites false $RundirFullPath -s betavalues
                     if [ $? -gt 0 ] ; then
-                        sixdeskmess -1 "...MADX job with seed ${iMad} has not produced a betavalues file (oneTurnJob) when it was expected to do so!!"
+                        sixdeskmess -1 "...MADX job with seed ${iMad} has not produced a betavalues file (oneTurnJob) when it was expected to do so!!" | tee -a $sixtrack_input/WARNINGS
                         let __lerr+=1
-                        let __llerr+=1
                     fi
                 done
-#                if [ ${__llerr} -eq 0 ] ; then
-#                    rm -rf ${sixtrack_input}/oneTurnJobs_${iMad}
-#                fi
             fi
         fi
+        let __lerr+=${__llerr}
     done
     
     cd $sixdeskhome
+    rm -rf ${__workDir}
     return $__lerr
 }
 
@@ -775,7 +781,7 @@ lockingDirs=( "$sixdeskstudy" "$sixtrack_input" )
 # - unlocking
 if ${lunlockMad6T} ; then
     sixdeskunlockAll
-    if ! ${lcheck} && ! ${lsub} ; then
+    if ! ${lcheck} && ! ${lsub} && ! ${lpostpr} ; then
 	sixdeskmess -1 "requested only unlocking. Exiting..."
 	exit 0
     fi
