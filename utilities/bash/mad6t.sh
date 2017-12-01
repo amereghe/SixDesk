@@ -160,7 +160,11 @@ function submit(){
         done
         
         [ -e ${sixtrack_input}/mad6t.sh ] || cp -p $lsfFilesPath/mad6t.sh ${sixtrack_input}
-        [ -e ${sixtrack_input}/mad6t.sub ] || cp -p ${SCRIPTDIR}/templates/htcondor/mad6t.sub ${sixtrack_input}
+        if ! [ -e ${sixtrack_input}/mad6t.sub ] ; then
+            cp -p ${SCRIPTDIR}/templates/htcondor/mad6t.sub ${sixtrack_input}
+            # get rid of non-linux chars (not clear why it happens, though...)
+            dos2unix ${sixtrack_input}/mad6t.sub
+        fi
 
         # sixtrack single-turn jobs
         if ${lOneTurnJobs} ; then
@@ -189,25 +193,21 @@ function submit(){
             # set CHROVAL and TUNEVAL
             sixdeskSetTunevalChroval
             # modify mad6t.sh
-	    sed -e "s?^export lOneTurnJobs.*?export lOneTurnJobs=true?g" \
-                -e "s?^export SIXTRACKEXESINGLETURN.*?export SIXTRACKEXESINGLETURN=${SIXTRACKEXESINGLETURN}?g" \
-                -e "s?^export tunesXX.*?export tunesXX=( ${tunesXX[@]} )?g" \
-                -e "s?^export tunesYY.*?export tunesYY=( ${tunesYY[@]} )?g" \
-                -e "s?^export inttunesXX.*?export inttunesXX=( ${inttunesXX[@]} )?g" \
-                -e "s?^export inttunesYY.*?export inttunesYY=( ${inttunesYY[@]} )?g" \
-                -e "s?^export e0.*?export e0=${e0}?g" \
-                -e "s?^export bunch_charge.*?export bunch_charge=${bunch_charge}?g" \
-                -e "s?^export chrom.*?export chrom=${chrom}?g" \
-                -e "s?^export chrom_eps.*?export chrom_eps=${chrom_eps}?g" \
-                -e "s?^export chromx.*?export chromx=${chromx}?g" \
-                -e "s?^export chromy.*?export chromy=${chromy}?g" \
-                -e "s?^export TUNEVAL.*?export TUNEVAL=${TUNEVAL}?g" \
-                -e "s?^export CHROVAL.*?export CHROVAL=${CHROVAL}?g" \
-                -i mad6t.sh
-            if ${__lCP} ; then
-	        sed -e "s?^export locSCRIPTDIR.*?export locSCRIPTDIR=${SCRIPTDIR}/bash?g" \
-                    -i mad6t.sh
-            fi
+	    sed -e "s?^export lOneTurnJobs=.*?export lOneTurnJobs=true?g" \
+                -e "s?^export SIXTRACKEXESINGLETURN=.*?export SIXTRACKEXESINGLETURN=${SIXTRACKEXESINGLETURN}?g" \
+                -e "s?^export tunesXX=.*?export tunesXX=( ${tunesXX[@]} )?g" \
+                -e "s?^export tunesYY=.*?export tunesYY=( ${tunesYY[@]} )?g" \
+                -e "s?^export inttunesXX=.*?export inttunesXX=( ${inttunesXX[@]} )?g" \
+                -e "s?^export inttunesYY=.*?export inttunesYY=( ${inttunesYY[@]} )?g" \
+                -e "s?^export e0=.*?export e0=${e0}?g" \
+                -e "s?^export bunch_charge=.*?export bunch_charge=${bunch_charge}?g" \
+                -e "s?^export chrom=.*?export chrom=${chrom}?g" \
+                -e "s?^export chrom_eps=.*?export chrom_eps=${chrom_eps}?g" \
+                -e "s?^export chromx=.*?export chromx=${chromx}?g" \
+                -e "s?^export chromy=.*?export chromy=${chromy}?g" \
+                -e "s?^export TUNEVAL=.*?export TUNEVAL=${TUNEVAL}?g" \
+                -e "s?^export CHROVAL=.*?export CHROVAL=${CHROVAL}?g" \
+                -i ${sixtrack_input}/mad6t.sh
         fi
         
 	# Loop over seeds
@@ -258,6 +258,7 @@ function submit(){
                -e "s#%filejob%#$filejob#" \
                ${sixtrack_input}/mad6t.sub
         local __transferOutputFiles="transfer_output_files = \$(filejob).out.\$(seedID),fort.3.mad_\$(seedID).gz,fort.3.aux_\$(seedID).gz,fort.2_\$(seedID).gz,fort.8_\$(seedID).gz,fort.16_\$(seedID).gz"
+        local __transferInputFiles="transfer_input_files = \$(filejob).\$(seedID)"
         if [ "$fort_34" != "" ] ; then
             __transferOutputFiles="${__transferOutputFiles},fort.34_\$(seedID).gz"
         fi
@@ -266,9 +267,14 @@ function submit(){
         fi
         if ${lOneTurnJobs} ; then
             __transferOutputFiles="${__transferOutputFiles},oneTurnJobs_\$(seedID)"
+            __transferInputFiles="${__transferInputFiles},../fort.3.mother1.tmp,../fort.3.mother2.tmp,../dot_profile"
+            [ -e dot_profile ] || ln -s ${SCRIPTDIR}/bash/dot_profile ${sixtrack_input}/dot_profile
         fi
-	sed -i -e "s#^transfer_output_files.*#${__transferOutputFiles}#" \
-               ${sixtrack_input}/mad6t.sub
+	sed -e "s#^transfer_output_files.*#${__transferOutputFiles}#" \
+            -e "s#^transfer_input_files.*#${__transferInputFiles}#" \
+            -i ${sixtrack_input}/mad6t.sub
+        sixdeskmess -1 "submitting to htcondor via command:"
+        sixdeskmess -1 "    condor_submit -spool -batch-name \"mad/$workspace/$LHCDescrip\" ${sixtrack_input}/mad6t.sub"
 	condor_submit -spool -batch-name "mad/$workspace/$LHCDescrip" ${sixtrack_input}/mad6t.sub
 	if [ $? -eq 0 ] ; then
 	    rm -f jobs.list
@@ -561,6 +567,41 @@ function postProcess(){
                 sixdeskmess -1 "...updated fort.3.mother? with accelerator length: ${__myLen}"
             fi
         fi
+        # - oneTurnJobs
+        if ${lOneTurnJobs} ; then
+            if ! [ -d ${sixtrack_input}/oneTurnJobs_${iMad} ] ; then
+                sixdeskmess -1 "...MADX job with seed ${iMad} has not produced any oneTurnJobDir when they were required!!"
+                let __lerr+=1
+            else
+                local __llerr=0
+                for tmpDirName in `ls -1 -d ${sixtrack_input}/oneTurnJobs_${iMad}` ; do
+                    sixdesktunes=`basenane ${tmpDirName}`
+                    # get simul path (storage of beta values), stored in $Rundir (returns Runnam, Rundir, actualDirName)...
+    	            sixdeskDefinePointTree $LHCDescrip $iMad "s" $sixdesktunes "" "" "" "" $sixdesktrack
+                    if [ $chrom -eq 0 ] ; then
+                        mv ${sixtrack_input}/oneTurnJobs_${iMad}/${tmpDirName}/mychrom ${RundirFullPath}
+                        # mychrom should be there
+                        sixdeskInspectPrerequisites false $RundirFullPath -s mychrom
+                        if [ $? -gt 0 ] ; then
+                            sixdeskmess -1 "...MADX job with seed ${iMad} has not produced a mychrom file (oneTurnJob) when it was expected to do so!!"
+                            let __lerr+=1
+                            let __llerr+=1
+                        fi
+                    fi
+                    mv ${sixtrack_input}/oneTurnJobs_${iMad}/${tmpDirName}/betavalues ${RundirFullPath}
+                    # betavalues should be there
+                    sixdeskInspectPrerequisites false $RundirFullPath -s betavalues
+                    if [ $? -gt 0 ] ; then
+                        sixdeskmess -1 "...MADX job with seed ${iMad} has not produced a betavalues file (oneTurnJob) when it was expected to do so!!"
+                        let __lerr+=1
+                        let __llerr+=1
+                    fi
+                done
+#                if [ ${__llerr} -eq 0 ] ; then
+#                    rm -rf ${sixtrack_input}/oneTurnJobs_${iMad}
+#                fi
+            fi
+        fi
     done
     
     cd $sixdeskhome
@@ -642,7 +683,7 @@ while getopts  ":hiwseo:cd:p:P:Urj" opt ; do
 	    lcheck=false
 	    ;;
         j)
-            # do not take into account
+            # do not perform single-turn jobs after running MADX
             lOneTurnJobs=false
             ;;
 	e)
