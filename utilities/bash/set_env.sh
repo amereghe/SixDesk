@@ -175,7 +175,7 @@ function setFurtherEnvs(){
     fi
 
     lReduceAngsWithAmplitude=false
-    if [ $lflag_fort13 = false ]; then
+    if [ "$lflag_fort13" = false ]; then
       if [ -n "${reduce_angs_with_aplitude}" ] ; then
           sixdeskmess -1 "wrong spelling of reduce_angs_with_amplitude. Please correct it for future use"
           reduce_angs_with_amplitude=${reduce_angs_with_aplitude}

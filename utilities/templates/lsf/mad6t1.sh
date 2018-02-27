@@ -116,7 +116,7 @@ touch fc.34
 mv fc.2 fort.2
 mv fc.16 fort.16
 mv fc.8 fort.8
-if [ $lflag_fort13 = true ]; then
+if $lflag_fort13; then
   fils=(fort.2 fort.8 fort.13 fort.16)
 else
   fils=(fort.2 fort.8 fort.16)

@@ -150,8 +150,8 @@ function submit(){
 	# Loop over seeds
 	mad6tjob=$lsfFilesPath/mad6t1.sh
 	for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
-            if [ ${lflag_fort13} = true ]  ; then
-              files="2 8 13 16 34"
+            if [ "${lflag_fort13}" = true ]  ; then
+              files="2 8 13 16 34" ## fort.13 is also included in sixtrack_input
             else
               files="2 8 16 34"
    	    fi    

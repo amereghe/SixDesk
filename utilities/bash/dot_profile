@@ -686,7 +686,8 @@ sixdeskAllTunes(){
     inttunesYY=( ${inttunesYY} )
 }
 sixdeskAllAmplitudes_fort13(){
-    pairs_per_job=$((sixdeskpairs*15))
+    ## This function splits the fort.13 file according to the number of pairs set in sixdeskenv. A new directory fort13_jobs in the work directory is created which contains all the fort.13 jobs. The amplitude steps are named after the number of the job.  
+    pairs_per_job=$((sixdeskpairs*15))  ## each pair correspons to 15 lines
     if [ -d "${sixdeskjobs_logs}/fort.13_jobs" ]; then
       rm -rf ${sixdeskjobs_logs}/fort.13_jobs/*
     else

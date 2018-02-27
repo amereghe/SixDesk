@@ -264,8 +264,8 @@ function preProcessFort3(){
 	local __dp1=.0
 	local __dp2=.0
     fi
-  
-    if [ $lflag_fort13 ]; then
+    ## if fort.13 flag is on keep %nss. There could be an unequal number of pairs in each fort.13 jobs 
+    if $lflag_fort13; then
       sed -e 's/%turnss/%turnsl/g' \
           -e 's/%imc/'$__imc'/g' \
           -e 's/%iclo6/'$__iclo6'/g' \
@@ -528,7 +528,7 @@ function preProcessBoinc(){
 function submitChromaJobs(){
 
     local __destination=$1
-    if [ ${lflag_fort13} = true ]; then
+    if ${lflag_fort13}; then
       local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:fort.13*:sixdesklock:chromaJob0?:lin*:betaJob'
     else
       local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?:lin*:betaJob'
@@ -603,7 +603,7 @@ function submitChromaJobs(){
     sixdeskmess  1 "Running the first one turn job for chromaticity"
     cat fort.3.t1 fort.3.mad fort.3.m2 > fort.3
     rm -f fort.10
-    if [ ${lflag_fort13} = true ]; then
+    if ${lflag_fort13}; then
       cp $sixdeskhome/fort.13 .
     fi
     $SIXTRACKEXE > first_oneturn
@@ -615,8 +615,8 @@ function submitChromaJobs(){
     fi
     # save all interesting files from first job
     rm -rf chromaJob01
-    mkdir chromaJob01 
-    if [ ${lflag_fort13} = true ]; then
+    mkdir chromaJob01
+    if ${lflag_fort13}; then
       cp fort.2 fort.3 fort.8 fort.16 fort.10 fort.13 first_oneturn chromaJob01
     else 
       cp fort.2 fort.3 fort.8 fort.16 fort.10 first_oneturn chromaJob01
@@ -627,12 +627,11 @@ function submitChromaJobs(){
     export GLOBIGNORE=${__GLOBIGNORE}
     rm -f *
     export GLOBIGNORE=
-
     # - second job
     sixdeskmess  1 "Running the second one turn job for chromaticity"
     cat fort.3.t2 fort.3.mad fort.3.m2 > fort.3
     rm -f fort.10
-    if [ ${lflag_fort13} = true ]; then
+    if ${lflag_fort13}; then
       cp $sixdeskhome/fort.13 .
     fi
     $SIXTRACKEXE > second_oneturn
@@ -645,7 +644,7 @@ function submitChromaJobs(){
     # save all interesting files from second job
     rm -rf chromaJob02
     mkdir chromaJob02
-    if [ ${lflag_fort13} = true ]; then
+    if ${lflag_fort13}; then
       cp fort.2 fort.3 fort.8 fort.16 fort.10 fort.13 second_oneturn chromaJob02
     else
       cp fort.2 fort.3 fort.8 fort.16 fort.10 second_oneturn chromaJob02
@@ -671,7 +670,7 @@ function submitChromaJobs(){
 function submitBetaJob(){
     
     local __destination=$1
-    if [ ${lflag_fort13} = true ];then
+    if ${lflag_fort13};then
       local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:fort.13*:sixdesklock:chromaJob0?:lin*:betaJob'
     else
       local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?:lin*:betaJob'
@@ -722,7 +721,7 @@ function submitBetaJob(){
     # --------------------------------------------------------------------------
     # actually run
     rm -f fort.10
-    if [ ${lflag_fort13} = true ];then
+    if ${lflag_fort13};then
       cp $sixdeskhome/fort.13 .
     fi
     $SIXTRACKEXE > lin
@@ -735,7 +734,7 @@ function submitBetaJob(){
     # save all interesting files from beta job
     rm -rf betaJob
     mkdir betaJob
-    if [ ${lflag_fort13} = true ];then 
+    if ${lflag_fort13};then 
       cp fort.2 fort.3 fort.8 fort.16 fort.10 fort.13 lin betaJob
     else
       cp fort.2 fort.3 fort.8 fort.16 fort.10 fort.13 lin betaJob
@@ -807,9 +806,7 @@ function submitCreateFinalFort3Short(){
 }
 
 function submitCreateFinalFort3Long(){
-
-
-    if [ $lflag_fort13 ]; then
+    if $lflag_fort13; then
       ax0=0.0
       ax1=0.0
       cp ${fort13_jobs[${nConsidered} -1]} $sixdeskjobs_logs/fort.13
@@ -826,7 +823,7 @@ function submitCreateFinalFort3Long(){
       [ -n "${ax0}" ] || let __lerr+=1
       [ -n "${ax1}" ] || let __lerr+=1
     fi
-    #
+    ## if fort.13 flag is on %nss will now be substituted with the number of pairs in the current fort.13 job otherwise %nss does not exist anymore 
     sed -e 's/%turnsl/'$turnsl'/g' \
 	-e 's/%ax0l/'$ax0'/g' \
         -e 's/%nss/'$sixdeskpairs_current'/g' \
@@ -858,7 +855,7 @@ function submitCreateFinalInputs(){
     sixdeskmess  1 "Taking care of SIXTRACK fort.2/fort.3/fort.8/fort.16 in $RundirFullPath"
 
     # fort.3
-    if [ $lflag_fort13 ];then
+    if $lflag_fort13;then
       gzip -c $fort13_current > $RundirFullPath/fort.13.gz
       gzip -c $sixdeskjobs_logs/fort.3 > $RundirFullPath/fort.3.gz
     else
@@ -1498,13 +1495,11 @@ function treatLong(){
 	# separate output for current case from previous one
 	echo ""
         
-        if [ $lflag_fort13=true ];then 
+        if $lflag_fort13;then 
           sixdeskmess -1 "Considering job #$Ampl from fort.13"
         else
           sixdeskmess -1 "Considering amplitude step: $Ampl"
         fi
-        #echo $lflag_fort13 hereeeeee2
-        #exit
         if ${lReduceAngsWithAmplitude}; then 
           jAmple=${iAmple}
         else
@@ -1613,7 +1608,6 @@ function treatLong(){
 	        	    sixdeskmess  1 "Carrying on with next WU"
 	        	    continue
 	        	fi
-	        	
 	        	# final preparation of all SIXTRACK files
 	        	# NB: for boinc, it returns workunitName
 	        	submitCreateFinalInputs
@@ -2240,12 +2234,11 @@ if ${lgenerate} || ${lfix} ; then
     echo "$emit  $gamma" > $sixdesktrackStudy/general_input
     let __lerr+=$?
     # - set up of fort.3
-    if [ $lflag_fort13 = false ]; then 
-      tmpFiles=(fort.3.mad fort.3.mother1 fort.3.mother2)
-    else
+    if $lflag_fort13; then 
       tmpFiles=(fort.3.mad fort.3.mother1 fort.3.mother2 fort.13)
+    else
+      tmpFiles=(fort.3.mad fort.3.mother1 fort.3.mother2)
     fi
-    #for tmpFile in fort.3.mad fort.3.mother1 fort.3.mother2 ; do
     for tmpFile in ${tmpFiles[@]}; do
 	cp ${sixtrack_input}/${tmpFile} $sixdeskjobs_logs
 	if [ $? -ne 0 ] ; then
@@ -2451,7 +2444,7 @@ else
 	    sixdeskmess -1 "  --> along a line in (Qx,Qy) - total: ${iTotalTunes} pairs;"
 	fi
     fi
-    if [ $lflag_fort13 = false ]; then
+    if [ "$lflag_fort13" = false ]; then
       if [ $long -eq 1 ] ; then
           # generate array of amplitudes (it returns allAmplitudeSteps, fAmpStarts, fAmpEnds, ampstart, ampfinish)
           sixdeskAllAmplitudes
@@ -2514,7 +2507,7 @@ else
         echo ""
         sixdeskmess -1 "MADX seed $iMad"
         if ${lgenerate} || ${lfix} ; then
-            if [ ${lflag_fort13} = true ]  ; then
+            if ${lflag_fort13}; then
     	      iForts="2 8 13 16"
             else
     	      iForts="2 8 16"
