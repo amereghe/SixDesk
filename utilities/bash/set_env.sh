@@ -139,35 +139,74 @@ function setFurtherEnvs(){
     # set exes
     sixdeskSetExes
     # scan angles:
-    lReduceAngsWithAmplitude=false
- 
-    if [ -n "${reduce_angs_with_aplitude}" ] ; then
-        sixdeskmess -1 "wrong spelling of reduce_angs_with_amplitude. Please correct it for future use"
-        reduce_angs_with_amplitude=${reduce_angs_with_aplitude}
-    fi   
-    
-    if [ -z "${reduce_angs_with_amplitude}" ]; then
-        reduce_angs_with_amplitude=0         
-    elif (( $(echo "${reduce_angs_with_amplitude}" | awk '{print ($1 >=0)}') )); then 
-        if [ ${long} -ne 1 ]; then
-            sixdeskmess -1 "reduced angles with amplitudes available only for long simulations!"
+    lflag_fort13=false
+    ## if flag exists in sixdeskenv
+    if [ -n "${flag_fort13}" ]; then
+      ### if flag is > 0
+      if (( $(echo "${flag_fort13}" | awk '{print ($1 > 0)}'))); then
+        ## if fort.13 exists in sixjobs and it is not empty
+        if [ -s $sixdeskhome/fort.13 ]; then
+          n_lines_fort13=$(cat ${sixdeskhome}/fort.13 | wc -l )
+          ## if the number of lines is divided by 15
+          if (( $n_lines_fort13 % 15 == 0 ));then
+            ## if it is a long run
+            if [ ${long} -eq 1 ] ; then
+              lflag_fort13=true
+              idfor=2
+              ## lock at 1 angle
+              kinil=1
+              kendl=1
+              kmaxl=1
+              sixdeskmess="Flag for fort.13 is ON. The initial distribution will be created from the fort.13 file. idfor is set to 2"
+              sixdeskmess
+            else
+              sixdeskmess -1 "Fort.13 input is implemented only for long runs"
+	      sixdeskexit 9
+            fi
+          else
+            sixdeskmess -1 "The format of the fort.13 is not correct"
 	    sixdeskexit 9
+          fi
         else
-            if [ ${kinil} -ne 1 ] || [ ${kendl} -ne ${kmaxl} ] || [ ${kstep} -ne 1 ]; then
-                sixdeskmess -1 "reduced angles with amplitudes available only for kmin=1, kend=kmax and kstep=1"
-		sixdeskexit 10
-            elif (( $(echo "${reduce_angs_with_amplitude} ${ns2l}" | awk '{print ($1 >= $2)}') )); then
-                sixdeskmess -1 "reduced angles with amplitudes flag greater than maximum amplitude. Please de-activate the flag"
-		sixdeskexit 11
-            else 
-                lReduceAngsWithAmplitude=true
-            fi 
+          sixdeskmess -1 "Flag for fort.13 is activated but fort.13 file was not found in ${sixdeskhome} or is empty. Either de-activate the flag or include a fort.13 "
+	  sixdeskexit 9
         fi
-    else
-        sixdeskmess -1 "reduced angles with amplitudes set to negative value. Flag de-activated"
+      fi
     fi
+
+    lReduceAngsWithAmplitude=false
+    if [ $lflag_fort13 = false ]; then
+      if [ -n "${reduce_angs_with_aplitude}" ] ; then
+          sixdeskmess -1 "wrong spelling of reduce_angs_with_amplitude. Please correct it for future use"
+          reduce_angs_with_amplitude=${reduce_angs_with_aplitude}
+      fi   
+      
+      if [ -z "${reduce_angs_with_amplitude}" ]; then
+          reduce_angs_with_amplitude=0         
+      elif (( $(echo "${reduce_angs_with_amplitude}" | awk '{print ($1 >=0)}') )); then 
+          if [ ${long} -ne 1 ]; then
+              sixdeskmess -1 "reduced angles with amplitudes available only for long simulations!"
+              sixdeskexit 9
+          else
+              if [ ${kinil} -ne 1 ] || [ ${kendl} -ne ${kmaxl} ] || [ ${kstep} -ne 1 ]; then
+                  sixdeskmess -1 "reduced angles with amplitudes available only for kmin=1, kend=kmax and kstep=1"
+          	sixdeskexit 10
+              elif (( $(echo "${reduce_angs_with_amplitude} ${ns2l}" | awk '{print ($1 >= $2)}') )); then
+                  sixdeskmess -1 "reduced angles with amplitudes flag greater than maximum amplitude. Please de-activate the flag"
+          	sixdeskexit 11
+              else 
+                  lReduceAngsWithAmplitude=true
+              fi 
+          fi
+      else
+          sixdeskmess -1 "reduced angles with amplitudes set to negative value. Flag de-activated"
+      fi
+
+    fi
+    
     export totAngle=90
     export lReduceAngsWithAmplitude
+    export lflag_fort13
 }
 
 # ==============================================================================
@@ -481,6 +520,9 @@ else
 	    if ${llocalfort3} ; then
 		cp ${envFilesPath}/fort.3.local studies/${LHCDescrip}
 	    fi
+	    if ${lflag_fort13} ; then
+		cp ${envFilesPath}/fort.13 studies/${LHCDescrip}
+	    fi
 	    if ${__lnew} ; then
   	        # new study
 		sixdeskmess -1 "Created a NEW study $LHCDescrip"
@@ -493,6 +535,9 @@ else
 	    cp ${envFilesPath}/sysenv .
 	    if ${llocalfort3} ; then
 		cp ${envFilesPath}/fort.3.local .
+	    fi
+	    if ${lflag_fort13} ; then
+		cp ${envFilesPath}/fort.13 .
 	    fi
 	    sixdeskmess -1 "Switched to study $LHCDescrip"
 	fi

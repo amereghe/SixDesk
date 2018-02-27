@@ -7,6 +7,7 @@ export CORR_TEST=%CORR_TEST%
 export fort_34=%FORT_34%
 export MADX_PATH=%MADX_PATH%
 export MADX=%MADX%
+export lflag_fort13=%lflag_fort13%
 echo "Calling madx version $MADX in $MADX_PATH"
 $MADX_PATH/$MADX < $junktmp/$filejob."$i" > $filejob.out."$i"
 cp -f $filejob.out."$i" $junktmp
@@ -115,7 +116,12 @@ touch fc.34
 mv fc.2 fort.2
 mv fc.16 fort.16
 mv fc.8 fort.8
-for fil in fort.2 fort.8 fort.16
+if [ $lflag_fort13 = true ]; then
+  fils=(fort.2 fort.8 fort.13 fort.16)
+else
+  fils=(fort.2 fort.8 fort.16)
+fi
+for fil in ${fils[@]}
 do
   if test -s $sixtrack_input/"$fil"_"$i".gz
   then
@@ -131,9 +137,15 @@ do
       cat diffs >> $sixtrack_input/WARNINGS
     fi
   fi
-  mv "$fil" "$fil"_"$i"
-  gzip "$fil"_"$i"
-  cp "$fil"_"$i".gz $sixtrack_input
+  if [ $fil = "fort.13" ];then 
+    cp $sixdeskhome/fort.13 $sixtrack_input
+    cp $sixtrack_input/fort.13 $sixtrack_input/fort.13_$i
+    gzip $sixtrack_input/fort.13_$i
+  else
+    mv "$fil" "$fil"_"$i"
+    gzip "$fil"_"$i"
+    cp "$fil"_"$i".gz $sixtrack_input
+  fi
 done
 if test "$CORR_TEST" -ne 0
 then

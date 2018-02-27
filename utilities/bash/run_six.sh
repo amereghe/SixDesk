@@ -264,23 +264,43 @@ function preProcessFort3(){
 	local __dp1=.0
 	local __dp2=.0
     fi
-    sed -e 's/%turnss/%turnsl/g' \
-	-e 's/%nss/'$sixdeskpairs'/g' \
-	-e 's/%imc/'$__imc'/g' \
-	-e 's/%iclo6/'$__iclo6'/g' \
-	-e 's/%ax0s/%ax0l/g' \
-	-e 's/%ax1s/%ax1l/g' \
-	-e 's/%writebins/%writebinl/g' \
-	-e 's/%ratios/%ratiol/g' \
-	-e 's/%dp1/'$__dp1'/g' \
-	-e 's/%dp2/'$__dp2'/g' \
-	-e 's/%e0/'$e0'/g' \
-	-e 's/%ition/'$__ition'/g' \
-	-e 's/%idfor/'$idfor'/g' \
-	-e 's/%ibtype/'$ibtype'/g' \
-	-e 's/%bunch_charge/'$bunch_charge'/g' \
-	-e 's?%Runnam?%Runnam '"$sixdeskTitle"'?g' \
-        $sixdeskjobs_logs/fort.3.mother1 > $sixdeskjobs_logs/fortl.3.mask
+  
+    if [ $lflag_fort13 ]; then
+      sed -e 's/%turnss/%turnsl/g' \
+          -e 's/%imc/'$__imc'/g' \
+          -e 's/%iclo6/'$__iclo6'/g' \
+          -e 's/%ax0s/%ax0l/g' \
+          -e 's/%ax1s/%ax1l/g' \
+          -e 's/%writebins/%writebinl/g' \
+          -e 's/%ratios/%ratiol/g' \
+          -e 's/%dp1/'$__dp1'/g' \
+          -e 's/%dp2/'$__dp2'/g' \
+          -e 's/%e0/'$e0'/g' \
+          -e 's/%ition/'$__ition'/g' \
+          -e 's/%idfor/'$idfor'/g' \
+          -e 's/%ibtype/'$ibtype'/g' \
+          -e 's/%bunch_charge/'$bunch_charge'/g' \
+          -e 's?%Runnam?%Runnam '"$sixdeskTitle"'?g' \
+          $sixdeskjobs_logs/fort.3.mother1 > $sixdeskjobs_logs/fortl.3.mask
+    else
+      sed -e 's/%turnss/%turnsl/g' \
+          -e 's/%nss/'$sixdeskpairs'/g' \
+          -e 's/%imc/'$__imc'/g' \
+          -e 's/%iclo6/'$__iclo6'/g' \
+          -e 's/%ax0s/%ax0l/g' \
+          -e 's/%ax1s/%ax1l/g' \
+          -e 's/%writebins/%writebinl/g' \
+          -e 's/%ratios/%ratiol/g' \
+          -e 's/%dp1/'$__dp1'/g' \
+          -e 's/%dp2/'$__dp2'/g' \
+          -e 's/%e0/'$e0'/g' \
+          -e 's/%ition/'$__ition'/g' \
+          -e 's/%idfor/'$idfor'/g' \
+          -e 's/%ibtype/'$ibtype'/g' \
+          -e 's/%bunch_charge/'$bunch_charge'/g' \
+          -e 's?%Runnam?%Runnam '"$sixdeskTitle"'?g' \
+          $sixdeskjobs_logs/fort.3.mother1 > $sixdeskjobs_logs/fortl.3.mask
+    fi
     let __lerr+=$?
     # - multipole blocks
     cat $sixdeskjobs_logs/fort.3.mad >> $sixdeskjobs_logs/fortl.3.mask 
@@ -508,7 +528,11 @@ function preProcessBoinc(){
 function submitChromaJobs(){
 
     local __destination=$1
-    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?:lin*:betaJob'
+    if [ ${lflag_fort13} = true ]; then
+      local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:fort.13*:sixdesklock:chromaJob0?:lin*:betaJob'
+    else
+      local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?:lin*:betaJob'
+    fi
     
     # --------------------------------------------------------------------------
     # generate appropriate fort.3 files as: fort.3.tx + fort.3.mad + fort.3.m2
@@ -579,6 +603,9 @@ function submitChromaJobs(){
     sixdeskmess  1 "Running the first one turn job for chromaticity"
     cat fort.3.t1 fort.3.mad fort.3.m2 > fort.3
     rm -f fort.10
+    if [ ${lflag_fort13} = true ]; then
+      cp $sixdeskhome/fort.13 .
+    fi
     $SIXTRACKEXE > first_oneturn
     if test $? -ne 0 -o ! -s fort.10 ; then
         sixdeskmess -1 "The first turn Sixtrack for chromaticity FAILED!!!"
@@ -588,8 +615,12 @@ function submitChromaJobs(){
     fi
     # save all interesting files from first job
     rm -rf chromaJob01
-    mkdir chromaJob01
-    cp fort.2 fort.3 fort.8 fort.16 fort.10 first_oneturn chromaJob01
+    mkdir chromaJob01 
+    if [ ${lflag_fort13} = true ]; then
+      cp fort.2 fort.3 fort.8 fort.16 fort.10 fort.13 first_oneturn chromaJob01
+    else 
+      cp fort.2 fort.3 fort.8 fort.16 fort.10 first_oneturn chromaJob01
+    fi
     gzip -f chromaJob01/*
     mv fort.10 fort.10_first_oneturn
     # clean dir
@@ -601,6 +632,9 @@ function submitChromaJobs(){
     sixdeskmess  1 "Running the second one turn job for chromaticity"
     cat fort.3.t2 fort.3.mad fort.3.m2 > fort.3
     rm -f fort.10
+    if [ ${lflag_fort13} = true ]; then
+      cp $sixdeskhome/fort.13 .
+    fi
     $SIXTRACKEXE > second_oneturn
     if test $? -ne 0 -o ! -s fort.10 ; then
         sixdeskmess -1 "The second turn Sixtrack for chromaticity FAILED!!!"
@@ -611,7 +645,11 @@ function submitChromaJobs(){
     # save all interesting files from second job
     rm -rf chromaJob02
     mkdir chromaJob02
-    cp fort.2 fort.3 fort.8 fort.16 fort.10 second_oneturn chromaJob02
+    if [ ${lflag_fort13} = true ]; then
+      cp fort.2 fort.3 fort.8 fort.16 fort.10 fort.13 second_oneturn chromaJob02
+    else
+      cp fort.2 fort.3 fort.8 fort.16 fort.10 second_oneturn chromaJob02
+    fi
     gzip -f chromaJob02/*
     mv fort.10 fort.10_second_oneturn
     # clean dir
@@ -633,8 +671,11 @@ function submitChromaJobs(){
 function submitBetaJob(){
     
     local __destination=$1
-    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?:lin*:betaJob'
-    
+    if [ ${lflag_fort13} = true ];then
+      local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:fort.13*:sixdesklock:chromaJob0?:lin*:betaJob'
+    else
+      local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?:lin*:betaJob'
+    fi 
     # --------------------------------------------------------------------------
     # generate appropriate fort.3 files as: fort.3.m1 + fort.3.mad + fort.3.m2
     sed -e 's/%turnss/'1'/g' \
@@ -681,6 +722,9 @@ function submitBetaJob(){
     # --------------------------------------------------------------------------
     # actually run
     rm -f fort.10
+    if [ ${lflag_fort13} = true ];then
+      cp $sixdeskhome/fort.13 .
+    fi
     $SIXTRACKEXE > lin
     if test $? -ne 0 -o ! -s fort.10 ; then
         sixdeskmess -1 "The one turn Sixtrack for betavalues FAILED!!!"
@@ -691,7 +735,11 @@ function submitBetaJob(){
     # save all interesting files from beta job
     rm -rf betaJob
     mkdir betaJob
-    cp fort.2 fort.3 fort.8 fort.16 fort.10 lin betaJob
+    if [ ${lflag_fort13} = true ];then 
+      cp fort.2 fort.3 fort.8 fort.16 fort.10 fort.13 lin betaJob
+    else
+      cp fort.2 fort.3 fort.8 fort.16 fort.10 fort.13 lin betaJob
+    fi
     gzip -f betaJob/*
     mv lin lin_old
     cp fort.10 fort.10_old
@@ -760,18 +808,28 @@ function submitCreateFinalFort3Short(){
 
 function submitCreateFinalFort3Long(){
 
-    local __lerr=0
 
-    # returns ratio
-    sixdeskRatio $kang $lbackcomp
-    [ -n "${ratio}" ] || let __lerr+=1
-    # returns ax0 and ax1
-    sixdeskax0 $factor $beta_x $beta_x2 $beta_y $beta_y2 $ratio $kang $square $fampstart $fampend $lbackcomp
-    [ -n "${ax0}" ] || let __lerr+=1
-    [ -n "${ax1}" ] || let __lerr+=1
+    if [ $lflag_fort13 ]; then
+      ax0=0.0
+      ax1=0.0
+      cp ${fort13_jobs[${nConsidered} -1]} $sixdeskjobs_logs/fort.13
+      fort13_current=$sixdeskjobs_logs/fort.13
+      n_lines_fort13_current=$(cat $fort13_current | wc -l )
+      sixdeskpairs_current=$(echo $n_lines_fort13_current 15 | awk '{printf ("%.f", ($1/$2))}') 
+    else
+      local __lerr=0
+      # returns ratio
+      sixdeskRatio $kang $lbackcomp
+      [ -n "${ratio}" ] || let __lerr+=1
+      # returns ax0 and ax1
+      sixdeskax0 $factor $beta_x $beta_x2 $beta_y $beta_y2 $ratio $kang $square $fampstart $fampend $lbackcomp
+      [ -n "${ax0}" ] || let __lerr+=1
+      [ -n "${ax1}" ] || let __lerr+=1
+    fi
     #
     sed -e 's/%turnsl/'$turnsl'/g' \
 	-e 's/%ax0l/'$ax0'/g' \
+        -e 's/%nss/'$sixdeskpairs_current'/g' \
 	-e 's/%ax1l/'$ax1'/g' \
 	-e 's/%ratiol/'$ratio'/g' \
 	-e 's/%tunex/'$tunexx'/g' \
@@ -800,8 +858,12 @@ function submitCreateFinalInputs(){
     sixdeskmess  1 "Taking care of SIXTRACK fort.2/fort.3/fort.8/fort.16 in $RundirFullPath"
 
     # fort.3
-    gzip -c $sixdeskjobs_logs/fort.3 > $RundirFullPath/fort.3.gz
-	
+    if [ $lflag_fort13 ];then
+      gzip -c $fort13_current > $RundirFullPath/fort.13.gz
+      gzip -c $sixdeskjobs_logs/fort.3 > $RundirFullPath/fort.3.gz
+    else
+      gzip -c $sixdeskjobs_logs/fort.3 > $RundirFullPath/fort.3.gz
+    fi  	
     # input from MADX: fort.2/.8/.16
     for iFort in 2 8 16 ; do
 	[ ! -e $RundirFullPath/fort.${iFort}.gz ] || rm -f $RundirFullPath/fort.${iFort}.gz
@@ -1435,9 +1497,14 @@ function treatLong(){
 
 	# separate output for current case from previous one
 	echo ""
-
-        sixdeskmess -1 "Considering amplitude step: $Ampl"
-
+        
+        if [ $lflag_fort13=true ];then 
+          sixdeskmess -1 "Considering job #$Ampl from fort.13"
+        else
+          sixdeskmess -1 "Considering amplitude step: $Ampl"
+        fi
+        #echo $lflag_fort13 hereeeeee2
+        #exit
         if ${lReduceAngsWithAmplitude}; then 
           jAmple=${iAmple}
         else
@@ -2173,7 +2240,13 @@ if ${lgenerate} || ${lfix} ; then
     echo "$emit  $gamma" > $sixdesktrackStudy/general_input
     let __lerr+=$?
     # - set up of fort.3
-    for tmpFile in fort.3.mad fort.3.mother1 fort.3.mother2 ; do
+    if [ $lflag_fort13 = false ]; then 
+      tmpFiles=(fort.3.mad fort.3.mother1 fort.3.mother2)
+    else
+      tmpFiles=(fort.3.mad fort.3.mother1 fort.3.mother2 fort.13)
+    fi
+    #for tmpFile in fort.3.mad fort.3.mother1 fort.3.mother2 ; do
+    for tmpFile in ${tmpFiles[@]}; do
 	cp ${sixtrack_input}/${tmpFile} $sixdeskjobs_logs
 	if [ $? -ne 0 ] ; then
 	    sixdeskmess -1 "unable to copy ${sixtrack_input}/${tmpFile} to $sixdeskjobs_logs"
@@ -2378,30 +2451,41 @@ else
 	    sixdeskmess -1 "  --> along a line in (Qx,Qy) - total: ${iTotalTunes} pairs;"
 	fi
     fi
-    if [ $long -eq 1 ] ; then
-	# generate array of amplitudes (it returns allAmplitudeSteps, fAmpStarts, fAmpEnds, ampstart, ampfinish)
-	sixdeskAllAmplitudes
-	iTotalAmplitudeSteps=${#allAmplitudeSteps[@]}
-	sixdeskmess -1 "- Amplitudes: from $ns1l to $ns2l by $nsincl - total: ${iTotalAmplitudeSteps} amplitude steps;"
-        # generate array of angles (it returns KKs, Angles and kAngs, and KKs_ampl)
-	sixdeskAllAngles $kinil $kendl $kmaxl $kstep $ampstart $ampfinish $lbackcomp ${lReduceAngsWithAmplitude} ${totAngle} ${ampFactor}
-	iTotalAngles=${#KKs[@]}
-	sixdeskmess -1 "- Angles: $kinil, $kendl, $kmaxl by $kstep - total: ${iTotalAngles} angles"
-	if ${lReduceAngsWithAmplitude} ; then
-	    sixdeskmess -1 "  --> reduced angles with amplitude functionality active"
-	    let iTotal=${iTotalMad}*${iTotalTunes}*${iTotalAngles}
-	else
-	    let iTotal=${iTotalMad}*${iTotalTunes}*${iTotalAmplitudeSteps}*${iTotalAngles}
-	fi
-    elif [ $short -eq 1 ] || [ $da -eq 1 ] ; then
-	iTotalAmplitudeSteps=1
-	sixdeskmess -1 "- Amplitudes: from $ns1s to $ns2s by $nss - total: ${iTotalAmplitudeSteps} amplitude steps;"
-	# generate array of angles (it returns KKs, Angles and kAngs, and KKs_ampl)
-	sixdeskAllAngles $kini $kend $kmax $kstep $ampstart $ampfinish $lbackcomp ${lReduceAngsWithAmplitude} ${totAngle} ${ampFactor}
-	iTotalAngles=${#KKs[@]}
-	sixdeskmess -1 "- Angles: $kini, $kend, $kmax by $kstep - total: ${iTotalAngles} angles"
-	let iTotal=${iTotalMad}*${iTotalTunes}*${iTotalAmplitudeSteps}*${iTotalAngles}
+    if [ $lflag_fort13 = false ]; then
+      if [ $long -eq 1 ] ; then
+          # generate array of amplitudes (it returns allAmplitudeSteps, fAmpStarts, fAmpEnds, ampstart, ampfinish)
+          sixdeskAllAmplitudes
+          iTotalAmplitudeSteps=${#allAmplitudeSteps[@]}
+          sixdeskmess -1 "- Amplitudes: from $ns1l to $ns2l by $nsincl - total: ${iTotalAmplitudeSteps} amplitude steps;"
+          # generate array of angles (it returns KKs, Angles and kAngs, and KKs_ampl)
+          sixdeskAllAngles $kinil $kendl $kmaxl $kstep $ampstart $ampfinish $lbackcomp ${lReduceAngsWithAmplitude} ${totAngle} ${ampFactor}
+          iTotalAngles=${#KKs[@]}
+          sixdeskmess -1 "- Angles: $kinil, $kendl, $kmaxl by $kstep - total: ${iTotalAngles} angles"
+          if ${lReduceAngsWithAmplitude} ; then
+              sixdeskmess -1 "  --> reduced angles with amplitude functionality active"
+              let iTotal=${iTotalMad}*${iTotalTunes}*${iTotalAngles}
+          else
+              let iTotal=${iTotalMad}*${iTotalTunes}*${iTotalAmplitudeSteps}*${iTotalAngles}
+          fi
+      elif [ $short -eq 1 ] || [ $da -eq 1 ] ; then
+          iTotalAmplitudeSteps=1
+          sixdeskmess -1 "- Amplitudes: from $ns1s to $ns2s by $nss - total: ${iTotalAmplitudeSteps} amplitude steps;"
+          # generate array of angles (it returns KKs, Angles and kAngs, and KKs_ampl)
+          sixdeskAllAngles $kini $kend $kmax $kstep $ampstart $ampfinish $lbackcomp ${lReduceAngsWithAmplitude} ${totAngle} ${ampFactor}
+          iTotalAngles=${#KKs[@]}
+          sixdeskmess -1 "- Angles: $kini, $kend, $kmax by $kstep - total: ${iTotalAngles} angles"
+          let iTotal=${iTotalMad}*${iTotalTunes}*${iTotalAmplitudeSteps}*${iTotalAngles}
+          sixdeskmess -1 "for a total of ${iTotal} points."
+      fi
+    else
+      echo "-> Flag for fort.13 input is active"
+      ## To be changed!!
+      sixdeskAllAmplitudes_fort13
+      sixdeskAllAngles $kinil $kendl $kmaxl $kstep $ampstart $ampfinish $lbackcomp ${lReduceAngsWithAmplitude} ${totAngle} ${ampFactor}
+      iTotalAmplitudeSteps=${#allAmplitudeSteps[@]}
+      iTotalAngles=${#KKs[@]}
     fi
+    let iTotal=${iTotalMad}*${iTotalTunes}*${iTotalAmplitudeSteps}*${iTotalAngles}
     sixdeskmess -1 "for a total of ${iTotal} points."
 fi
 
@@ -2430,7 +2514,11 @@ else
         echo ""
         sixdeskmess -1 "MADX seed $iMad"
         if ${lgenerate} || ${lfix} ; then
-    	    iForts="2 8 16"
+            if [ ${lflag_fort13} = true ]  ; then
+    	      iForts="2 8 13 16"
+            else
+    	      iForts="2 8 16"
+            fi
     	    if [ "$fort_34" != "" ] ; then
     		iForts="${iForts} 34"
     	    fi

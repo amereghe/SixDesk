@@ -685,6 +685,25 @@ sixdeskAllTunes(){
     tunesYY=( ${tunesYY} )
     inttunesYY=( ${inttunesYY} )
 }
+sixdeskAllAmplitudes_fort13(){
+    pairs_per_job=$((sixdeskpairs*15))
+    if [ -d "${sixdeskjobs_logs}/fort.13_jobs" ]; then
+      rm -rf ${sixdeskjobs_logs}/fort.13_jobs/*
+    else
+      mkdir ${sixdeskjobs_logs}/fort.13_jobs
+    fi
+    split -d -l $pairs_per_job fort.13 ${sixdeskjobs_logs}/fort.13_jobs/fort.13.
+    fort13_jobs=( $(find ${sixdeskjobs_logs}/fort.13_jobs/ -type f -name 'fort.13.*') )
+    nb_fort13_jobs=${#fort13_jobs[@]}
+    echo Fort.13 will be split in $nb_fort13_jobs jobs
+    allAmplitudeSteps=( $(seq 1 1 $nb_fort13_jobs) )
+    fAmpStarts=("${allAmplitudeSteps[@]}")
+    fAmpEnds=("${allAmplitudeSteps[@]}")
+    ampstart=${fAmpStarts[0]}
+    let __iLast=${#fAmpEnds[@]}-1
+    ampfinish=${fAmpEnds[${__iLast}]}
+}
+
 sixdeskAllAmplitudes(){
     # A.Mereghetti, 2017-04-08
     # new function, to generate all amplitude steps
