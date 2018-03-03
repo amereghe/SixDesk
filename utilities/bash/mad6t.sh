@@ -173,6 +173,7 @@ function submit(){
 		-e 's?%MADX_PATH%?'$MADX_PATH'?g' \
 		-e 's?%MADX%?'$MADX'?g' \
 		-e 's?%lflag_fort13%?'$lflag_fort13'?g' \
+                -e 's?%sixdeskstudy%?'$sixdeskstudy'?g' \
 		-e 's?%SIXTRACK_INPUT%?'$sixtrack_input'?g' $mad6tjob > mad6t_"$iMad".sh
 	    chmod 755 mad6t_"$iMad".sh
 	    

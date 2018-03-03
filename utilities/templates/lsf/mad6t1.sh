@@ -8,6 +8,7 @@ export fort_34=%FORT_34%
 export MADX_PATH=%MADX_PATH%
 export MADX=%MADX%
 export lflag_fort13=%lflag_fort13%
+export sixdeskstudy=%sixdeskstudy%
 echo "Calling madx version $MADX in $MADX_PATH"
 $MADX_PATH/$MADX < $junktmp/$filejob."$i" > $filejob.out."$i"
 cp -f $filejob.out."$i" $junktmp
@@ -138,7 +139,7 @@ do
     fi
   fi
   if [ $fil = "fort.13" ];then 
-    cp $sixdeskhome/fort.13 $sixtrack_input
+    cp $sixdeskstudy/fort.13 $sixtrack_input
     cp $sixtrack_input/fort.13 $sixtrack_input/fort.13_$i
     gzip $sixtrack_input/fort.13_$i
   else
