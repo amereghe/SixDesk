@@ -505,7 +505,7 @@ function preProcessBoinc(){
 function submitChromaJobs(){
 
     local __destination=$1
-    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?'
+    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?:lin*:betaJob'
     
     # --------------------------------------------------------------------------
     # generate appropriate fort.3 files as: fort.3.tx + fort.3.mad + fort.3.m2
@@ -630,7 +630,7 @@ function submitChromaJobs(){
 function submitBetaJob(){
     
     local __destination=$1
-    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:lin*:betaJob'
+    local __GLOBIGNORE='fort.[2,8]:fort.16:fort*.3.*:fort.10*:sixdesklock:chromaJob0?:lin*:betaJob'
     
     # --------------------------------------------------------------------------
     # generate appropriate fort.3 files as: fort.3.m1 + fort.3.mad + fort.3.m2
@@ -1065,7 +1065,7 @@ function condor_sub(){
 	iBatch=$((${nQueued}/${nMaxJobsSubmitHTCondor}))
 	if [ ${iBatch} -eq 0 ] ; then
 	    sixdeskmess 1 "checking if there are already some condor clusters from the same workspace/study ..."
-	    i0Batch=`condor_q -wide | grep run_six/$workspace/$LHCDescrip | awk '{print ($2)}' | cut -d\/ -f4 | sort | tail -1`
+	    i0Batch=`condor_q -wide | grep run_six/${workspace}/${LHCDesName} | awk '{print ($2)}' | cut -d\/ -f4 | sort | tail -1`
 	    if [ -n "${i0Batch}" ] ; then
 		iBatch=${i0Batch}
 	    fi
