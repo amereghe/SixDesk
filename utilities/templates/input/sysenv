@@ -95,6 +95,7 @@ export sixdeskstudy=$sixdeskhome/studies/$LHCDescrip
 #   sixdeskboincdir=$boincdir/boinctest/$sixdeskboincdirname
 # fi
 # export sixdeskboincdir
+# export boincDev=true
 export sixdeskparts=`expr $sixdeskpairs \* 2`
 if test "$short" -eq 1 -o "$da" -eq 1
 then
