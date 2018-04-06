@@ -191,7 +191,7 @@ sixDeskSetBOINCVars
 if test $sixdeskplatform = "htboinc"; then
     sixdeskmess -1 "Retrieving data for htboinc"
     # get the clusterids of the jobs submitted via htboinc
-    clusterIDs=($(cat work/htboincjobs/clusterids))
+    clusterIDs=($(cat ${sixdeskjobs}/clusterids))
 
     # transfer back the data for every clusterid
     for id in ${clusterIDs[@]}; do
@@ -526,8 +526,8 @@ then
            if test "$BNL" = ""
             then
 	      if [ -s $where/fort.10 ] ; then
-		gzip -f ${where}/fort.10
-    rm   -f  ${where}/JOB_NOT_YET_COMPLETED
+		  gzip -f ${where}/fort.10
+                  rm   -f  ${where}/JOB_NOT_YET_COMPLETED
 	      fi
               if test ! -s $where/fort.10.gz
               then
