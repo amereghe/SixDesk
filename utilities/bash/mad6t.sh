@@ -542,7 +542,7 @@ optArgCurrStudy="-s"
 optArgCurrPlatForm=""
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  ":hIwseo:cd:p:P:U" opt ; do
+while getopts  ":hIwsero:cd:p:P:U" opt ; do
     case $opt in
 	h)
 	    how_to_use
