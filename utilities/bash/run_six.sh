@@ -1135,7 +1135,7 @@ function condor_sub(){
             local __pool=""
             local __name=""
 	elif  [ "$sixdeskplatform" == "htboinc" ]; then
-            local __pool="-pool ${remoteHost}${htboincport}"
+            local __pool="-pool ${remoteHost}:${htboincport}"
             local __name="-name ${remoteHost}"
 	fi
         sixdeskmess 2 "condor_submit ${__pool} ${__name} -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub"

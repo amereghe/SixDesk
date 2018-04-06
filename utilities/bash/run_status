@@ -195,7 +195,7 @@ if test $sixdeskplatform = "htboinc"; then
 
     # transfer back the data for every clusterid
     for id in ${clusterIDs[@]}; do
-	outstring=$(condor_transfer_data -pool ${remoteHost}${htboincport} -name ${remoteHost} ${id})
+	outstring=$(condor_transfer_data -pool ${remoteHost}:${htboincport} -name ${remoteHost} ${id})
 	sixdeskmess -1 "clusterID: ${id}   ${outstring}"
     done
 
@@ -203,7 +203,7 @@ if test $sixdeskplatform = "htboinc"; then
     ## show the number of jobs that is still running
     uname=$(whoami)
     for id in ${clusterIDs[@]}; do
-	condor_q -pool ${remoteHost}${htboincport} -name ${remoteHost} ${uname} ${id}
+	condor_q -pool ${remoteHost}:${htboincport} -name ${remoteHost} ${uname} ${id}
     done
     
 fi

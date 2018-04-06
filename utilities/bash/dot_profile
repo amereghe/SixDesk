@@ -1371,7 +1371,7 @@ sixDeskSetBOINCVars(){
     # assign the variables for htboinc
     if [ "$sixdeskplatform" == "htboinc" ]; then
 	export remoteHost="vccondorce02.cern.ch"
-	export htboincport=":9619"
+	export htboincport="9619"
         [ -n "${boincDev}" ] || export boincDev=false
     fi
 
