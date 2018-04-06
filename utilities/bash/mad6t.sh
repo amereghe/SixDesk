@@ -10,9 +10,10 @@ function how_to_use() {
    -c      check
    -s      submit
               in this case, madx jobs are submitted to lsf/htcondor
+   -r      post-process
    -w      submit wrong seeds
               NB: the list of wrong seeds must be generated beforehand,
-                  by a `basename $0` -c run
+                  by calling `basename $0` -c
    -U      unlock dirs necessary to the script to run
            PAY ATTENTION when using this option, as no check whether the lock
               belongs to this script or not is performed, and you may screw up
@@ -124,14 +125,6 @@ function submit(){
 	cd ${junktmp}
 	sixdeskmess 1 "Using junktmp: $junktmp"
 
-	tmpFiles=`cat ${lastJobsList}`
-	tmpFiles=( ${tmpFiles} )
-	for tmpFile in ${tmpFiles[@]} ; do
-	    for extension in .err .log .out ; do
-		rm -f ${tmpFile//.sh/${extension}}
-	    done
-	done
-	
     else
 
 	sixdeskmktmpdir mad $sixtrack_input
@@ -147,14 +140,31 @@ function submit(){
 	    rm -f jobs.list
 	fi
 
+	# use AFS absolute paths
+	local __lCP=false
+	if ${linter} || [ "$sixdeskplatform" == "lsf" ] ; then
+	    local __lCP=true
+	fi
+        
+        # in case, create .previous files
+        for tmpFile in fort.3.mad fort.3.aux ; do
+            if [ -e ${sixtrack_input}/${tmpFile} ] ; then
+                mv ${sixtrack_input}/${tmpFile} ${sixtrack_input}/${tmpFile}.previous
+            fi
+        done
+        
+        [ -e ${sixtrack_input}/mad6t.sh ] || cp -p $lsfFilesPath/mad6t.sh ${sixtrack_input}
+        [ -e ${sixtrack_input}/mad6t.sub ] || cp -p ${SCRIPTDIR}/templates/htcondor/mad6t.sub ${sixtrack_input}
+        
 	# Loop over seeds
-	mad6tjob=$lsfFilesPath/mad6t1.sh
 	for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
 	    
-	    # clean away any existing results for this seed
-	    for f in 2 8 16 34 ; do
-		rm -f $sixtrack_input/fort.$f"_"$iMad.gz
-	    done
+	    # in case, create .previous files
+            for tmpFile in fort.2 fort.8 fort.16 fort.34 MCSSX_errors MCOSX_errors MCOX_errors MCSX_errors MCTX_errors ; do
+                if [ -e ${sixtrack_input}/${tmpFile}_$iMad.gz ] ; then
+                    mv ${sixtrack_input}/${tmpFile}_$iMad.gz ${sixtrack_input}/${tmpFile}_$iMad.previous.gz
+                fi
+            done
 	    
 	    sed -e 's?%NPART?'$bunch_charge'?g' \
 		-e 's?%EMIT_BEAM?'$emit_beam'?g' \
@@ -168,13 +178,13 @@ function submit(){
 		-e 's?%FORT_34%?'$fort_34'?g' \
 		-e 's?%MADX_PATH%?'$MADX_PATH'?g' \
 		-e 's?%MADX%?'$MADX'?g' \
-		-e 's?%SIXTRACK_INPUT%?'$sixtrack_input'?g' $mad6tjob > mad6t_"$iMad".sh
+		-e "s?%lCP%?${__lCP}?g" ${sixtrack_input}/mad6t.sh > mad6t_"$iMad".sh
 	    chmod 755 mad6t_"$iMad".sh
 	    
 	    if ${linter} ; then
 		sixdeskmktmpdir batch ""
 		cd $sixdesktmpdir
-		../mad6t_"$iMad".sh | tee $junktmp/"${LHCDescrip}_mad6t_$iMad".log 2>&1
+		../mad6t_"$iMad".sh 2>&1 | tee $junktmp/"${LHCDescrip}_mad6t_$iMad".log
 		cd ../
 		rm -rf $sixdesktmpdir
 	    else
@@ -183,17 +193,26 @@ function submit(){
 		    tmpString=$(printf "Seed %2i        %40s\n" ${iMad} "${BSUBOUT}")
 		    sixdeskmess -1 "${tmpString}"
 		elif [ "$sixdeskplatform" == "htcondor" ] ; then
-		    echo mad6t_${iMad}.sh >> jobs.list
+		    echo "${iMad}" >> jobs.list
 		fi
 	    fi
-	    mad6tjob=$lsfFilesPath/mad6t.sh
 	done
     fi
 	
     if [ "$sixdeskplatform" == "htcondor" ] && ! ${linter} ; then
-	cp ${SCRIPTDIR}/templates/htcondor/mad6t.sub .
-	sed -i "s#^+JobFlavour =.*#+JobFlavour = \"${madHTCq}\"#" mad6t.sub
-	condor_submit -batch-name "mad/$workspace/$LHCDescrip" mad6t.sub
+	sed -i -e "s#^+JobFlavour =.*#+JobFlavour = \"${madHTCq}\"#" \
+               -e "s#%filejob%#$filejob#" \
+               ${sixtrack_input}/mad6t.sub
+        local __transferOutputFiles="transfer_output_files = \$(filejob).out.\$(seedID),fort.3.mad_\$(seedID).gz,fort.3.aux_\$(seedID).gz,fort.2_\$(seedID).gz,fort.8_\$(seedID).gz,fort.16_\$(seedID).gz"
+        if [ "$fort_34" != "" ] ; then
+            __transferOutputFiles="${__transferOutputFiles},fort.34_\$(seedID).gz"
+        fi
+        if [ $CORR_TEST -ne 0 ] && [ ! -s CORR_TEST ] ; then
+            __transferOutputFiles="${__transferOutputFiles},MCSSX_errors_\$(seedID).gz,MCOSX_errors_\$(seedID).gz,MCOX_errors_\$(seedID).gz,MCSX_errors_\$(seedID).gz,MCTX_errors_\$(seedID).gz"
+        fi
+	sed -i -e "s#^transfer_output_files.*#${__transferOutputFiles}#" \
+               ${sixtrack_input}/mad6t.sub
+	condor_submit -spool -batch-name "mad/$workspace/$LHCDescrip" ${sixtrack_input}/mad6t.sub
 	if [ $? -eq 0 ] ; then
 	    rm -f jobs.list
 	fi
@@ -236,30 +255,6 @@ function check(){
     local __lwarn=false
 
     cd $sixtrack_input
-    
-    # check jobs still running
-    if [ "$sixdeskplatform" == "lsf" ] ; then
-	__njobs=`bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t | wc -l`
-	if [ ${__njobs} -gt 0 ] ; then
-	    bjobs -w | grep ${workspace}_${LHCDescrip}_mad6t
-	    sixdeskmess -1 "There appear to be some mad6t jobs still not finished"
-	    let __lerr+=1
-	fi
-    elif [ "$sixdeskplatform" == "htcondor" ] ; then
-	local __lastLogFile=`\ls -trd */*log 2> /dev/null | tail -1`
-	if [ -z "${__lastLogFile}" ] ; then
-	    sixdeskmess -1 "no htcondor log files, hence cannot get cluster ID!!"
-	else
-	    local __clusterID=`head -1 ${__lastLogFile} 2> /dev/null | cut -d\( -f2 | cut -d\. -f1`
-	    if [ -z "${__clusterID}" ] ; then
-		sixdeskmess -1 "cannot get cluster ID from htcondor log file ${__lastLogFile}!!"
-	    else
-		sixdeskmess -1 "echo of condor_q ${__clusterID} -run -wide"
-		condor_q ${__clusterID} -run -wide
-		echo ""
-	    fi
-	fi
-    fi
     
     # check errors/warnings
     if [ -s ERRORS ] ; then
@@ -358,7 +353,7 @@ function check(){
 	sixdeskmess 1 "generating list of missing MADX seed in ${__lastJunkDir}/jobs.list"
 	rm -f ${__lastJunkDir}/jobs.list
 	for iMadResubmit in ${iMadsResubmit[@]} ; do
-	    echo mad6t_${iMadResubmit}.sh >> ${__lastJunkDir}/jobs.list
+	    echo "${iMadResubmit}" >> ${__lastJunkDir}/jobs.list
 	done
     fi
 
@@ -410,6 +405,112 @@ function check(){
     return $__lerr
 }
 
+function postProcess(){
+    sixdeskmess 1 "Performing post-processing of MADX runs for study $LHCDescrip in ${sixtrack_input}"
+    local __lerr=0
+
+    cd ${sixtrack_input}
+    [ -d /tmp/${LOGNAME} ] || mkdir -p /tmp/${LOGNAME}
+    local __filejob=$LHCDescrip
+    #   . all files but pieces of fort.3
+    local __checkFiles="fort.2 fort.8 fort.16"
+    if [ "$fort_34" != "" ] ; then
+        __checkFiles="${__checkFiles} fort.34"
+    fi
+    if [ "$CORR_TEST" -ne 0 ] ; then
+        __checkFiles="${__checkFiles} MCSSX_errors MCOSX_errors MCOX_errors MCSX_errors MCTX_errors"
+    fi
+    
+    # - check single jobs
+    for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
+        # - job is over
+        local __lastJunkDir=`ls -1tr $sixtrack_input/*/${__filejob}.out.${iMad} 2> /dev/null | tail -1`
+        if [ -z "${__lastJunkDir}" ] ; then
+            sixdeskmess -1 "Seed ${iMad} not finished yet - skipping..."
+            let __lerr+=1
+            continue
+        else
+            __lastJunkDir=`dirname ${__lastJunkDir}`
+        fi
+        # - iMad has been already processed
+        local __gzippedFiles=""
+        for fil in ${__checkFiles} ; do
+            __gzippedFiles="${__gzippedFiles} ${fil}_${iMad}.gz"
+        done
+        sixdeskInspectPrerequisites false ${sixtrack_input} -s ${__gzippedFiles}
+        if [ $? -eq 0 ] ; then
+            sixdeskmess -1 "Seed ${iMad} already post-processed - skipping..."
+            continue
+        fi
+        # - MADX has run correctly
+        grep -i "finished normally" ${__lastJunkDir}/${__filejob}.out.${iMad} 2>&1 > /dev/null
+        if [ $? -ne 0 ] ; then
+            sixdeskmess -1 "${__filejob}.${iMad} MADX has NOT completed properly!" | tee -a $sixtrack_input/ERRORS
+            let __lerr+=1
+        fi
+        grep -i "TWISS fail" ${__lastJunkDir}/${__filejob}.out.${iMad} 2>&1 > /dev/null
+        if [ $? -eq 0 ] ; then
+            sixdeskmess -1 "${__filejob}.${iMad} MADX TWISS appears to have failed!" | tee -a $sixtrack_input/ERRORS
+            let __lerr+=1
+        fi
+        # - a non-NULL fort.2 file has been produced
+        if [ `zgrep -v '/' ${__lastJunkDir}/fort.2_${iMad}.gz | wc -l` -eq 0 ] ; then
+            sixdeskmess -1 "${__filejob}.${iMad} MADX has produced an empty fort.2!" | tee -a $sixtrack_input/ERRORS
+            let __lerr+=1
+        fi
+        # - a non-NULL fort.34 file has been produced
+        if [ "$fort_34" != "" ] ; then
+            if [ `zgrep -v '/' ${__lastJunkDir}/fort.34_${iMad}.gz | wc -l` -eq 0 ] ; then
+                sixdeskmess -1 "${__filejob}.${iMad} MADX has produced an empty fort.34!" | tee -a $sixtrack_input/ERRORS
+                let __lerr+=1
+            fi
+        fi
+        # - check against previous versions of the files
+        for fil in ${__checkFiles} ; do
+            if [ -s $sixtrack_input/${fil}_${iMad}.previous.gz ] ; then
+                gunzip -c $sixtrack_input/${fil}_${iMad}.previous.gz > /tmp/${LOGNAME}/${fil}.previous
+                gunzip -c ${__lastJunkDir}/${fil}_${iMad}.gz > /tmp/${LOGNAME}/${fil}
+                diff /tmp/${LOGNAME}/${fil}.previous /tmp/${LOGNAME}/${fil} > /tmp/${LOGNAME}/diffs
+                if [ $? -ne 0 ] ; then
+                    sixdeskmess -1 "${__filejob}.${iMad} MADX has produced a different ${fil}!" | tee -a $sixtrack_input/WARNINGS
+                    cat /tmp/${LOGNAME}/diffs >> $sixtrack_input/WARNINGS
+                    let __lerr+=1
+                fi
+                rm $sixtrack_input/${fil}_${iMad}.previous.gz
+            fi
+            mv ${__lastJunkDir}/${fil}_${iMad}.gz $sixtrack_input/${fil}_${iMad}.gz
+        done
+        # - pieces of fort.3
+        local __suffix=".previous"
+        if [ ${iMad} -eq ${istamad} ] ; then
+            for fil in fort.3.mad fort.3.aux ; do
+                gunzip -c ${__lastJunkDir}/${fil}_${iMad}.gz > /tmp/${LOGNAME}/${fil}
+                if [ -s $sixtrack_input/${fil}${__suffix} ] ; then
+                    diff $sixtrack_input/${fil}${__suffix} /tmp/${LOGNAME}/${fil} > /tmp/${LOGNAME}/diffs
+                    if [ $? -ne 0 ] ; then
+                        sixdeskmess -1 "${__filejob}.${iMad} MADX has produced a different ${fil}!" | tee -a $sixtrack_input/WARNINGS
+                        cat /tmp/${LOGNAME}/diffs >> $sixtrack_input/WARNINGS
+                        let __lerr+=1
+                    fi
+                fi
+                mv /tmp/${LOGNAME}/${fil} $sixtrack_input
+            done
+            # update fort.3.mother? files with accelerator length
+            local __myLen=`grep -v '/' $sixtrack_input/fort.3.aux | grep -A1 SYNC | tail -1 | awk '{print ($5)}'`
+            if [ -z "${__myLen}" ] ; then
+                sixdeskmess -1 "Cannot find accelerator length in fort.3.aux - something wrong with SYNC block?"
+            else
+                sed -e "s/%length/${__myLen}/g" $sixtrack_input/fort.3.mother1.tmp > $sixtrack_input/fort.3.mother1
+                sed -e "s/%length/${__myLen}/g" $sixtrack_input/fort.3.mother2.tmp > $sixtrack_input/fort.3.mother2
+                sixdeskmess -1 "...updated fort.3.mother? with accelerator length: ${__myLen}"
+            fi
+        fi
+    done
+    
+    cd $sixdeskhome
+    return $__lerr
+}
+
 # ==============================================================================
 # main
 # ==============================================================================
@@ -429,6 +530,7 @@ fi
 linter=false
 lsub=false
 lcheck=false
+lpostpr=false
 loutform=false
 lwrong=false
 lSetEnv=true
@@ -457,6 +559,10 @@ while getopts  ":hIwseo:cd:p:P:U" opt ; do
 	s)
 	    # required submission
 	    lsub=true
+	    ;;
+	r)
+	    # required post-processing
+	    lpostpr=true
 	    ;;
 	o)
 	    # output option
@@ -507,13 +613,13 @@ done
 shift "$(($OPTIND - 1))"
 # user's requests:
 # - actions
-if ! ${lcheck} && ! ${lsub} && ! ${lunlockMad6T} ; then
+if ! ${lcheck} && ! ${lsub} && ! ${lunlockMad6T} && ! ${lpostpr} ; then
     how_to_use
     echo "No action specified!!! aborting..."
     exit 1
-elif ${lcheck} && ${lsub} ; then
+elif ( ${lcheck} && ${lsub} ) || ( ${lpostpr} && ${lsub} ) ; then
     how_to_use
-    echo "Please choose only one action!!! aborting..."
+    echo "If you want to submit, no other action can be specified!!! aborting..."
     exit 1
 elif ${lcheck} && ${linter} ; then
     echo "Interactive mode valid only for running. Switching it off!!!"
@@ -560,8 +666,6 @@ fi
 if ${loutform} ; then
     sixdesklevel=${sixdesklevel_option}
 fi
-# build paths
-sixDeskDefineMADXTree ${SCRIPTDIR}
 
 # - define locking dirs
 lockingDirs=( "$sixdeskstudy" "$sixtrack_input" )
@@ -615,9 +719,49 @@ if ${lsub} ; then
     sixdesklockAll
     
     submit
-
+    
 else
-    check
+
+    # check jobs are over
+    sixdeskCheckRunningJobs "${workspace}_${LHCDescrip}_mad6t" "mad/$workspace/$LHCDescrip"
+    lMissing=$?
+
+    # possibly retrieve data
+    if [ "$sixdeskplatform" == "htcondor" ] ; then
+        lerr=0
+        sixdeskmess -1 "Checking if I need to run condor_transfer_data ..."
+        # get clusterIDs
+        sixdeskGetHTClusterIDs "mad/$workspace/$LHCDescrip"
+        if [ -n "${clusterIDs}" ] ; then
+            for __clusterID in ${clusterIDs} ; do
+                sixdeskHTCondorTransferData ${__clusterID}
+                let lerr+=$?
+            done
+        fi
+        if [ $lerr -ne 0 ] ; then
+            sixdeskmess -1 "Something wrong with condor_transfer_data - aborting..."
+            exit 1
+        fi
+    fi
+        
+    if [ ${lMissing} -ne 0 ] ; then
+        sixdeskmess -1 "Not all jobs are over - aborting..."
+        exit 1
+    fi
+    
+    if ${lpostpr} ; then
+        # - lock dirs before doing any action
+        sixdesklockAll
+        # - actually do post-processing
+        postProcess
+        if [ $? -gt 0 ] ; then
+            sixdeskmess -1 "Something wrong with post-processing - aborting..."
+            exit 1
+        fi
+    fi
+    if ${lcheck} ; then
+	check
+    fi
 fi
 
 # - redefine traps

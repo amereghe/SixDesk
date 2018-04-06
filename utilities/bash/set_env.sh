@@ -18,11 +18,12 @@ function how_to_use() {
                        to prepare a brand new study. The template files will
                        OVERWRITE the local ones. The template dir is:
            ${SCRIPTDIR}/templates/input
-   -N <workspace>  create and initialise a new workspace in the current dir
-                   with the workspace, please specify also the scratch name, eg
+   -N <workspace>  create and initialise a new workspace in the current dir;
+                   you can also specify the scratch name with the workspace, eg:
            -N scratch0/wTest
-                   the workspace will be populated with template files as checked-out
-                       with git from repo:
+                   the scratch can be omitted - it will be simply ignored;
+                   the workspace will be populated with template files as either
+                       from the current scripts or as checked-out from the git repo:
            ${origRepoForSetup}
                        branch:
            ${origBranchForSetup}
@@ -41,6 +42,7 @@ function how_to_use() {
                without overwriting
    -l      use fort.3.local. This file will be added to the list of necessary
                input files only in case this flag will be issued.
+   -g      use a git sparse checkout to initialise workspace (takes disk space)
    -P      python path
    -v      verbose (OFF by default)
 
@@ -74,8 +76,7 @@ function basicChecks(){
 	    sixdeskexit 3
 	fi
     fi
-
-    return 0
+    
 }
 
 function consistencyChecks(){
@@ -111,8 +112,7 @@ function consistencyChecks(){
     if [ $? -ne 0 ] ; then
 	sixdeskexit 9
     fi
-
-    return 0
+    
 }
 
 function getInfoFromFort3Local(){
@@ -122,17 +122,20 @@ function getInfoFromFort3Local(){
     local __otherActiveBlocks=`echo "${__activeLines}" | grep -A1 NEXT | grep -v NEXT | grep -v '^\-\-' | cut -c1-4`
     local __allActiveBlocks="${__firstActiveBlock} ${__otherActiveBlocks}"
     __allActiveBlocks=( ${__allActiveBlocks} )
+    lZipF=false
     if [ ${#__allActiveBlocks[@]} -gt 0 ] ; then
 	sixdeskmess="active blocks in ${envFilesPath}/fort.3.local:"
 	sixdeskmess
 	for tmpActiveBlock in ${__allActiveBlocks[@]} ; do
 	    sixdeskmess="- ${tmpActiveBlock}"
 	    sixdeskmess
+            [ "${tmpActiveBlock}" != "ZIPF" ] || lZipF=true
 	done
 	local __nLines=`echo "${__activeLines}" | wc -l`
 	sixdeskmess="for a total of ${__nLines} ACTIVE lines."
 	sixdeskmess
     fi
+    export lZipF
 }
 
 function setFurtherEnvs(){
@@ -185,6 +188,18 @@ if [ -z "${SCRIPTDIR}" ] ; then
 fi
 # ------------------------------------------------------------------------------
 
+# - infos about current repo
+export REPOPATH=`dirname ${SCRIPTDIR}`
+if [ `which git 2>/dev/null | wc -l` -eq 1 ] ; then
+    cd ${REPOPATH}
+    origRepoForSetup=`git remote show origin | grep Fetch | awk '{print ($NF)}'`
+    origBranchForSetup=`git branch | grep '^*' | awk '{print ($2)}'`
+    cd - 2>&1 > /dev/null
+else
+    origRepoForSetup='https://github.com/amereghe/SixDesk.git'
+    origBranchForSetup='newWorkspace'
+fi
+
 # - necessary input files
 necessaryInputFiles=( sixdeskenv sysenv )
 
@@ -197,18 +212,17 @@ loverwrite=true
 lverbose=false
 llocalfort3=false
 lunlock=false
+lgit=false
 currPlatform=""
 currStudy=""
 tmpPythonPath=""
-origRepoForSetup='https://github.com/amereghe/SixDesk.git'
-origBranchForSetup='newWorkspace'
 
 # variables set based on parsing fort.3.local
 
 nActions=0
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  ":hsvld:ep:P:nN:U" opt ; do
+while getopts  ":hsvld:ep:P:nN:Ug" opt ; do
     case $opt in
 	h)
 	    how_to_use
@@ -259,6 +273,10 @@ while getopts  ":hsvld:ep:P:nN:U" opt ; do
 	    # verbose
 	    lverbose=true
 	    ;;
+        g)
+            # use git sparse checkout to set-up workspace
+            lgit=true
+            ;;
 	:)
 	    how_to_use
 	    echo "Option -$OPTARG requires an argument."
@@ -324,14 +342,9 @@ sixdeskSetLocalNodeStuff
 
 # - set up new workspace
 if ${lcrwSpace} ; then
-    if [ `echo "${wSpaceName}" | awk 'BEGIN{FS="/"}{print (NF)}'` -ne 2 ] ; then
-	how_to_use
-	echo "invalid workspace specification!"
-	exit 1
-    fi
     sixdeskmess -1 "requested generation of new workspace:"
     sixdeskmess -1 "- current path: $PWD"
-    sixdeskmess -1 "- <scratch_dir>/<workspace>: ${wSpaceName}"
+    sixdeskmess -1 "- workspace path: ${wSpaceName}"
     if [ -d ${wSpaceName} ] ; then
 	how_to_use
 	sixdeskmess -1 "workspace ${wSpaceName} already exists!"
@@ -339,7 +352,7 @@ if ${lcrwSpace} ; then
     else
 	mkdir -p ${wSpaceName}
 	cd ${wSpaceName}
-	if [ `which git 2>/dev/null | wc -l` -eq 1 ] ; then
+	if ${lgit} && [ `which git 2>/dev/null | wc -l` -eq 1 ] ; then
 	    sixdeskmess -1 "--> using git to initialise sixjobs"
 	    git init
 	    git config core.sparseCheckout true
@@ -352,7 +365,7 @@ EOF
 	    git remote add -f origin ${origRepoForSetup}
 	    git checkout ${origBranchForSetup}
 	else
-	    origDir=`dirname ${SCRIPTDIR}`/sixjobs
+	    origDir=${REPOPATH}/sixjobs
 	    sixdeskmess -1 "--> initialising sixjobs from ${origDir}"
 	    cp -r ${origDir} .
 	fi
@@ -362,9 +375,10 @@ EOF
 	touch studies/sixdesklock
 	cd - 2>&1 > /dev/null
     fi
-    [ -e `basename ${wSpaceName}` ] || ln -s ${wSpaceName}
+    # do we really need this link?
+    [[ "${wSpaceName}" != *"scratch"* ]] || ln -s ${wSpaceName}
     if [ ${nActions} -eq 0 ] ; then
-	sixdeskmess -1 "requested only initilising workspace. Exiting..."
+	sixdeskmess -1 "requested only initialising workspace. Exiting..."
 	exit 0
     fi
     cd ${wSpaceName}/sixjobs
@@ -402,9 +416,6 @@ fi
 
 # - basic checks (i.e. dir structure)
 basicChecks
-if [ $? -gt 0 ] ; then
-    sixdeskexit 4
-fi
 
 # ------------------------------------------------------------------------------
 # actual operations
@@ -423,17 +434,19 @@ if ${lcptemplate} ; then
 	cp -p ${SCRIPTDIR}/templates/input/${tmpFile} .
 	sixdeskmess 2 "${tmpFile}"
     done
-    tmpDir=`readlink -f $PWD`
-    tmpDir=`dirname ${tmpDir}`
-    workspace=`basename ${tmpDir}`
-    tmpDir=`dirname ${tmpDir}`
-    scratchDir=${tmpDir}
-    tmpDir=`dirname ${tmpDir}`
-    baseDir=${tmpDir}
-    sed -i -e "s#^export workspace=.*#export workspace=${workspace}#" \
-	   -e "s#^export basedir=.*#export basedir=${baseDir}#" \
-	   -e "s#^export scratchdir=.*#export scratchdir=${scratchDir}#" sixdeskenv
 
+    # get current paths:
+    sixdeskGetCurrentPaths
+    sed -i -e "s#^export workspace=.*#export workspace=${tmpWorkspace}#" \
+	   -e "s#^export basedir=.*#export basedir=${tmpBaseDir}#" \
+	   -e "s#^export scratchdir=.*#export scratchdir=${tmpScratchDir}#" \
+	   -e "s#^export trackdir=.*#export trackdir=${tmpTrackDir}#" \
+	   -e "s#^export sixtrack_input=.*#export sixtrack_input=${tmpSixtrackInput}#" \
+           sixdeskenv
+    sed -i -e "s#^export sixdeskwork=.*#export sixdeskwork=${tmpSixdeskWork}#" \
+           -e "s#^export cronlogs=.*#export cronlogs=${tmpCronLogs}#" \
+           -e "s#^export sixdesklogs=.*#export sixdesklogs=${tmpSixdeskLogs}#" \
+           sysenv
 else
 
     # - make sure we have sixdeskenv/sysenv/fort.3.local files
@@ -459,13 +472,22 @@ else
     # - set further envs
     setFurtherEnvs
 
+    # - define user tree
+    sixdeskDefineUserTree
+
+    # - boinc variables
+    sixDeskSetBOINCVars
+
+    # - MADX variables
+    sixDeskDefineMADXTree ${SCRIPTDIR}
+    
     # - save input files
     if ${loverwrite} ; then
 	__lnew=false
 	if ${lset} ; then
-	    if ! [ -d studies/${LHCDescrip} ] ; then
+	    if ! [ -d ${sixdeskstudy} ] ; then
 		__lnew=true
-		mkdir studies/${LHCDescrip}
+		mkdir ${sixdeskstudy}
 	    fi
 	fi
 
@@ -490,6 +512,15 @@ else
  	        # updating an existing study
 		sixdeskmess -1 "Updated sixdeskenv/sysenv(/fort.3.local) for $LHCDescrip"
 	    fi
+            # copy necessary .sub/.sh files
+            sixdeskmess -1 "if absent, copying necessary .sub/.sh files for MADX run in ${sixtrack_input}"
+            sixdeskmess -1 "   and necessary .sub/.sh files for 6T runs in ${sixdeskwork}"
+            for tmpFile in htcondor/mad6t.sub lsf/mad6t.sh ; do
+                [ -e ${sixtrack_input}/`basename ${tmpFile}` ] || cp -p ${SCRIPTDIR}/templates/${tmpFile} ${sixtrack_input}
+            done
+            for tmpFile in htcondor/htcondor_run_six.sub htcondor/htcondor_job.sh ; do
+                [ -e ${sixdeskwork}/`basename ${tmpFile}` ] || cp -p ${SCRIPTDIR}/templates/${tmpFile} ${sixdeskwork}
+            done
 	elif ${lload} ; then
 	    cp ${envFilesPath}/sixdeskenv .
 	    cp ${envFilesPath}/sysenv .
