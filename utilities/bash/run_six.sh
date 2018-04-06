@@ -809,18 +809,29 @@ function submitCreateFinalInputs(){
 	let __lerr+=$?
     done
 	
-    if [ "$sixdeskplatform" == "boinc" ] ; then
-	# - generate new taskid
-	sixdeskTaskId=`awk '{print ($1+1)}' $sixdeskhome/sixdeskTaskIds/$LHCDescrip/sixdeskTaskId`
-	echo $sixdeskTaskId > $sixdeskhome/sixdeskTaskIds/$LHCDescrip/sixdeskTaskId
-	sixdesktaskid=boinc$sixdeskTaskId
-	sixdeskmess  1 "sixdesktaskid: $sixdesktaskid - $sixdeskTaskId"
-	# - return sixdeskTaskName and workunitName
-	sixdeskDefineWorkUnitName $workspace $Runnam $sixdesktaskid
-	let __lerr+=$?
-	if [ ${__lerr} -eq 0 ] ; then
+ if [ "$sixdeskplatform" == "boinc" ] ; then
+    # - generate new taskid
+	  sixdeskTaskId=`awk '{print ($1+1)}' $sixdeskhome/sixdeskTaskIds/$LHCDescrip/sixdeskTaskId`
+	  echo $sixdeskTaskId > $sixdeskhome/sixdeskTaskIds/$LHCDescrip/sixdeskTaskId
+	  sixdesktaskid=boinc$sixdeskTaskId
+	  sixdeskmess  1 "sixdesktaskid: $sixdesktaskid - $sixdeskTaskId"
+	  # - return sixdeskTaskName and workunitName
+	  sixdeskDefineWorkUnitName $workspace $Runnam $sixdesktaskid
+	  let __lerr+=$?
+    zipfilename="$workunitName.zip"
+ elif [ "${sixdeskplatform}" == "htboinc" ] || [ "$sixdeskplatform" == "htcondor" ] ; then
+    zipfilename="SixIn.zip"
+ fi
+    
+ if [ ${__lerr} -eq 0 ] ; then
+	    # - generate zip file
+	    #   NB: -j option, to store only the files, and not the source paths
+	    multipleTrials "zip -j $RundirFullPath/${zipfilename} $sixdeskjobs_logs/fort.3 $sixtrack_input/fort.2 $sixtrack_input/fort.8 $sixtrack_input/fort.16 > $RundirFullPath/zip.log 2>&1; local __zip_exit_status=\$? ; grep warning $RundirFullPath/zip.log >/dev/null 2>&1 ; local __zip_warnings=\$? ; rm -f $RundirFullPath/zip.log" "[ \${__zip_exit_status} -eq 0 ] && [ \${__zip_warnings} -eq 1 ]" "Failing to generate .zip file for WU ${workunitName}"
+	    let __lerr+=$?
 	    # - generate the workunit description file
-	    #   NB: appName from sysenv (+ sanity checks in dot_profile)
+	    if [ "$sixdeskplatform" == "boinc" ] ; then
+			    # - generate the workunit description file
+    	    #   NB: appName from sysenv (+ sanity checks in dot_profile)
 	    cat > $RundirFullPath/$workunitName.desc <<EOF
 $workunitName
 $fpopsEstimate 
@@ -835,25 +846,15 @@ $numIssues
 $resultsWithoutConcensus
 $appName
 EOF
-	    let __lerr+=$?
-  	    # - update MegaZip file:
+		   let __lerr+=$?
+	     # - update MegaZip file:
 	    if ${lmegazip} ; then
 		echo "$RundirFullPath/$workunitName.desc" >> ${sixdeskjobs_logs}/megaZipList.txt
 		echo "$RundirFullPath/$workunitName.zip" >> ${sixdeskjobs_logs}/megaZipList.txt
 	    fi
+    fi
 	fi
-    elif [ "$sixdeskplatform" == "htcondor" ] ; then
-        workunitName="SixIn"
-    fi
     
-    if [ ${__lerr} -eq 0 ] ; then
-        if [ "$sixdeskplatform" == "boinc" ] || [ "$sixdeskplatform" == "htcondor" ] ; then
-	    # - generate zip file
-	    #   NB: -j option, to store only the files, and not the source paths
-	    multipleTrials "zip -j $RundirFullPath/$workunitName.zip $sixdeskjobs_logs/fort.3 $sixtrack_input/fort.2 $sixtrack_input/fort.8 $sixtrack_input/fort.16 > $RundirFullPath/zip.log 2>&1; local __zip_exit_status=\$? ; grep warning $RundirFullPath/zip.log >/dev/null 2>&1 ; local __zip_warnings=\$? ; rm -f $RundirFullPath/zip.log" "[ \${__zip_exit_status} -eq 0 ] && [ \${__zip_warnings} -eq 1 ]" "Failing to generate .zip file for WU ${workunitName}"
-	    let __lerr+=$?
-        fi
-    fi
     return $__lerr
 }
 
@@ -954,7 +955,7 @@ function checkDirReadyForSubmission(){
 	    workunitName="${fileNames[0]}"
 	    sixdeskmess  1 ".desc and .zip files present in $RundirFullPath!"
 	fi
-    fi
+    fi    
     if [ $sussix -eq 1 ] ; then
 	sixdeskInspectPrerequisites ${lverbose} $RundirFullPath -s sussix.inp.1.gz sussix.inp.2.gz sussix.inp.3.gz
 	let __lerr+=$?
@@ -1095,7 +1096,13 @@ function condor_sub(){
 	# let's renew the kerberos token just before submitting
 	sixdeskmess 2 "renewing kerberos token before submission to HTCondor"
 	sixdeskRenewKerberosToken
-	multipleTrials "answerHTCSub=\"\`condor_submit -spool -batch-name ${batch_name} ${sixdeskwork}/htcondor_run_six.sub\`\" " "[ -n \"\${answerHTCSub}\" ]" "Problem at condor_submit"
+	if [ "$sixdeskplatform" == "htcondor" ]; then
+      sixdeskmess 2 "condor_submit -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub"
+	    multipleTrials "answerHTCSub=\"\`condor_submit -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub\`\" " "[ -n \"\${answerHTCSub}\" ]" "Problem at condor_submit"
+	elif  [ "$sixdeskplatform" == "htboinc" ]; then
+	    sixdeskmess 2 "condor_submit -pool ${remoteHost}${htboincport} -name ${remoteHost} -spool -batch-name ${batch_name} ${sixdeskjobs}/htboinc_run_six.sub"
+	    multipleTrials "answerHTCSub=\"\`condor_submit -pool ${remoteHost}${htboincport} -name ${remoteHost} -spool  -batch-name ${batch_name} ${sixdeskjobs}/htboinc_run_six.sub \`\" " "[ -n \"\${answerHTCSub}\" ]" "Problem at condor_submit"
+	fi
 	let __lerr+=$?
 	if [ ${__lerr} -ne 0 ] ; then
 	    sixdeskmess -1 "Something wrong with htcondor submission: submission didn't work properly - exit status: ${__lerr}"
@@ -1105,7 +1112,8 @@ function condor_sub(){
 	    done < ${sixdeskjobs}/${LHCDesName}.list
 	else
 	    sixdeskmess -1 "Submission was successful"
-	    # parse output (example: "Submitting job(s)..........\n10 job(s) submitted to cluster 3758.")
+	    if [ "$sixdeskplatform" == "htcondor" ]; then
+		  # parse output (example: "Submitting job(s)..........\n10 job(s) submitted to cluster 3758.")
 	    local __clusterID=`echo "${answerHTCSub}" | tail -1 | awk '{print ($NF)}' | cut -d\. -f1`
 	    local __nSub=`echo "${answerHTCSub}" | tail -1 | awk '{print ($1)}'`
             local __nCases=`wc -l ${sixdeskjobs}/${LHCDesName}.list | awk '{print ($1)}'`
@@ -1128,6 +1136,19 @@ function condor_sub(){
                 rm $tmpDir/SixIn.zip
 		let NsuccessSub+=1
 	    done < ${sixdeskjobs}/${LHCDesName}.list
+	    else
+		# Get the clusterid and write it to a file to maintain it for condor_transfer_data
+		local __clusterID=(${answerHTCSub})
+		__clusterID=${__clusterID[${#__clusterID[@]}-1]}
+		__clusterID=${__clusterID//.}
+		echo ${__clusterID} >> ${sixdeskwork}/htboincjobs/clusterids 
+		sixdeskmess -1 "clusterID  : ${__clusterID}"
+		sixdeskmess -1 "${answerHTCSub}"
+		while read tmpDir ; do		    
+		    rm ${sixdesktrack}/$tmpDir/SixIn.zip
+		    let NsuccessSub+=1
+		done < ${sixdeskjobs}/${LHCDesName}.list
+	    fi
 	    rm -f ${sixdeskjobs}/${LHCDesName}.list
             rm -f /tmp/$LOGNAME/${__clusterID}.list
 	fi
@@ -1613,8 +1634,8 @@ function treatLong(){
 	        	touch $RundirFullPath/JOB_NOT_YET_STARTED
 	        	if [ "$sixdeskplatform" == "lsf" ] ; then
 	        	    dot_bsub
-	        	    local __subSuccess=$?
-	        	elif [ "$sixdeskplatform" == "htcondor" ] ; then
+      			    local __subSuccess=$?
+	        	elif [ "$sixdeskplatform" == "htcondor" ] || [ "$sixdeskplatform" == "htboinc" ] ; then
 	        	    dot_htcondor
 	        	    local __subSuccess=1
 	        	    let nQueued+=1
@@ -2114,6 +2135,12 @@ lrestartTune=false
 lrestartAmpli=false
 lrestartAngle=false
 
+# - define user tree
+sixdeskDefineUserTree $basedir $scratchdir $workspace
+
+# - boinc and htboinc variables
+sixDeskSetBOINCVars
+
 # - preliminary checks
 preliminaryChecksRS
 if [ $? -gt 0 ] ; then
@@ -2331,6 +2358,13 @@ if ${lsubmit} ; then
                 ${sixdeskwork}/htcondor_run_six.sub
         fi
     fi
+
+    if [ "$sixdeskplatform" == "htboinc" ] ; then
+	cp ${SCRIPTDIR}/templates/htcondor/htboinc_run_six.sub ${sixdeskjobs}/htboinc_run_six.sub
+	sed -i "s#^queue dirname from.*#queue dirname from ${sixdeskjobs}/${LHCDesName}.list#g" ${sixdeskjobs}/htboinc_run_six.sub
+	sed -i "s#^+JobFlavour =.*#+JobFlavour = \"${HTCq}\"#g" ${sixdeskjobs}/htboinc_run_six.sub
+    fi
+    
 fi
 # - MegaZip: get file name
 if ${lmegazip} ; then
@@ -2588,7 +2622,7 @@ if ${lrestart} ; then
 fi
 
 # HTCondor: run the actual command
-if ${lsubmit} && [ "$sixdeskplatform" == "htcondor" ] && [ $((${nQueued}%${nMaxJobsSubmitHTCondor})) -ne 0 ] ; then
+if ${lsubmit} && ([ "$sixdeskplatform" == "htcondor" ] || [ "$sixdeskplatform" == "htboinc" ]) && [ $((${nQueued}%${nMaxJobsSubmitHTCondor})) -ne 0 ] ; then
     # submit the remaining jobs
     condor_sub
 fi

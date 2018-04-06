@@ -1,0 +1,15 @@
+# A.Mereghetti, 2017-03-07
+# htcondor sub file for LSF-like jobs
+universe = vanilla
+executable = /bin/false
+output = $(dirname)/htcondor.out
+error = $(dirname)/htcondor.err
+log = $(dirname)/htcondor.log
+# +BOINC_Dev = true 
+transfer_input_files = $(dirname)/SixIn.zip
+# output files will be created only once condor_transfer_data is issued
+# transfer_output_files = fort.10
+transfer_output_remaps = "fort.10=$(dirname)/fort.10"
+ShouldTransferFiles = YES
+WhenToTransferOutput = ON_EXIT_OR_EVICT
+queue dirname from <fullPathToWork>/htboincjobs/<study_name>.list

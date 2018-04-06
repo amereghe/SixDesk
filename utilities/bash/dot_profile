@@ -1159,7 +1159,7 @@ sixdeskSetPlatForm(){
     if [ -n "${__platform}" ] ; then
 	# platform as requested by user (no matter if in sixdeskenv or via terminal line option)
 	export sixdeskplatform=`echo "$__platform" | tr '[A-Z]' '[a-z]'`
-	if [ "$sixdeskplatform" != "boinc" ] && [ "$sixdeskplatform" != "lsf" ] && [ "$sixdeskplatform" != "htcondor" ] ; then
+	if [ "$sixdeskplatform" != "boinc" ] && [ "$sixdeskplatform" != "lsf" ] && [ "$sixdeskplatform" != "htcondor" ] && [ "$sixdeskplatform" != "htboinc" ] ; then
 	    sixdeskmess -1 "unknown platform: ${sixdeskplatform}"
 	    return 1
 	fi
@@ -1173,7 +1173,7 @@ sixdeskSetPlatForm(){
 	[ -n "${sixdeskbnlin}" ] || export sixdeskbnlin="fort.54"
 	[ -n "${bnlfilenames}" ] || export bnlfilenames="beambeam-output.dat beambeamlostID.dat SixTwiss.dat checkdist.dat"
 	[ -n "${bnlfortnames}" ] || export bnlfortnames="fort.52 fort.53 fort.51 fort.97"
-	if [ "$sixdeskplatform" == "boinc" ] ; then
+	if [ [ "$sixdeskplatform" == "boinc" ] || [ "${sixdeskplatform}" == "htboinc" ] ] ; then
 	    [ -n "${sixdeskbnlout}" ] || export sixdeskbnlout="fort.10"
 	elif [ "$sixdeskplatform" == "cpss" ] ; then
 	    [ -n "${sixdeskbnlout}" ] || export sixdeskbnlout=$bnlfortnames
@@ -1321,6 +1321,8 @@ sixDeskSetBOINCVars(){
 
     # --------------------------------------------------------------------------
     # from uploadWorkunit
+
+    # An upper bound on the amount of memory required to process the workunit. 
     # The workunit will only be sent to clients with at least this much
     # available RAM. If exceeded the workunit will be aborted.
     # Measured in bytes.
@@ -1371,7 +1373,17 @@ sixDeskSetBOINCVars(){
     # --------------------------------------------------------------------------
     # for megaZip
     [ -n "${megaZipPath}" ] || export megaZipPath=$boincdir/boinc/upload
+
+    # assign the variables for htboinc
+    if [ "$sixdeskplatform" == "htboinc" ]; then
+	export remoteHost="vccondorce02.cern.ch"
+	export htboincport=":9619"
+    fi
+
+    
 }
+
+
 sixdeskSetCPSSVars(){
     # sixdeskprog/uploadProgram Variables
     # sixdeskProgramName, sixdeskFileName, sixdeskTargetFileName
