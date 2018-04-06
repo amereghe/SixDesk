@@ -5,12 +5,13 @@
 # jobs.list contains the list of mad6t_<iMad>.sh files to be submitted,
 #   the list is automatically deleted after a successful submission
 universe = vanilla
-executable = $(filename)
-output = $Fn(filename).out
-error = $Fn(filename).err
-log = $Fn(filename).log
-# do not ask htcondor to take care of input/output files
-# the bash script used as exe will take care of that
-transfer_output_files = ""
+filejob = %filejob%
+executable = mad6t_$(seedID).sh
+output = $(filejob).$(ClusterId).$(ProcId).out
+error = $(filejob).$(ClusterId).$(ProcId).err
+log = $(filejob).$(ClusterId).$(ProcId).log
+transfer_input_files = $(filejob).$(seedID)
+transfer_output_files = $(filejob).out.$(seedID),fort.3.mad_$(seedID).gz,fort.3.aux_$(seedID).gz,fort.2_$(seedID).gz,fort.8_$(seedID).gz,fort.16_$(seedID).gz
+#transfer_output_remaps = "fort.2_$(seedID).gz=../fort.2_$(seedID).gz,fort.8_$(seedID).gz=../fort.8_$(seedID).gz,fort.16_$(seedID).gz=../fort.16_$(seedID).gz"
 +JobFlavour = "microcentury"
-queue filename from jobs.list
+queue seedID from jobs.list

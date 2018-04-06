@@ -16,6 +16,9 @@ function how_to_use() {
                first optional argument is given, that one will
                overwrite the value of this option;
    -p      platform name (when running many jobs in parallel)
+           this option allows to override the value in sixdeskenv, with no need
+              for the user to manually change the corresponding variable. Similarly,
+              the variable is NOT automatically updated by the script
            NB: this option has been implemented to keep the same
                interface as for other main scripts. In case the
                second optional argument is given, that one will
@@ -27,6 +30,10 @@ function how_to_use() {
    -B      break backward-compatibility
            for the moment, this sticks only to job names
    -t      reprocess old archives of results already parsed
+   -z      do not retrieve only fort.10, but also ${oneResultName}
+   -x      run a dos2unix command on every file in ${oneResultName}
+           NB: this operation is quite lengthy, as each ${oneResultName} has to
+               be unzipped, every file dos2unix-ed and then re-zipped again.
    -n      renew kerberos token every n jobs (default: ${NrenewKerberosDef})
    -l      only list available results
    -o      define output (preferred over the definition of sixdesklevel in sixdeskenv)
@@ -312,7 +319,8 @@ function getListNewResults(){
 	    mkdir -p ${__origPath}
 	fi
 	cd ${__origPath}
-	find . -name ${workspace}_${LHCDesName}__\*_1_sixvf_boinc\* > $tmp 2> /dev/null
+	# remove possible *_1 entries (Sixout.zip)
+	find . -name ${workspace}_${LHCDesName}__\*_1_sixvf_boinc\* | sed '/_1$/d'> $tmp 2> /dev/null
 	cd $sixdeskhome
 	
 #MACRO mymktmp sixdeskresults $sixdeskjobs
@@ -526,6 +534,14 @@ function downloadNewResults(){
 		    found="false"
 		    boincRunnam=`echo $Runnam | sed -e's/%/__/g'`
 		    local __resName=${workspace}_${boincRunnam}_1_sixvf_${taskid}${__suffix}
+		    if ${lretrieveZip} ; then
+			if [ -z ${__suffix} ] ; then
+			    # dealing with results in spooldir
+			    local __resZipName=${__resName}_1
+			else
+			    local __resZipName=${__resName/%_0/_1}
+			fi
+		    fi
 		    if test ! -f ${__origPath}/${__resName}
 		    then
 			
@@ -609,6 +625,13 @@ function downloadNewResults(){
 				    
 				    mkdir -p ../problems
 				    cp fort.10 ../problems/problem$taskid
+				    if ${lretrieveZip} ; then
+					if [ -e ${__origPath}/${__resZipName} ] ; then
+					    cp ${__origPath}/${__resZipName} ../problems/proble${taskid}_${oneResultName}
+					else
+					    sixdeskmess -1 "${__origPath}/${__resZipName} NOT found!"
+					fi
+				    fi
 				    ignore="true"
 				    delete="true"
 				    anerror="true"
@@ -641,6 +664,13 @@ function downloadNewResults(){
 					mkdir -p ../problems
 					cp fort.10 ../problems/problem$taskid
 					cp $tmp ../problems/diffs$taskid
+					if ${lretrieveZip} ; then
+					    if [ -e ${__origPath}/${__resZipName} ] ; then
+						cp ${__origPath}/${__resZipName} ../problems/proble${taskid}_${oneResultName}
+					    else
+						sixdeskmess -1 "${__origPath}/${__resZipName} NOT found!"
+					    fi
+					fi
 				    else
 					grep "DIFF" $tmp >/dev/null 2>&1
 					if test $? -ne 0
@@ -663,6 +693,13 @@ function downloadNewResults(){
 					mkdir -p ../problems
 					cp fort.10 ../problems/problem$taskid
 					cp $tmp ../problems/diffs$taskid
+					if ${lretrieveZip} ; then
+					    if [ -e ${__origPath}/${__resZipName} ] ; then
+						cp ${__origPath}/${__resZipName} ../problems/proble${taskid}_${oneResultName}
+					    else
+						sixdeskmess -1 "${__origPath}/${__resZipName} NOT found!"
+					    fi
+					fi
 				    fi
 				    rm $tmp
 				fi
@@ -699,6 +736,8 @@ function downloadNewResults(){
 				    sixdeskmess 1 "${__messLine4}"
 				fi
 				gzip -f fort.10
+
+
 				ignore="false"
 				success="true"
 				delete="true"
@@ -1079,11 +1118,23 @@ function downloadNewResults(){
 	fi
 	# end of found a taskid or not
 	cd $sixdeskhome
+
+	# check if Sixout.zip is there or not (only when it should be)
+	if ${lretrieveZip} && [ $success == "true" -a $sixdeskplatform == "boinc" ] ; then
+	    if [ ! -e ${__origPath}/${__resZipName} ] ; then
+		sixdeskmess -1 "${__origPath}/${__resZipName} NOT found when it should be there!"
+		sixdeskmess -1 "flagging event as NOT successful!!!"
+		success="false"
+		ignore="true"
+		delete="false"
+		anerror="true"
+	    fi
+	fi
 	if test "$success" = "true"
 	then
 	    
 #MACRO mymess 1 Saving fort.10.gz and updating completed jobs etc
-	    sixdeskmess 1 "Saving fort.10.gz and updating completed jobs etc"
+	    sixdeskmess 1 "Saving fort.10.gz (and ${oneResultName}) and updating completed jobs etc"
 #MACRO mymess
 	    
 	    if test "$duplicate" = "false"
@@ -1097,6 +1148,23 @@ function downloadNewResults(){
 #MACRO mylock
 	    
 	    
+	    if ${lretrieveZip} && [ $sixdeskplatform == "boinc" -a $duplicate == "false" ] ; then
+		sixdeskmess 1 "...${oneResultName} is there as well: ${__resZipName}! --> saving it!"
+		if ${ldos2unix} ; then
+		    sixdeskmess 1 "...dos2unix on files in archive"
+		    unzip ${__origPath}/${__resZipName} -d /tmp/${LOGNAME}
+		    local __tmpAllFiles=`zipinfo -1 ${__origPath}/${__resZipName}`
+		    cd /tmp/${LOGNAME}
+		    dos2unix ${__tmpAllFiles}
+		    zip ${__resZipName} ${__tmpAllFiles}
+		    cp ${__resZipName} ${where}/${oneResultName}
+		    rm -f ${__resZipName} ${__tmpAllFiles}
+		    cd $sixdeskhome
+		else
+		    cp ${__origPath}/${__resZipName} ${where}/${oneResultName}
+		fi
+	    fi
+			
 	    # Now we make a file completed_this_run which we will
 	    # use to update a parallel mycompleted_cases and myincomplete_cases
 	    echo "$Runnam" >> $sixdeskwork/completed_this_run
@@ -1165,20 +1233,34 @@ function downloadNewResults(){
 		
 		if test "$Runnam" != ""
 		then
-		    rm -f ${__origPath}/${__resName}
-		    # and try and remove Alex .done and .zip
+		    if [ -z "${__suffix}" ] ; then
+			# dealing with results in spooldir, otherwise if in /tmp, results
+			#    will be deleted at the end of processing
+			rm -f ${__origPath}/${__resName}
+			if ${lretrieveZip} ; then
+			    rm -f ${__origPath}/${__resZipName}
+			fi
+			# and try and remove Alex .done and .zip
 		    
 #MACRO mymess 1 Deleting .done and .zip
-		    sixdeskmess 1 "Deleting .done and .zip"
+			sixdeskmess 1 "Deleting .done and .zip"
 #MACRO mymess
-		    
-		    rm -f $sixdeskboincdir/work/${workspace}_${boincRunnam}_1_sixvf_$taskid.desc.done
-		    rm -f $sixdeskboincdir/work/${workspace}_${boincRunnam}_1_sixvf_$taskid.zip
+			rm -f $sixdeskboincdir/work/${workspace}_${boincRunnam}_1_sixvf_$taskid.desc.done
+			rm -f $sixdeskboincdir/work/${workspace}_${boincRunnam}_1_sixvf_$taskid.zip
+		    fi
 		else
-		    rm -f ${__origPath}/${workspace}_*_1_sixvf_$taskid
-		    # Alex stuff?
-		    rm -f $sixdeskboincdir/work/${workspace}_*_1_sixvf_$taskid.desc.done
-		    rm -f $sixdeskboincdir/work/${workspace}_*_1_sixvf_$taskid.zip
+		    if [ -z "${__suffix}" ] ; then
+			# dealing with results in spooldir, otherwise if in /tmp, results
+			#    will be deleted at the end of processing
+			rm -f ${__origPath}/${workspace}_*_1_sixvf_$taskid
+			rm -f ${__origPath}/${workspace}_*_1_sixvf_${taskid}_0
+			if ${lretrieveZip} ; then
+			    rm -f ${__origPath}/${workspace}_*_1_sixvf_${taskid}_1
+			fi
+			# Alex stuff?
+			rm -f $sixdeskboincdir/work/${workspace}_*_1_sixvf_$taskid.desc.done
+			rm -f $sixdeskboincdir/work/${workspace}_*_1_sixvf_$taskid.zip
+		    fi
 		fi
 	    fi
 	fi
@@ -1280,8 +1362,11 @@ fi
 lbackcomp=true
 lreconsiderDelete=false
 loutform=false
+lretrieveZip=false
 downloadDir=/afs/cern.ch/work/b/boinc/download
 lunlockRunRes=false
+ldos2unix=false
+oneResultName='Sixout.zip'
 lProceedRunRes=true
 NrenewKerberosDef=2000
 NrenewKerberos=${NrenewKerberosDef}
@@ -1291,7 +1376,7 @@ optArgCurrPlatForm=""
 unlockSetEnv=""
 
 # get options (heading ':' to disable the verbose error handling)
-while getopts  ":hBto:n:d:p:Ul" opt ; do
+while getopts  ":hBto:n:d:p:zxUl" opt ; do
     case $opt in
 	h)
 	    how_to_use
@@ -1304,6 +1389,17 @@ while getopts  ":hBto:n:d:p:Ul" opt ; do
 	t)
 	    lreconsiderDelete=true
 	    ;;
+	z)
+	    # retrieve also Sixout.zip
+	    lretrieveZip=true
+	    ;;
+	x)
+	    # run dos2unix on every item in Sixout.zip
+	    ldos2unix=true
+	    # this call imply that Sixout.zip should be retrieved
+	    lretrieveZip=true
+	    ;;
+	    
 	n)
 	    # renew kerberos token every N jobs
 	    NrenewKerberos=${OPTARG}
@@ -1447,11 +1543,11 @@ sixdeskmess -1 "Using sixdesk.log in $sixdesklogdir"
 #MACRO mymess
 
 
-if test $sixdeskplatform = "lsf"
+if test $sixdeskplatform = "lsf" -o $sixdeskplatform != "htcondor"
 then
 
 #MACRO mymess 0 This command is not available for LSF jobs!!!
-  sixdeskmess -1 "This command is not available for LSF jobs!!!"
+  sixdeskmess -1 "This command is not available for CERN batch jobs!!!"
 #MACRO mymess
 
 

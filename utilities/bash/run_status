@@ -11,6 +11,55 @@
 # See if we have any results or report on a specific task
 #
 
+function how_to_use() {
+    cat <<EOF
+
+   `basename $0` [option] [<study_name>] [<platform>]
+   to retrieve boinc results
+
+   options (optional)
+   -d      study name (when running many jobs in parallel)
+           NB: this option has been implemented to keep the same
+               interface as for other main scripts. In case the
+               first optional argument is given, that one will
+               overwrite the value of this option;
+   -U      unlock dirs necessary to the script to run
+           PAY ATTENTION when using this option, as no check whether the lock
+              belongs to this script or not is performed, and you may screw up
+              processing of another script
+   -B      break backward-compatibility
+           for the moment, this sticks only to job names
+   -n      renew kerberos token every n jobs (default: ${NrenewKerberosDef})
+   -o      define output (preferred over the definition of sixdesklevel in sixdeskenv)
+               0: only error messages and basic output 
+               1: full output
+               2: extended output for debugging
+
+EOF
+}
+
+function check_output_option(){
+    local __selected_output_valid
+    __selected_output_valid=false
+    
+    case ${OPTARG} in
+    ''|*[!0-2]*) __selected_output_valid=false ;;
+    *)           __selected_output_valid=true  ;;
+    esac
+
+    if ! ${__selected_output_valid}; then
+	echo "ERROR: Option -o requires the following arguments:"
+	echo "    0: only error messages and basic output [default]"
+	echo "    1: full output"
+	echo "    2: extended output for debugging"
+	exit
+    else
+	loutform=true
+	sixdesklevel_option=${OPTARG}
+    fi
+    
+}
+
 # ------------------------------------------------------------------------------
 # preliminary to any action
 # ------------------------------------------------------------------------------
@@ -22,7 +71,110 @@ if [ -z "${SCRIPTDIR}" ] ; then
 fi
 # ------------------------------------------------------------------------------
 
-source ${SCRIPTDIR}/bash/dot_env
+lbackcomp=true
+lunlockRunStatus=false
+NrenewKerberosDef=2000
+NrenewKerberos=${NrenewKerberosDef}
+optArgCurrStudy="-s"
+doNotOverwrite="-e"
+optArgCurrPlatForm=""
+unlockSetEnv=""
+loutform=false
+
+# get options (heading ':' to disable the verbose error handling)
+while getopts  ":hBo:n:d:U" opt ; do
+    case $opt in
+	h)
+	    how_to_use
+	    exit 1
+	    ;;
+	B)
+	    # use whatever breaks backward compatibility
+	    lbackcomp=false
+	    ;;
+	n)
+	    # renew kerberos token every N jobs
+	    NrenewKerberos=${OPTARG}
+	    # check it is actually a number
+	    let NrenewKerberos+=0
+	    if [ $? -ne 0 ] 2>/dev/null; then
+		how_to_use
+		echo "-n argument option is not a number!"
+		exit 1
+	    fi
+	    ;;
+	o)
+	    # output option
+	    check_output_option
+	    ;;	
+	d)
+	    # the user is requesting a specific study
+	    optArgCurrStudy="-d ${OPTARG}"
+	    ;;
+	U)
+	    # unlock currently locked folder
+	    lunlockRunStatus=true
+	    unlockSetEnv="-U"
+	    ;;
+	:)
+	    how_to_use
+	    echo "Option -$OPTARG requires an argument."
+	    exit 1
+	    ;;
+	\?)
+	    how_to_use
+	    echo "Invalid option: -$OPTARG"
+	    exit 1
+	    ;;
+    esac
+done
+shift "$(($OPTIND - 1))"
+
+# - load environment
+#   NB: workaround to get getopts working properly in sourced script
+OPTIND=1
+
+# optional arguments
+if [ -n "$1" ] ; then
+    optArgCurrStudy="-d $1"
+fi
+if [ -n "$2" ] ; then
+    optArgCurrPlatForm="-p $2"
+fi
+
+
+# Even if called with a Study ($1) and a Platform ($2)
+# we can now use dot_env
+echo ""
+printf "=%.0s" {1..80}
+echo ""
+echo "--> sourcing set_env.sh"
+printf '.%.0s' {1..80}
+echo ""
+source ${SCRIPTDIR}/bash/set_env.sh ${optArgCurrStudy} ${optArgCurrPlatForm} ${unlockSetEnv} ${doNotOverwrite}
+printf "=%.0s" {1..80}
+echo ""
+echo ""
+
+# locking dirs
+lockingDirs=( $sixdeskstudy )
+
+if ${loutform} ; then
+    sixdesklevel=${sixdesklevel_option}
+fi
+
+# unlock
+if ${lunlockRunStatus} ; then
+    sixdeskunlockAll
+fi
+
+# setting traps
+trap "sixdeskexit  199" EXIT
+
+#   . break backward compatibility
+if ! ${lbackcomp} ; then
+    sixdeskmess -1 " --> flag for backward compatibility de-activated, as requested by user!"
+fi
 
 #MACRO mymess 0 Checking Study $LHCDescrip
 sixdeskmesslevel=0
@@ -183,37 +335,38 @@ then
 #MACRO mymess
 
         rm -f $tmp
-        touch $tmp
-        bjobs -u $LOGNAME -w > blsfjobs 2>$tmp
-        if test $? -ne 0
-        then
+        if [ "$sixdeskplatform" == "lsf" ] ; then
+            touch $tmp
+            bjobs -u $LOGNAME -w > blsfjobs 2>$tmp
+            if test $? -ne 0
+            then
 
 #MACRO mymess 0 Error return from bjobs!!!
-           sixdeskmesslevel=0
-           sixdeskmess -1 "Error return from bjobs!!!"
+                sixdeskmesslevel=0
+                sixdeskmess -1 "Error return from bjobs!!!"
 #MACRO mymess
 
 
 #MACRO myunlock $sixdeskstudy
-           sixdesklockdir=$sixdeskstudy
-           sixdeskunlock
+                sixdesklockdir=$sixdeskstudy
+                sixdeskunlock
 #MACRO myunlock
 
-           rm -f $tmp
+                rm -f $tmp
 
 #MACRO myexit 4
-           sixdeskexitparam=4
-           sixdeskexit
+                sixdeskexitparam=4
+                sixdeskexit
 #MACRO myexit
 
-        fi
-        grep "End of file" $tmp > /dev/null 2>&1
-        if test $? -eq 0
-        then
+            fi
+            grep "End of file" $tmp > /dev/null 2>&1
+            if test $? -eq 0
+            then
 
 #MACRO mymess 0 End of File error on LSF bjobs query: please try later !!!
-          sixdeskmesslevel=0
-          sixdeskmess -1 "End of File error on LSF bjobs query: please try later !!!"
+                sixdeskmesslevel=0
+                sixdeskmess -1 "End of File error on LSF bjobs query: please try later !!!"
 #MACRO mymess
 
 
@@ -230,97 +383,113 @@ then
 
 
 #MACRO myunlock $sixdeskstudy
-          sixdesklockdir=$sixdeskstudy
-          sixdeskunlock
+                sixdesklockdir=$sixdeskstudy
+                sixdeskunlock
 #MACRO myunlock
 
-          rm -f $tmp
+                rm -f $tmp
 
 #MACRO myexit 3
-          sixdeskexitparam=3
-          sixdeskexit
+                sixdeskexitparam=3
+                sixdeskexit
 #MACRO myexit
 
-        fi
-        grep " $LHCDesName""%" blsfjobs > $tmp
-        mv $tmp blsfjobs
-        nlsfjobs=`wc -l blsfjobs`
-        nlsfjobs=`echo "$nlsfjobs" | sed -e 's? *\([0-9]*\).*?\1?'`
-        if test "$nlsfjobs" = ""
-        then
-          nlsfjobs="0"
-        fi
+            fi
+            grep " $LHCDesName""%" blsfjobs > $tmp
+            mv $tmp blsfjobs
+            nlsfjobs=`wc -l blsfjobs`
+            nlsfjobs=`echo "$nlsfjobs" | sed -e 's? *\([0-9]*\).*?\1?'`
+            if test "$nlsfjobs" = ""
+            then
+                nlsfjobs="0"
+            fi
 
 #MACRO mymess 0 LSF bjobs found $nlsfjobs batch jobs (running, pending, or suspended)
-        sixdeskmesslevel=0
-        sixdeskmess -1 "LSF bjobs found $nlsfjobs batch jobs (running, pending, or suspended)"
+            sixdeskmesslevel=0
+            sixdeskmess -1 "LSF bjobs found $nlsfjobs batch jobs (running, pending, or suspended)"
 #MACRO mymess
 
 # new test for Massimo
-        egrep 'UNKWN|ZOMBI' blsfjobs > $tmp
-        if test $? -eq 0
-        then
+            egrep 'UNKWN|ZOMBI' blsfjobs > $tmp
+            if test $? -eq 0
+            then
 
 #MACRO mymess 0 There appear to be some UNKNOWN or ZOMBIE LSF jobs.
-          sixdeskmesslevel=0
-          sixdeskmess -1 "There appear to be some UNKNOWN or ZOMBIE LSF jobs."
+                sixdeskmesslevel=0
+                sixdeskmess -1 "There appear to be some UNKNOWN or ZOMBIE LSF jobs."
 #MACRO mymess
 
 
 #MACRO mymess 0 You may want to kill them (list appended).
-          sixdeskmesslevel=0
-          sixdeskmess -1 "You may want to kill them (list appended)."
+                sixdeskmesslevel=0
+                sixdeskmess -1 "You may want to kill them (list appended)."
 #MACRO mymess
 
-          while read aline
-          do
+                while read aline
+                do
 
 #MACRO mymess 0 $aline
-            sixdeskmesslevel=0
-            sixdeskmess -1 "$aline"
+                    sixdeskmesslevel=0
+                    sixdeskmess -1 "$aline"
 #MACRO mymess
 
-          done < $tmp
-        fi
-        rm -f $tmp
-        touch $sixdeskjobs/incomplete_jobs
-        cp $sixdeskjobs/incomplete_jobs .
-        touch $sixdeskjobs/completed_jobs
-        cp $sixdeskjobs/completed_jobs .
-        cp incomplete_jobs newcompleted_jobs
-        touch blsfjobs
-        while read qrjob
-        do
-          qrjob=`echo $qrjob | sed -e's/  */ /g'`
-          taskno=`echo $qrjob | cut -d" " -f1`
-          taskid=lsf$taskno
-          Runnam=`echo $qrjob | cut -d" " -f7`
-          if test $? -ne 0
-          then
-
+                done < $tmp
+            fi
+            rm -f $tmp
+            touch $sixdeskjobs/incomplete_jobs
+            cp $sixdeskjobs/incomplete_jobs .
+            touch $sixdeskjobs/completed_jobs
+            cp $sixdeskjobs/completed_jobs .
+            cp incomplete_jobs newcompleted_jobs
+            touch blsfjobs
+            while read qrjob
+            do
+                qrjob=`echo $qrjob | sed -e's/  */ /g'`
+                taskno=`echo $qrjob | cut -d" " -f1`
+                taskid=lsf$taskno
+                Runnam=`echo $qrjob | cut -d" " -f7`
+                if test $? -ne 0
+                then
+                    
 #MACRO mymess 0 The job $taskid / $Runnam can NOT be found in $sixdeskjobs/jobs!!!
-            sixdeskmesslevel=0
-            sixdeskmess -1 "The job $taskid / $Runnam can NOT be found in $sixdeskjobs/jobs!!!"
+                    sixdeskmesslevel=0
+                    sixdeskmess -1 "The job $taskid / $Runnam can NOT be found in $sixdeskjobs/jobs!!!"
 #MACRO mymess
 
-          else
-            sed -e'/'"$Runnam $taskid"'/d' newcompleted_jobs > $tmp
-            mv $tmp newcompleted_jobs
-          fi   
-        done < blsfjobs
-        ncjobs=`wc -l newcompleted_jobs`
-        ncjobs=`echo "$ncjobs" | sed -e 's? *\([0-9]*\).*?\1?'`
-        if test "$ncjobs" -eq 0
-        then
-          ncjobs="0" 
-        fi
+                else
+                    sed -e'/'"$Runnam $taskid"'/d' newcompleted_jobs > $tmp
+                    mv $tmp newcompleted_jobs
+                fi   
+            done < blsfjobs
+            ncjobs=`wc -l newcompleted_jobs`
+            ncjobs=`echo "$ncjobs" | sed -e 's? *\([0-9]*\).*?\1?'`
+            if test "$ncjobs" -eq 0
+            then
+                ncjobs="0" 
+            fi
 
 #MACRO mymess 0 Found $ncjobs jobs apparently completed
-        sixdeskmesslevel=0
-        sixdeskmess -1 "Found $ncjobs jobs apparently completed"
+            sixdeskmesslevel=0
+            sixdeskmess -1 "Found $ncjobs jobs apparently completed"
 #MACRO mymess
 
-        rm -f blsfjobs
+            rm -f blsfjobs
+        else
+            sixdeskmess -1 "Checking if I need to run condor_transfer_data ..."
+            # get clusterIDs
+            sixdeskGetHTClusterIDs "run_six/$workspace/$LHCDescrip"
+            if [ -n "${clusterIDs}" ] ; then
+                for __clusterID in ${clusterIDs} ; do
+                    sixdeskHTCondorTransferData ${__clusterID}
+                    let lerr+=$?
+                done
+            fi
+            touch $sixdeskjobs/incomplete_jobs
+            cp $sixdeskjobs/incomplete_jobs .
+            touch $sixdeskjobs/completed_jobs
+            cp $sixdeskjobs/completed_jobs .
+            cp incomplete_jobs newcompleted_jobs
+        fi
         # Now let us look for really completed lsfjobs....
         rm -f missing_jobs
         touch missing_jobs
@@ -355,16 +524,11 @@ then
             fi
           else
            if test "$BNL" = ""
-           then
-	       if test $sixdeskplatform = "htboinc"
-	       then
-		   if test -s $where/fort.10
-		   then
-		       gzip -f ${where}/fort.10
-		       rm      ${where}/JOB_NOT_YET_COMPLETED
-		   fi
+            then
+	      if [ -s $where/fort.10 ] ; then
+		gzip -f ${where}/fort.10
+    rm   -f  ${where}/JOB_NOT_YET_COMPLETED
 	      fi
-	       
               if test ! -s $where/fort.10.gz
               then
 
@@ -406,6 +570,9 @@ then
             sed -e'/'"$line"'/d' incomplete_jobs > $tmp
             mv $tmp incomplete_jobs
             echo "$line" >> completed_jobs
+            if [ "$sixdeskplatform" == "htcondor" ] ; then
+                rm $where/JOB_NOT_YET_COMPLETED
+            fi
           fi
         done < newcompleted_jobs 
         sort --unique completed_jobs > $tmp

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+newBuildPathDef=/afs/cern.ch/project/sixtrack/build
+appNameDef=sixtrack
 export platForms=( 'boinc' 'lsf' 'htcondor' )
 export fileSuffixes=( 'tasks' 'jobs' 'jobs' )
 
@@ -735,57 +737,60 @@ sixdeskAllAngles(){
     KKs=""
     Angles=""
     kAngs=""
-    KKs_reduced=""
-    Angles_reduced=""
-    kAngs_reduced=""
-    
-    # AngleStep [deg]
-    if ${__lbackcomp} ; then
-	local __angleStep=`echo ${__totAngle} ${__kmax} | awk '{print ($1/($2+1))}'`
-    else
-	local __angleStep=`echo ${__totAngle} ${__kmax} | awk '{printf ("%.16E",$1/($2+1))}'`
-    fi
+    KKs_ampl="0" 
 
     # generate regular angle steps:
-    if ${__lReduceAngsWithAmplitude} ; then
-	local __kstepNew=`echo ${__ampfinish} ${__ampstart} ${__kstep} | awk '{print ($1/$2*$3)}'`
+    if ${__lReduceAngsWithAmplitude}; then
+        for (( iAmple=0; iAmple<${#fAmpEnds[@]}; iAmple++ )) ; do
+            if (( $(echo "${reduce_angs_with_amplitude} ${fAmpEnds[${iAmple}]}" | awk '{print ($1 < $2)}') )); then
+                local __angles_nb=$(echo ${fAmpEnds[${iAmple}]} ${ampfinish} ${__kmax} | awk '{printf ("%.f", ($1/$2*$3))}')
+            else
+                local __angles_nb=$(echo ${reduce_angs_with_amplitude} ${ampfinish} ${__kmax} | awk '{printf ("%.f", ($1/$2*$3))}')
+            fi
+
+            if [ ${__angles_nb} -eq 0 ];then
+                __angles_nb=1
+            fi
+
+            for (( kk=1; kk<=${__angles_nb}; kk++ )) ; do
+	        KKs="${KKs} ${kk}"
+                local __tmpAngle=`echo ${totAngle} ${kk} ${__angles_nb} | awk '{print ($1*$2/($3+1))}'`
+	        Angles="${Angles} ${__tmpAngle}"  
+	        if ${__lbackcomp} ; then
+	            local __kang=`echo ${kk} ${__angles_nb} | awk '{print ($1/($2+1))}'`
+	        else
+	            local __kang=`echo ${kk} ${__angles_nb} | awk '{printf ("%.16E",$1/($2+1))}'`
+	        fi
+	        kAngs="${kAngs} ${__kang}"
+            done
+            let nTotAngles+=${__angles_nb}
+            KKs_ampl+=( ${nTotAngles} )
+        done
     else
-	local __kstepNew=${__kstep}
-    fi
-    for (( kk=${__kmin}; kk<=${__kend}; kk+=${__kstepNew} )) ; do
-	KKs="${KKs} ${kk}"
-	local __tmpAngle=`echo ${kk} ${__angleStep} | awk '{print ($1*$2)}'`
-	Angles="${Angles} ${__tmpAngle}"
-	if ${__lbackcomp} ; then
-	    local __kang=`echo ${kk} ${__kmax} | awk '{print ($1/($2+1))}'`
-	else
-	    local __kang=`echo ${kk} ${__kmax} | awk '{printf ("%.16E",$1/($2+1))}'`
-	fi
-	kAngs="${kAngs} ${__kang}"
-    done
-    # generate reduced angle steps:
-    if ${__lReduceAngsWithAmplitude} ; then
-	local __kstepNew=`echo ${__ampfinish} ${__factor} ${__kstep} | awk '{print ($1/$2*$3)}'`
-	for (( kk=${__kmin}; kk<=${__kend}; kk+=${__kstepNew} )) ; do
-	    KKs_reduced="${KKs_reduced} ${kk}"
+        if ${__lbackcomp} ; then
+            local __angleStep=`echo ${__totAngle} ${__kmax} | awk '{print ($1/($2+1))}'`
+        else
+            local __angleStep=`echo ${__totAngle} ${__kmax} | awk '{printf ("%.16E",$1/($2+1))}'`
+        fi
+
+        for (( kk=${__kmin}; kk<=${__kend}; kk+=${__kstep} )) ; do
+	    KKs="${KKs} ${kk}"
 	    local __tmpAngle=`echo ${kk} ${__angleStep} | awk '{print ($1*$2)}'`
-	    Angles_reduced="${Angles_reduced} ${__tmpAngle}"
+	    Angles="${Angles} ${__tmpAngle}"
 	    if ${__lbackcomp} ; then
-		local __kang=`echo ${kk} ${__kmax} | awk '{print ($1/($2+1))}'`
+	        local __kang=`echo ${kk} ${__kmax} | awk '{print ($1/($2+1))}'`
 	    else
-		local __kang=`echo ${kk} ${__kmax} | awk '{printf ("%.16E",$1/($2+1))}'`
+	        local __kang=`echo ${kk} ${__kmax} | awk '{printf ("%.16E",$1/($2+1))}'`
 	    fi
-	    kAngs_reduced="${kAngs_reduced} ${__kang}"
-	done
+	  kAngs="${kAngs} ${__kang}"
+        done
+        KKs_ampl=( ${KKs_ampl} ${__kend} )
     fi
 
     # make arrays
     KKs=( ${KKs} )
     Angles=( ${Angles} )
     kAngs=( ${kAngs} )
-    KKs_reduced=( ${KKs_reduced} )
-    Angles_reduced=( ${Angles_reduced} )
-    kAng_reduceds=( ${kAngs_reduced} )
 }
 sixdeskrundir()
 {
@@ -807,33 +812,84 @@ sixdeskDefinePythonPath(){
     fi
     sixdeskmess -1 "--> python set to: `which python`"
 }
+sixdeskGetCurrentPaths(){
+    tmpDir=`readlink -f $PWD`
+    tmpDir=`dirname ${tmpDir}`
+    tmpWorkspace=`basename ${tmpDir}`
+    if [[ "${tmpDir}" == *"scratch"* ]] ; then
+        # scratchdir IS in the path
+        tmpDir=`dirname ${tmpDir}`
+        tmpScratchName=`basename ${tmpDir}`
+        tmpDir=`dirname ${tmpDir}`
+        tmpBaseDir=${tmpDir}
+        tmpScratchDir=\$basedir/${tmpScratchName}
+        tmpTrackDir=\$scratchdir/\$workspace
+        tmpSixtrackInput=\$scratchdir/sixtrack_input/\$workspace/\$LHCDescrip
+        tmpSixdeskWork=\$scratchdir/work/\$workspace/\$LHCDescrip
+        tmpCronLogs=\$scratchdir/cronlogs/\$workspace
+        tmpSixdeskLogs=\$scratchdir/sixdesklogs/\$workspace
+    else
+        # scratchdir is NOT in the path
+        tmpDir=`dirname ${tmpDir}`
+        tmpBaseDir=${tmpDir}
+        tmpScratchDir=\$basedir/\$workspace
+        tmpTrackDir=\$basedir/\$workspace
+        tmpSixtrackInput=\$scratchdir/sixtrack_input/\$LHCDescrip
+        tmpSixdeskWork=\$scratchdir/work/\$LHCDescrip
+        tmpCronLogs=\$scratchdir/cronlogs
+        tmpSixdeskLogs=\$scratchdir/sixdesklogs
+    fi
+}
+sixdeskCheckPath(){
+    local __pathName=$1
+    local __defValue=$2
+    # remove trailing slashes
+    __defValue=`echo "${__defValue}" | sed 's:/*$::'`
+    if [ $# -eq 3 ] ; then
+        local __checkSuffixes=$3
+    else
+        local __checkSuffixes=`basename ${__defValue}`
+    fi
+    # debug -> echo ""
+    # debug -> echo ${__pathName}: before: ${!__pathName}
+    # debug -> echo "check_suffix: ${__checkSuffixes}"
+    [ -n "${!__pathName}" ] || export ${__pathName}=${__defValue}
+    for __checkSuffix in ${__checkSuffixes[@]} ; do
+        if [[ "${!__pathName}" == "/${__checkSuffix}"* ]] || [[ "${!__pathName}" == "//${__checkSuffix}"* ]] ; then
+            export ${__pathName}=${__defValue}
+            break
+        fi
+    done
+    # debug -> echo ${__pathName}: after: ${!__pathName}
+}
 sixdeskDefineUserTree(){
     # define the tree in the userspace
+
+    # get current paths
+    sixdeskGetCurrentPaths
     
-    # input variables are the starting points:
-    # $1: root dir (ie $basedir in sixdeskenv)
-    # $2: scratch dir (ie $scratchdir in sixdeskenv)
-    # $3: workspace name (ie $workspace in sixdeskenv)
-
     # basic paths (back-compatibility)
-    [ -n "${basedir}" ] || export basedir=$1               # eg /afs/cern.ch/user/$initial/$LOGNAME
-    [ -n "${scratchdir}" ] || export scratchdir=$2            # eg $basedir/scratch0
-    [ -n "${trackdir}" ] || export trackdir=$scratchdir/$3  # eg $scratchdir/w2
-    [ -n "${sixdeskhome}" ] || export sixdeskhome=$basedir/$3/sixjobs # eg $trackdir/sixjobs
-    [ -n "${sixdeskhomeStudies}" ] || export sixdeskhomeStudies=$sixdeskhome/studies
+    [ -n "${workspace}" ] || export workspace=`eval echo "${tmpWorkspace}"`
+    [ -n "${basedir}" ] || export basedir=`eval echo "${tmpBaseDir}"`
+    sixdeskCheckPath scratchdir     `eval echo "${tmpScratchDir}"`
+    sixdeskCheckPath trackdir       `eval echo "${tmpTrackDir}"`
+    sixdeskCheckPath sixtrack_input `eval echo "${tmpSixtrackInput}"`       sixtrack_input
+    sixdeskCheckPath sixdeskwork    `eval echo "${tmpSixdeskWork}"`         work
 
-    # 
-    [ -n "${sixtrack_input}" ] || export sixtrack_input=$scratchdir/sixtrack_input/$workspace/$LHCDescrip
-    [ -n "${sixdesklogs}" ] || export sixdesklogs=$scratchdir/sixdesklogs/$workspace
-    [ -n "${sixdesklogdir}" ] || export sixdesklogdir=$sixdesklogs/$LHCDescrip
-    [ -n "${cronlogs}" ] || export cronlogs=$scratchdir/cronlogs/$workspace
-    [ -n "${cronlogdir}" ] || export cronlogdir=$cronlogs/$LHCDescrip
-    [ -n "${sixdesktrack}" ] || export sixdesktrack=$trackdir/track
-    [ -n "${sixdesktrackStudy}" ] || export sixdesktrackStudy=$sixdesktrack/$LHCDescrip
-    [ -n "${sixdeskwork}" ] || export sixdeskwork=$scratchdir/work/$workspace/$LHCDescrip
-    [ -n "${sixdeskjobs}" ] || export sixdeskjobs=$sixdeskwork/$sixdeskplatform"jobs"
-    [ -n "${sixdeskjobs_logs}" ] || export sixdeskjobs_logs=$sixdeskjobs/jobs_logs
-    [ -n "${sixdeskstudy}" ] || export sixdeskstudy=$sixdeskhomeStudies/$LHCDescrip
+    # dependent paths
+    sixdeskCheckPath sixdeskhome        ${basedir}/${workspace}/sixjobs     "${workspace} sixjobs"
+    sixdeskCheckPath sixdeskhomeStudies ${sixdeskhome}/studies              "${workspace} sixjobs studies"
+    sixdeskCheckPath sixdeskstudy       $sixdeskhomeStudies/$LHCDescrip     "${workspace} sixjobs studies ${LHCDescrip}"
+    sixdeskCheckPath sixdesktrack       $trackdir/track                     "${workspace} track"
+    sixdeskCheckPath sixdesktrackStudy  $sixdesktrack/$LHCDescrip           "${workspace} track ${LHCDescrip}"
+
+    # logs/jobs paths
+    sixdeskCheckPath sixdesklogs        `eval echo "${tmpSixdeskLogs}"`     sixdesklogs
+    sixdeskCheckPath sixdesklogdir      $sixdesklogs/$LHCDescrip            sixdesklogs
+    sixdeskCheckPath cronlogs           `eval echo "${tmpCronLogs}"`        cronlogs
+    sixdeskCheckPath cronlogdir         $cronlogs/$LHCDescrip               cronlogs
+    sixdeskCheckPath sixdeskjobs        $sixdeskwork/$sixdeskplatform"jobs" work
+    sixdeskCheckPath sixdeskjobs_logs   $sixdeskjobs/jobs_logs              work
 }
 sixDeskDefineMADXTree(){
     local __SCRIPTDIR=$1
@@ -1090,16 +1146,13 @@ sixdeskCreateUserTree(){
     fi
 }
 sixdeskSetExes(){
+    local __lerr=0
     [ -n "${sixdeskpath}" ] || export sixdeskpath=/afs/cern.ch/group/si/slap/bin/sixdesk
-    if [ -z "${SIXTRACKEXE}" ] ; then
-	if [ "$BIGNBLZ" != "" ] ; then
-	    export SIXTRACKEXE=$sixdeskpath/exes/SixTrack_bignblz_pro
-	else
-	    export SIXTRACKEXE=$sixdeskpath/exes/SixTrack_pro
-	fi
-    fi
+    [ -n "${SIXTRACKEXE}" ] || export SIXTRACKEXE=$newBuildPathDef/${appName}
+    [ -n "${SIXTRACKEXESINGLETURN}" ] || export SIXTRACKEXESINGLETURN=${SIXTRACKEXE}
     [ -n "${SIXTRACKBNLEXE}" ] || export SIXTRACKBNLEXE=$sixdeskpath/exes/SixTrack_bnl_pro
     [ -n "${SIXTRACKDAEXE}" ] || export SIXTRACKDAEXE=$sixdeskpath/exes/SixTrack_crlibm_da_lf95v4200
+    return ${__lerr}
 }
 sixdeskSetPlatForm(){
     local __platform=$1
@@ -1130,6 +1183,48 @@ sixdeskSetPlatForm(){
     fi
     return 0
 }
+
+sixDeskCheckAppName(){
+    local __appname=$1
+    local __lerr=1
+    local __recognisedAppNames=( `\ls -p ${newBuildPathDef} | grep -v /` )
+    if [ -n "${__appname}" ] ; then
+	# appName defined by user
+	__appname=`echo ${__appname} | tr '[A-Z]' '[a-z]'`
+	for __tmpRecognisedAppName in ${__recognisedAppNames[@]} ; do
+	    if [ "${__appname}" == "${__tmpRecognisedAppName}" ] ; then
+		__lerr=0
+		break
+	    fi
+	done
+	if [ ${__lerr} -ne 0 ] ; then
+	    sixdeskmess -1 "Un-recognised appName: \"${__appname}\"!"
+	    sixdeskmess -1 "Valid appNames are:"
+	    for __tmpRecognisedAppName in ${__recognisedAppNames[@]} ; do
+		sixdeskmess -1 " --> ${__tmpRecognisedAppName}"
+	    done
+	    sixdeskmess -1 "setting appName to default ${appNameDef}"
+	    export appName=${appNameDef}
+	fi
+	if [ "${__appname}" == "sixtracktest" ] ; then
+	    export sixdeskboinctest=true
+	else
+	    export sixdeskboinctest=false
+	fi
+    else
+	# appName assigned by default
+	if [ -z "${sixdeskboinctest}" ] || ! ${sixdeskboinctest} ; then
+	    export appName=sixtrack
+	    export sixdeskboinctest=false
+	else
+	    export appName=sixtracktest
+	    export sixdeskboinctest=true
+	fi
+	__lerr=0
+    fi
+    return ${__lerr}
+}
+
 sixdeskSetQueue(){
     # check that a proper queue has been chosen:
     # . LSF: test 8nm 1nh 8nh 1nd 2nd 1nw 2nw (see http://lsf-rrd.cern.ch/lrf-lsf/)
@@ -1192,16 +1287,17 @@ sixdeskSetQueue(){
     export ${1}
     export ${2}
 }
+
 sixDeskSetBOINCVars(){
     [ -n "$sixdeskpts" ] || export sixdeskpts=boinc:users
     [ -n "${boincdir}" ] || export boincdir=/afs/cern.ch/work/b/boinc
     [ -n "${sixdeskboincdirname}" ] || export sixdeskboincdirname="${workspace}_${LHCDescrip}"
-    if [ -z "${sixdeskboincdir}" ] ; then
- 	if [ -z "${sixdeskboinctest}" ] || ! ${sixdeskboinctest} ; then
- 	    export sixdeskboincdir=$boincdir/boinc/$sixdeskboincdirname
- 	else
- 	    export sixdeskboincdir=$boincdir/boinctest/$sixdeskboincdirname
- 	fi
+    if ${sixdeskboinctest} ; then
+	# overwrite definition of sixdeskboincdir with what is proper for sixtracktest
+ 	export sixdeskboincdir=$boincdir/boinctest/$sixdeskboincdirname
+    elif [ -z "${sixdeskboincdir}" ] ; then
+	# overwrite definition of sixdeskboincdir only if user did not specify anything
+ 	export sixdeskboincdir=$boincdir/boinc/$sixdeskboincdirname
     fi
     [ -n "${sixdeskparts}" ] || export sixdeskparts=`expr $sixdeskpairs \* 2`
     if [ -z "${sixdeskturns}" ] ; then
@@ -1221,7 +1317,6 @@ sixDeskSetBOINCVars(){
 	sixdeskfpopse=`expr $sixdeskfpopse / 2`
 	#sixdeskfpopse=`expr $sixdeskfpopse \* 3`
 	sixdeskfpopse=$sixdeskfpopse"000000"
-	sixdeskfpopse=`expr $sixdeskturns \* $sixdeskparts`
     fi
 
     # --------------------------------------------------------------------------
@@ -1479,3 +1574,102 @@ function sixdeskRenewKerberosToken(){
 	fi
     fi
 }
+
+function sixdeskCheckRunningJobs(){
+    # input
+    local __batchNameLSF=$1
+    local __batchNameHTC=$2
+    # returned
+    local __lerr=0
+    if [ "$sixdeskplatform" == "lsf" ] ; then
+        sixdeskmess -1 "Checking if there are jobs NOT yet complete matching ${__batchNameLSF} ..."
+        local __lines=`bjobs -w | grep ${__batchNameLSF}`
+	if [ -n "${__lines}" ] ; then
+	    echo "${__lines}"
+	    let __lerr+=1
+	fi
+    elif [ "$sixdeskplatform" == "htcondor" ] ; then
+        sixdeskmess -1 "Checking if there are jobs NOT yet complete matching ${__batchNameHTC} ..."
+        # get clusterIDs
+	sixdeskGetHTClusterIDs "${__batchNameHTC}"
+        for __clusterID in ${clusterIDs} ; do
+            local __lines=`condor_q ${__clusterID} -l -const 'JobStatus != 4' | grep '^ProcId' | cut -d\= -f2 | awk -v "__clusterID=${__clusterID}" '{print (__clusterID"."$1)}'`
+            if [ -n "${__lines}" ] ; then
+                sixdeskmess -1 "...missing `echo "${__lines}" | wc -l` jobs in cluster ID ${__clusterID}!"
+	        echo "${__lines}"
+                sixdeskmess -1 "Ouput of condor_q -wide ${__clusterID}:"
+                condor_q -wide ${__clusterID}
+                echo ""
+                let __lerr+=1
+            fi
+        done
+    fi
+    if [ ${__lerr} -gt 0 ] ; then
+        sixdeskmess -1 "...there appear to be some jobs still not finished!"
+    else
+        sixdeskmess -1 "...all jobs seem to be finished!"
+    fi
+    return ${__lerr}
+}
+
+function sixdeskGetHTClusterIDs(){
+    # input
+    local __batchNameInp=$1
+    # output
+    clusterIDs=""
+    sixdeskmess -1 "Getting cluster IDs matching batch name '${__batchNameInp}' ..."
+    local __batchNames=`condor_q -wide $LOGNAME | grep ${__batchNameInp} | awk '{print ($2)}'`
+    __batchNames=(${__batchNames})
+    if [ ${#__batchNames[@]} -eq 0 ] ; then
+        sixdeskmess -1 "...no matching batch name found - I assume they are over ..."
+    else
+        sixdeskmess -1 "...found ${#__batchNames[@]} matching batch name(s)."
+        for __batchName in ${__batchNames[@]} ; do
+            sixdeskmess -1 "...getting cluster IDs matching batch name '${__batchName}' ..."
+            local __clusterIDs=`condor_q $LOGNAME -l -const 'JobBatchName=="'${__batchName}'"' | grep '^ClusterId' | cut -d\= -f2 | sort -u`
+	    if [ -z "${__clusterIDs}" ] ; then
+	        sixdeskmess -1 "...no cluster IDs found - I assume all the jobs are over."
+            else
+                clusterIDs="${clusterIDs} ${__clusterIDs}"
+                __clusterIDs=(${__clusterIDs})
+	        sixdeskmess -1 "...found ${#__clusterIDs[@]} cluster ID(s)."
+	    fi
+        done
+    fi
+}
+
+function sixdeskHTCondorTransferData(){
+    # input
+    local __clusterID=$1
+    # returned
+    local __lerr=0
+    sixdeskmess -1 "Checking if there are COMPLETE jobIDs in cluster ${__clusterID} ..."
+    local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus == 4' | grep '^ProcId' | awk '{print ($NF)}'`
+    __treatIDs=(${__treatIDs})
+    if [ ${#__treatIDs[@]} -gt 0 ] ; then
+        sixdeskmess -1 "...found ${#__treatIDs[@]} COMPLETE jobIDs - condor_transfer_data them ..."
+        for __treatID in ${__treatIDs[@]} ; do
+            sixdeskmess 2 "Call: condor_transfer_data ${__clusterID}.${__treatID} ." 
+            condor_transfer_data ${__clusterID}.${__treatID}
+            local __llerr=$?
+            if [ $__llerr -eq 0 ] ; then
+                sixdeskmess 2 "...call: condor_rm ${__clusterID}.${__treatID} ."
+                condor_rm ${__clusterID}.${__treatID}
+                let __llerr+=$?
+                if [ ${__llerr} -eq 0 ] ; then
+                    sixdeskmess 2 "...${__clusterID}.${__treatID} successfully removed from condor_q."
+                else
+                    sixdeskmess 2 "...error when removing ${__clusterID}.${__treatID} from condor_q!"
+                fi
+            else
+                sixdeskmess 2 "...exit status is not 0: NOT deleting ${__clusterID}.${__treatID}"
+            fi
+	    let __lerr+=${__llerr}
+        done
+    else
+        sixdeskmess -1 "...no completed jobs found!"
+        let __lerr+=1
+    fi
+    return $__lerr
+}
+
