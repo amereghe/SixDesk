@@ -337,6 +337,8 @@ if [ ! -s ${SCRIPTDIR}/bash/dot_profile ] ; then
 fi
 # - load environment
 source ${SCRIPTDIR}/bash/dot_profile
+# - stuff specific to node where user is running:
+sixdeskSetLocalNodeStuff
 
 # - set up new workspace
 if ${lcrwSpace} ; then
@@ -451,9 +453,9 @@ else
     sixdeskInspectPrerequisites ${lverbose} $envFilesPath -s ${necessaryInputFiles[@]}
     if [ $? -gt 0 ] ; then
         sixdeskmess -1 "not all necessary files are in $envFilesPath dir:"
-        for tmpFile in ${necessaryInputFiles[@]} ; do
-            sixdeskmess -1 "file ${tmpFile} : `\ls -ltrh $envFilesPath`"
-        done
+        sixdeskmess -1 "missing files: ${necessaryInputFiles[@]}"
+        sixdeskmess -1 "status of dir:"
+        \ls -ltrh $envFilesPath
 	sixdeskexit 4
     fi
 
@@ -579,13 +581,15 @@ fi
 sixdeskunlockAll
 
 if ! ${lcptemplate} ; then
-    
-    # - kinit, to renew kerberos ticket
-    sixdeskRenewKerberosToken
+
+    if ${lKerberos} ; then
+        # - kinit, to renew kerberos ticket
+        sixdeskRenewKerberosToken
+    fi
     
     # - fs listquota
     echo ""
-    if [ `echo "${sixdesktrack}" | cut -c-4` == "/afs" ] ; then
+    if [[ "${sixdesktrack}" == "/afs"* ]] ; then
 	sixdeskmess -1 " --> fs listquota ${sixdesktrack}:"
 	tmpLines=`fs listquota ${sixdesktrack}`
 	echo "${tmpLines}"
@@ -595,8 +599,8 @@ if ! ${lcptemplate} ; then
 	    sixdeskmess -1 "WARNING: your quota is above 90%!! pay attention to occupancy of the current study, in case of submission..."
 	fi
     else
-	sixdeskmess -1 " --> df -Th:"
-	\df -Th
+	sixdeskmess -1 " --> df -Th ${sixdesktrack}:"
+	\df -Th ${sixdesktrack}
 	sixdeskmess -1 " the above output is at your convenience, for you to check disk space"
     fi
 
