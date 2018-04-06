@@ -63,6 +63,8 @@ if [ -n "${pythonPath}" ] ; then
 else
     sixdeskSetLocalNodeStuff
 fi
+# overcome limitation in bash with exporting arrays...
+platForms=(${platForms})
 
 # check it is python 2.7 at least
 pyVer=`python --version 2>&1 | awk '{print ($NF)}'`

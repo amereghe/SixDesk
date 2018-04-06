@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# can export successfully an array when sourced
 export fileSuffixes=( 'tasks' 'jobs' 'jobs' )
 
 # A set of Subroutines called by Macros for the SixDesk environment
@@ -803,7 +804,7 @@ sixdeskDefinePythonPath(){
 	export PATH=${1}:${PATH}
 	sixdeskmess 2 "Setting python to ${1} in PATH env var"
     fi
-    sixdeskmess -1 "--> python set to: `which python` - version: `python --version`"
+    sixdeskmess -1 "--> python set to: `which python` - version: `python --version 2>&1`"
 }
 sixdeskGetCurrentPaths(){
     tmpDir=`readlink -f $PWD`
@@ -1152,7 +1153,14 @@ sixdeskSetPlatForm(){
     if [ -n "${__platform}" ] ; then
 	# platform as requested by user (no matter if in sixdeskenv or via terminal line option)
 	export sixdeskplatform=`echo "$__platform" | tr '[A-Z]' '[a-z]'`
-	if [ "$sixdeskplatform" != "boinc" ] && [ "$sixdeskplatform" != "lsf" ] && [ "$sixdeskplatform" != "htcondor" ] && [ "$sixdeskplatform" != "htboinc" ] ; then
+        local __lFound=false
+        for __tmpPlatform in ${platForms[@]} ; do
+            if [ "${sixdeskplatform}" == "${__tmpPlatform}" ] ; then
+                __lFound=true
+                break
+            fi
+        done
+	if ! ${__lFound} ; then
 	    sixdeskmess -1 "unknown platform: ${sixdeskplatform}"
 	    return 1
 	fi
@@ -1174,6 +1182,18 @@ sixdeskSetPlatForm(){
 	    [ -n "${sixdeskbnlout}" ] || export sixdeskbnlout=$bnlfilenames
 	fi
     fi
+    # assign the variables for htboinc
+    [ -n "${boincDev}" ] || export boincDev=false
+    if [ "$sixdeskplatform" == "htboinc" ]; then
+	export remoteHost="vccondorce02.cern.ch"
+	export htboincport="9619"
+        export htcPool="-pool ${remoteHost}:${htboincport}"
+        export htcName="-name ${remoteHost}"
+    else
+        export htcPool=""
+        export htcName=""
+    fi
+
     return 0
 }
 
@@ -1367,14 +1387,6 @@ sixDeskSetBOINCVars(){
     # for megaZip
     [ -n "${megaZipPath}" ] || export megaZipPath=$boincdir/boinc/upload
     
-    # --------------------------------------------------------------------------
-    # assign the variables for htboinc
-    if [ "$sixdeskplatform" == "htboinc" ]; then
-	export remoteHost="vccondorce02.cern.ch"
-	export htboincport="9619"
-        [ -n "${boincDev}" ] || export boincDev=false
-    fi
-
     # --------------------------------------------------------------------------
     # for work folder in work.boinc AFS spooldir
     [ -n "${AFSworkSpooldirDef}" ] || export AFSworkSpooldirDef=$sixdeskboincdir/work
@@ -1590,17 +1602,17 @@ function sixdeskCheckRunningJobs(){
 	    echo "${__lines}"
 	    let __lerr+=1
 	fi
-    elif [ "$sixdeskplatform" == "htcondor" ] ; then
+    elif [[ "$sixdeskplatform" == "ht"* ]] ; then
         sixdeskmess -1 "Checking if there are jobs NOT yet complete matching ${__batchNameHTC} ..."
         # get clusterIDs
 	sixdeskGetHTClusterIDs "${__batchNameHTC}"
         for __clusterID in ${clusterIDs} ; do
-            local __lines=`condor_q ${__clusterID} -l -const 'JobStatus != 4' | grep '^ProcId' | cut -d\= -f2 | awk -v "__clusterID=${__clusterID}" '{print (__clusterID"."$1)}'`
+            local __lines=`condor_q ${htcPool} ${htcName} ${__clusterID} -l -const 'JobStatus != 4' | grep '^ProcId' | cut -d\= -f2 | awk -v "__clusterID=${__clusterID}" '{print (__clusterID"."$1)}'`
             if [ -n "${__lines}" ] ; then
                 sixdeskmess -1 "...missing `echo "${__lines}" | wc -l` jobs in cluster ID ${__clusterID}!"
 	        echo "${__lines}"
-                sixdeskmess -1 "Ouput of condor_q -wide ${__clusterID}:"
-                condor_q -wide ${__clusterID}
+                sixdeskmess -1 "Ouput of condor_q -wide ${htcPool} ${htcName} ${__clusterID}:"
+                condor_q -wide ${htcPool} ${htcName} ${__clusterID}
                 echo ""
                 let __lerr+=1
             fi
@@ -1620,7 +1632,7 @@ function sixdeskGetHTClusterIDs(){
     # output
     clusterIDs=""
     sixdeskmess -1 "Getting cluster IDs matching batch name '${__batchNameInp}' ..."
-    local __batchNames=`condor_q -wide $LOGNAME | grep ${__batchNameInp} | awk '{print ($2)}'`
+    local __batchNames=`condor_q -wide ${htcPool} ${htcName} $LOGNAME | grep ${__batchNameInp} | awk '{print ($2)}'`
     __batchNames=(${__batchNames})
     if [ ${#__batchNames[@]} -eq 0 ] ; then
         sixdeskmess -1 "...no matching batch name found - I assume they are over ..."
@@ -1628,7 +1640,7 @@ function sixdeskGetHTClusterIDs(){
         sixdeskmess -1 "...found ${#__batchNames[@]} matching batch name(s)."
         for __batchName in ${__batchNames[@]} ; do
             sixdeskmess -1 "...getting cluster IDs matching batch name '${__batchName}' ..."
-            local __clusterIDs=`condor_q $LOGNAME -l -const 'JobBatchName=="'${__batchName}'"' | grep '^ClusterId' | cut -d\= -f2 | sort -u`
+            local __clusterIDs=`condor_q ${htcPool} ${htcName} $LOGNAME -l -const 'JobBatchName=="'${__batchName}'"' | grep '^ClusterId' | cut -d\= -f2 | sort -u`
 	    if [ -z "${__clusterIDs}" ] ; then
 	        sixdeskmess -1 "...no cluster IDs found - I assume all the jobs are over."
             else
@@ -1646,17 +1658,17 @@ function sixdeskHTCondorTransferData(){
     # returned
     local __lerr=0
     sixdeskmess -1 "Checking if there are COMPLETE jobIDs in cluster ${__clusterID} ..."
-    local __treatIDs=`condor_q ${__clusterID} -l -const 'JobStatus == 4' | grep '^ProcId' | awk '{print ($NF)}'`
+    local __treatIDs=`condor_q ${htcPool} ${htcName} ${__clusterID} -l -const 'JobStatus == 4' | grep '^ProcId' | awk '{print ($NF)}'`
     __treatIDs=(${__treatIDs})
     if [ ${#__treatIDs[@]} -gt 0 ] ; then
         sixdeskmess -1 "...found ${#__treatIDs[@]} COMPLETE jobIDs - condor_transfer_data them ..."
         for __treatID in ${__treatIDs[@]} ; do
-            sixdeskmess 2 "Call: condor_transfer_data ${__clusterID}.${__treatID} ." 
-            condor_transfer_data ${__clusterID}.${__treatID}
+            sixdeskmess 2 "Call: condor_transfer_data ${htcPool} ${htcName} ${__clusterID}.${__treatID} ." 
+            condor_transfer_data ${htcPool} ${htcName} ${__clusterID}.${__treatID}
             local __llerr=$?
             if [ $__llerr -eq 0 ] ; then
-                sixdeskmess 2 "...call: condor_rm ${__clusterID}.${__treatID} ."
-                condor_rm ${__clusterID}.${__treatID}
+                sixdeskmess 2 "...call: condor_rm ${htcPool} ${htcName} ${__clusterID}.${__treatID} ."
+                condor_rm ${htcPool} ${htcName} ${__clusterID}.${__treatID}
                 let __llerr+=$?
                 if [ ${__llerr} -eq 0 ] ; then
                     sixdeskmess 2 "...${__clusterID}.${__treatID} successfully removed from condor_q."
@@ -1676,11 +1688,12 @@ function sixdeskHTCondorTransferData(){
 }
 
 function sixdeskSetLocalNodeStuff(){
+    # can NOT export successfully an array when sourced
     if [[ `uname -n` == "lxplus"* ]] ; then
         # set some default stuff for lxplus
         export newBuildPathDef=/afs/cern.ch/project/sixtrack/build
         export appNameDef=sixtrack
-        export platForms=( 'boinc' 'lsf' 'htcondor' )
+        export platForms="boinc lsf htcondor htboinc"
         export lKerberos=true
         export lAFS=true
         export tmpNodeDir=/tmp/${LOGNAME}
@@ -1691,7 +1704,7 @@ function sixdeskSetLocalNodeStuff(){
         # set some default stuff for a local machine in CERN domain
         export newBuildPathDef=/afs/cern.ch/project/sixtrack/build
         export appNameDef=sixtrack
-        export platForms=( 'boinc' 'lsf' 'htcondor' )
+        export platForms="boinc lsf htcondor htboinc"
         export lKerberos=true
         export lAFS=true
         export tmpNodeDir=/tmp

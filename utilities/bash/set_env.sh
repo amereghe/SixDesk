@@ -34,7 +34,6 @@ function how_to_use() {
 
    options (optional)
    -p      platform name (when running many jobs in parallel)
-           recognised platforms: LSF, BOINC, HTCONDOR
            this option allows to override the value in sixdeskenv, with no need
               for the user to manually change the corresponding variable. Similarly,
               the variable is NOT automatically updated by the script
@@ -141,9 +140,9 @@ function getInfoFromFort3Local(){
 function setFurtherEnvs(){
     # set exes
     sixdeskSetExes
+
     # scan angles:
     lReduceAngsWithAmplitude=false
- 
     if [ -n "${reduce_angs_with_aplitude}" ] ; then
         sixdeskmess -1 "wrong spelling of reduce_angs_with_amplitude. Please correct it for future use"
         reduce_angs_with_amplitude=${reduce_angs_with_aplitude}
@@ -339,6 +338,8 @@ fi
 source ${SCRIPTDIR}/bash/dot_profile
 # - stuff specific to node where user is running:
 sixdeskSetLocalNodeStuff
+# overcome limitation in bash with exporting arrays...
+platForms=(${platForms})
 
 # - set up new workspace
 if ${lcrwSpace} ; then
@@ -512,15 +513,6 @@ else
  	        # updating an existing study
 		sixdeskmess -1 "Updated sixdeskenv/sysenv(/fort.3.local) for $LHCDescrip"
 	    fi
-            # copy necessary .sub/.sh files
-            sixdeskmess -1 "if absent, copying necessary .sub/.sh files for MADX run in ${sixtrack_input}"
-            sixdeskmess -1 "   and necessary .sub/.sh files for 6T runs in ${sixdeskwork}"
-            for tmpFile in htcondor/mad6t.sub lsf/mad6t.sh ; do
-                [ -e ${sixtrack_input}/`basename ${tmpFile}` ] || cp -p ${SCRIPTDIR}/templates/${tmpFile} ${sixtrack_input}
-            done
-            for tmpFile in htcondor/htcondor_run_six.sub htcondor/htcondor_job.sh ; do
-                [ -e ${sixdeskwork}/`basename ${tmpFile}` ] || cp -p ${SCRIPTDIR}/templates/${tmpFile} ${sixdeskwork}
-            done
 	elif ${lload} ; then
 	    cp ${envFilesPath}/sixdeskenv .
 	    cp ${envFilesPath}/sysenv .

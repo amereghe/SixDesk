@@ -804,6 +804,7 @@ function submitCreateFinalFort3DA(){
 
 function submitCreateFinalInputs(){
     local __lerr=0
+    local __zipfilename=""
 
     sixdeskmess  1 "Taking care of SIXTRACK fort.2/fort.3/fort.8/fort.16 in $RundirFullPath"
 
@@ -816,9 +817,9 @@ function submitCreateFinalInputs(){
 	ln -s $sixtrack_input/fort.${iFort}_$iMad.gz $RundirFullPath/fort.${iFort}.gz
 	let __lerr+=$?
     done
-	
-    if [[ "${sixdeskplatform}" == *"boinc" ]] ; then
-        # boinc or htboinc
+    
+    if [ "${sixdeskplatform}" == "boinc" ] ; then
+        # boinc
         # - generate new taskid
 	sixdeskTaskId=`awk '{print ($1+1)}' $sixdeskhome/sixdeskTaskIds/$LHCDescrip/sixdeskTaskId`
 	echo $sixdeskTaskId > $sixdeskhome/sixdeskTaskIds/$LHCDescrip/sixdeskTaskId
@@ -827,17 +828,16 @@ function submitCreateFinalInputs(){
 	# - return sixdeskTaskName and workunitName
 	sixdeskDefineWorkUnitName $workspace $Runnam $sixdesktaskid
 	let __lerr+=$?
-        zipfilename="${workunitName}.zip"
-    fi
-    if [[ "${sixdeskplatform}" == "ht"* ]] ; then
+        __zipfilename="${workunitName}.zip"
+    elif [[ "${sixdeskplatform}" == "ht"* ]] ; then
         # htcondor or htboinc
-        zipfilename="SixIn.zip"
+        __zipfilename="SixIn.zip"
     fi
     
-    if [ ${__lerr} -eq 0 ] ; then
+    if [ ${__lerr} -eq 0 ] && [ -n "${__zipfilename}" ] ; then
 	# - generate zip file
 	#   NB: -j option, to store only the files, and not the source paths
-	multipleTrials "zip -j $RundirFullPath/${zipfilename} $sixdeskjobs_logs/fort.3 $sixtrack_input/fort.2 $sixtrack_input/fort.8 $sixtrack_input/fort.16 > $RundirFullPath/zip.log 2>&1; local __zip_exit_status=\$? ; grep warning $RundirFullPath/zip.log >/dev/null 2>&1 ; local __zip_warnings=\$? ; rm -f $RundirFullPath/zip.log" "[ \${__zip_exit_status} -eq 0 ] && [ \${__zip_warnings} -eq 1 ]" "Failing to generate .zip file for WU ${workunitName}"
+	multipleTrials "zip -j $RundirFullPath/${__zipfilename} $sixdeskjobs_logs/fort.3 $sixtrack_input/fort.2 $sixtrack_input/fort.8 $sixtrack_input/fort.16 > $RundirFullPath/zip.log 2>&1; local __zip_exit_status=\$? ; grep warning $RundirFullPath/zip.log >/dev/null 2>&1 ; local __zip_warnings=\$? ; rm -f $RundirFullPath/zip.log" "[ \${__zip_exit_status} -eq 0 ] && [ \${__zip_warnings} -eq 1 ]" "Failing to generate .zip file for WU ${workunitName}"
 	let __lerr+=$?
 	# - generate the workunit description file
 	if [ "$sixdeskplatform" == "boinc" ] ; then
@@ -1131,15 +1131,8 @@ function condor_sub(){
 	    sixdeskmess 2 "renewing kerberos token before submission to HTCondor"
 	    sixdeskRenewKerberosToken
         fi
-	if [ "$sixdeskplatform" == "htcondor" ]; then
-            local __pool=""
-            local __name=""
-	elif  [ "$sixdeskplatform" == "htboinc" ]; then
-            local __pool="-pool ${remoteHost}:${htboincport}"
-            local __name="-name ${remoteHost}"
-	fi
-        sixdeskmess 2 "condor_submit ${__pool} ${__name} -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub"
-	multipleTrials "answerHTCSub=\"\`condor_submit ${__pool} ${__name} -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub \`\" " "[ \$? -eq 0 ] && [ -n \"\${answerHTCSub}\" ]" "Problem at condor_submit"
+        sixdeskmess -1 "condor_submit ${htcPool} ${htcName} -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub"
+	multipleTrials "answerHTCSub=\"\`condor_submit ${htcPool} ${htcName} -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub \`\" " "[ \$? -eq 0 ] && [ -n \"\${answerHTCSub}\" ]" "Problem at condor_submit"
 	let __lerr+=$?
 	if [ ${__lerr} -ne 0 ] ; then
 	    sixdeskmess -1 "Something wrong with htcondor submission: submission didn't work properly - exit status: ${__lerr}"
@@ -1163,7 +1156,7 @@ function condor_sub(){
 	    sixdeskmess -1 "Updating DB..."
 	    sixdeskmess  1 "Depending on the number of points in the scan, this operation can take up to few minutes."
             [ -d /tmp/$LOGNAME ] || mkdir -p /tmp/$LOGNAME
-            multipleTrials "condor_q ${__clusterID} -l | grep -e '^ProcId' -e '^SUBMIT_TransferInput' > /tmp/$LOGNAME/${__clusterID}.list" "[ -s /tmp/$LOGNAME/${__clusterID}.list ]" "Problem at retrieving jobIDs"
+            multipleTrials "condor_q ${htcPool} ${htcName} ${__clusterID} -l | grep -e '^ProcId' -e '^SUBMIT_TransferInput' > /tmp/$LOGNAME/${__clusterID}.list" "[ -s /tmp/$LOGNAME/${__clusterID}.list ]" "Problem at retrieving jobIDs"
 	    while read tmpDir ; do
                 local __idJob=`grep -B1 "${tmpDir}" /tmp/$LOGNAME/${__clusterID}.list 2>/dev/null | grep '^ProcId' | awk '{print ($NF)}'`
                 [ -n "${__idJob}" ] || __idJob=$((RANDOM + RANDOM * 1000000))
@@ -2416,9 +2409,13 @@ if ${lsubmit} ; then
         elif [ "$sixdeskplatform" == "htboinc" ] ; then
             # condor file
 	    sed -i -e "s?^executable.*?executable = /bin/false?g" \
-   	           -e "/^+BJobFlavour/d" \
-   	           -e "/^+BOINC_Dev/d" \
+   	           -e "/^+JobFlavour/d" \
                    ${sixdeskjobs}/htcondor_run_six.sub
+            if ${boincDev} ; then
+   	        sed -i "s?^+BOINC_Dev.*?+BOINC_Dev = true?g" ${sixdeskjobs}/htcondor_run_six.sub
+            else
+   	        sed -i "/^+BOINC_Dev/d" ${sixdeskjobs}/htcondor_run_six.sub
+            fi
         fi
         if ${llocalfort3} && ${lZipF} ; then
             # we have a ZIPF block - hence update list of files to be transferred back

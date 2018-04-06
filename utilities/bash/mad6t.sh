@@ -153,8 +153,8 @@ function submit(){
             fi
         done
         
-        [ -e ${sixtrack_input}/mad6t.sh ] || cp -p $lsfFilesPath/mad6t.sh ${sixtrack_input}
-        [ -e ${sixtrack_input}/mad6t.sub ] || cp -p ${SCRIPTDIR}/templates/htcondor/mad6t.sub ${sixtrack_input}
+        cp -p ${lsfFilesPath}/mad6t.sh ${sixtrack_input}
+        cp -p ${SCRIPTDIR}/templates/htcondor/mad6t.sub ${sixtrack_input}
         
 	# Loop over seeds
 	for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
