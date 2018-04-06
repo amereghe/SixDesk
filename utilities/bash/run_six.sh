@@ -1139,7 +1139,7 @@ function condor_sub(){
             local __name="-name ${remoteHost}"
 	fi
         sixdeskmess 2 "condor_submit ${__pool} ${__name} -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub"
-	multipleTrials "answerHTCSub=\"\`condor_submit ${__pool} ${__name} -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub \`\" " "[ -n \"\${answerHTCSub}\" ]" "Problem at condor_submit"
+	multipleTrials "answerHTCSub=\"\`condor_submit ${__pool} ${__name} -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub \`\" " "[ \$? -eq 0 ] && [ -n \"\${answerHTCSub}\" ]" "Problem at condor_submit"
 	let __lerr+=$?
 	if [ ${__lerr} -ne 0 ] ; then
 	    sixdeskmess -1 "Something wrong with htcondor submission: submission didn't work properly - exit status: ${__lerr}"
@@ -1175,9 +1175,7 @@ function condor_sub(){
                 rm $tmpDir/SixIn.zip
 		let NsuccessSub+=1
 	    done < ${sixdeskjobs}/${LHCDesName}.list
-	    fi
 	    rm -f ${sixdeskjobs}/${LHCDesName}.list
-            rm -f /tmp/$LOGNAME/${__clusterID}.list
 	fi
 	cd - > /dev/null 2>&1
     fi
@@ -2402,39 +2400,40 @@ if ${lsubmit} ; then
 	    sixdeskmess -1 "cleaning away existing ${sixdeskjobs}/${LHCDesName}.list to avoid double submissions!"
 	    rm -f ${sixdeskjobs}/${LHCDesName}.list
 	fi
-        cp -p ${SCRIPTDIR}/templates/htcondor/htcondor_run_six.sub ${sixdeskwork}
+        cp -p ${SCRIPTDIR}/templates/htcondor/htcondor_run_six.sub ${sixdeskjobs}
         
 	# some set up of htcondor submission scripts
         if [ "$sixdeskplatform" == "htcondor" ] ; then
             # job file
-            cp -p ${SCRIPTDIR}/templates/htcondor/htcondor_job.sh ${sixdeskwork}
- 	    sed -i -e "s?^exe.*?exe=${SIXTRACKEXE}?g" ${sixdeskwork}/htcondor_job.sh
-	    chmod +x ${sixdeskwork}/htcondor_job.sh
+            cp -p ${SCRIPTDIR}/templates/htcondor/htcondor_job.sh ${sixdeskjobs}
+ 	    sed -i -e "s?^exe.*?exe=${SIXTRACKEXE}?g" ${sixdeskjobs}/htcondor_job.sh
+	    chmod +x ${sixdeskjobs}/htcondor_job.sh
             # condor file
-	    sed -i -e "s?^executable.*?executable = ${sixdeskwork}/htcondor_job.sh?g" \
+	    sed -i -e "s?^executable.*?executable = ${sixdeskjobs}/htcondor_job.sh?g" \
    	           -e "s?^+JobFlavour.*?+JobFlavour = \"${HTCq}\"?g" \
-   	           -e "s?^+BOINC_Dev?d" \
-                   ${sixdeskwork}/htcondor_run_six.sub
+   	           -e "/^+BOINC_Dev/d" \
+                   ${sixdeskjobs}/htcondor_run_six.sub
         elif [ "$sixdeskplatform" == "htboinc" ] ; then
             # condor file
 	    sed -i -e "s?^executable.*?executable = /bin/false?g" \
-   	           -e "s?^+BJobFlavour?d" \
-   	           -e "s?^+BOINC_Dev?d" \
-                   ${sixdeskwork}/htcondor_run_six.sub
+   	           -e "/^+BJobFlavour/d" \
+   	           -e "/^+BOINC_Dev/d" \
+                   ${sixdeskjobs}/htcondor_run_six.sub
         fi
         if ${llocalfort3} && ${lZipF} ; then
             # we have a ZIPF block - hence update list of files to be transferred back
 	    sed -i 's?^transfer_output_remaps.*?transfer_output_remaps = "fort.10=$(dirname)/fort.10;Sixout.zip=$(dirname)/Sixout.zip"?g' \
-                ${sixdeskwork}/htcondor_run_six.sub
+                ${sixdeskjobs}/htcondor_run_six.sub
         else
 	    sed -i 's?^transfer_output_remaps.*?transfer_output_remaps = "fort.10=$(dirname)/fort.10"?g' \
-                ${sixdeskwork}/htcondor_run_six.sub
+                ${sixdeskjobs}/htcondor_run_six.sub
         fi
-        sed -i -e "s?^queue dirname from.*?queue dirname from ${sixdeskjobs}/${LHCDesName}.list?g" ${sixdeskjobs}/htboinc_run_six.sub
+        sed -i -e "s?^queue dirname from.*?queue dirname from ${sixdeskjobs}/${LHCDesName}.list?g" ${sixdeskjobs}/htcondor_run_six.sub
     elif [ "$sixdeskplatform" == "boinc" ] ; then
         sixDeskReSetWorkSpoolDir ${AFSworkSpooldirDef}
     fi
 fi
+
 # - MegaZip: get file name
 if ${lmegazip} ; then
     # get name of zip as from initialisation
