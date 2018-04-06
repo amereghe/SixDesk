@@ -1,5 +1,5 @@
 # A.Mereghetti, 2018-04-06
-# condor_submit is issued in the track dir, whereas this file and the list of jobs are in the work/htcondorjobs dir
+# condor_submit is issued in the track dir, whereas this file and the list of jobs are in the work/<platform>jobs dir
 # <study_name>.list contains the list of subdirs in track tree
 #   (eg hllhc10BaseB1/23/simul/62.275_60.283/5_6.666/e4/75)
 #   the list is automatically deleted after a successful submission
@@ -25,4 +25,5 @@ WhenToTransferOutput = ON_EXIT_OR_EVICT
 # htboinc specific
 +BOINC_Dev = 
 #
+# queue jobs from file
 queue dirname from 
