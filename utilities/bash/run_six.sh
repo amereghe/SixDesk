@@ -1107,7 +1107,7 @@ function condor_sub(){
 	local __iBatch=$((${nQueued}/${nMaxJobsSubmitHTCondor}))
 	if [ ${__iBatch} -eq 0 ] ; then
 	    sixdeskmess 1 "checking if there are already some condor clusters from the same workspace/study ..."
-            local __tmpLines=`condor_q -wide | grep run_six/${workspace}/${LHCDesName}`
+            local __tmpLines=`condor_q ${htcPool} ${htcName} -wide | grep run_six/${workspace}/${LHCDesName}`
             if [ -n "${__tmpLines}" ] ; then
 	        local __i0Batch=`echo "${__tmpLines}" | awk '{print ($2)}' | cut -d\/ -f4 | sort | tail -1`
 	        if [ -n "${__i0Batch}" ] ; then
@@ -2405,11 +2405,14 @@ if ${lsubmit} ; then
 	    sed -i -e "s?^executable.*?executable = ${sixdeskjobs}/htcondor_job.sh?g" \
    	           -e "s?^+JobFlavour.*?+JobFlavour = \"${HTCq}\"?g" \
    	           -e "/^+BOINC_Dev/d" \
+                   -e "/^+rsc_fpops_est/d" \
                    ${sixdeskjobs}/htcondor_run_six.sub
         elif [ "$sixdeskplatform" == "htboinc" ] ; then
             # condor file
+            tempFpopsEstimate=`printf "%E" ${fpopsEstimate}`
 	    sed -i -e "s?^executable.*?executable = /bin/false?g" \
-   	           -e "/^+JobFlavour/d" \
+                   -e "/^+JobFlavour/d" \
+                   -e "s?^+rsc_fpops_est.*?+rsc_fpops_est = \"${tempFpopsEstimate}\"?g" \
                    ${sixdeskjobs}/htcondor_run_six.sub
             if ${boincDev} ; then
    	        sed -i "s?^+BOINC_Dev.*?+BOINC_Dev = true?g" ${sixdeskjobs}/htcondor_run_six.sub
