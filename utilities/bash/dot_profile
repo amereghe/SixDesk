@@ -682,6 +682,26 @@ sixdeskAllTunes(){
     tunesYY=( ${tunesYY} )
     inttunesYY=( ${inttunesYY} )
 }
+sixdeskAllAmplitudes_fort13(){
+    ## This function splits the fort.13 file according to the number of pairs set in sixdeskenv. A new directory fort13_jobs in the work directory is created which contains all the fort.13 jobs. The amplitude steps are named after the number of the job.  
+    pairs_per_job=$((sixdeskpairs*15))  ## each pair correspons to 15 lines
+    if [ -d "${sixdeskjobs_logs}/fort.13_jobs" ]; then
+      rm -rf ${sixdeskjobs_logs}/fort.13_jobs/*
+    else
+      mkdir ${sixdeskjobs_logs}/fort.13_jobs
+    fi
+    split -d -l $pairs_per_job fort.13 ${sixdeskjobs_logs}/fort.13_jobs/fort.13.
+    fort13_jobs=( $(find ${sixdeskjobs_logs}/fort.13_jobs/ -type f -name 'fort.13.*') )
+    nb_fort13_jobs=${#fort13_jobs[@]}
+    echo Fort.13 will be split in $nb_fort13_jobs jobs
+    allAmplitudeSteps=( $(seq 1 1 $nb_fort13_jobs) )
+    fAmpStarts=("${allAmplitudeSteps[@]}")
+    fAmpEnds=("${allAmplitudeSteps[@]}")
+    ampstart=${fAmpStarts[0]}
+    let __iLast=${#fAmpEnds[@]}-1
+    ampfinish=${fAmpEnds[${__iLast}]}
+}
+
 sixdeskAllAmplitudes(){
     # A.Mereghetti, 2017-04-08
     # new function, to generate all amplitude steps

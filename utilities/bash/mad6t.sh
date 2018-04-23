@@ -150,9 +150,13 @@ function submit(){
 	# Loop over seeds
 	mad6tjob=$lsfFilesPath/mad6t1.sh
 	for (( iMad=$istamad ; iMad<=$iendmad ; iMad++ )) ; do
-	    
+            if [ "${lflag_fort13}" = true ]  ; then
+              files="2 8 13 16 34" ## fort.13 is also included in sixtrack_input
+            else
+              files="2 8 16 34"
+   	    fi    
 	    # clean away any existing results for this seed
-	    for f in 2 8 16 34 ; do
+	    for f in files ; do
 		rm -f $sixtrack_input/fort.$f"_"$iMad.gz
 	    done
 	    
@@ -168,6 +172,8 @@ function submit(){
 		-e 's?%FORT_34%?'$fort_34'?g' \
 		-e 's?%MADX_PATH%?'$MADX_PATH'?g' \
 		-e 's?%MADX%?'$MADX'?g' \
+		-e 's?%lflag_fort13%?'$lflag_fort13'?g' \
+                -e 's?%sixdeskstudy%?'$sixdeskstudy'?g' \
 		-e 's?%SIXTRACK_INPUT%?'$sixtrack_input'?g' $mad6tjob > mad6t_"$iMad".sh
 	    chmod 755 mad6t_"$iMad".sh
 	    
