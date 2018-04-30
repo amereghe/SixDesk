@@ -215,6 +215,8 @@ lgit=false
 currPlatform=""
 currStudy=""
 tmpPythonPath=""
+origRepoForSetup='https://github.com/amereghe/SixDesk.git'
+origBranchForSetup=`git --git-dir=${SCRIPTDIR}/../.git branch | grep '*' | awk '{print ($NF)}'`
 
 # variables set based on parsing fort.3.local
 
