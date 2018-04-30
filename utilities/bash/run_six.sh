@@ -32,8 +32,8 @@ function how_to_use() {
            PAY ATTENTION when using this option, as no check whether the lock
               belongs to this script or not is performed, and you may screw up
               processing of another script
-   -w      before doing any operation, submit any HTCondor cluster of jobs left
-              from a previous (failing attempt).
+   -w      before doing any operation, submit any cluster of jobs left
+              from a previous (failing attempt) to HTCondor/HTBoinc.
            The platform of submission is forced to ${sixdeskplatformDefIncomplete}
 
    options (optional)
@@ -52,8 +52,8 @@ function how_to_use() {
            this option shall be used with both -g and -s actions, and in case
               of explicitely requiring -c
    -n      renew kerberos token every n jobs (default: ${NrenewKerberosDef})
-   -N      an HTCondor cluster of jobs should be composed of at most
-              N jobs (active only in case of HTCondor platform - default: ${nMaxJobsSubmitHTCondorDef}).
+   -N      an HTCondor/HTBoinc cluster of jobs should be composed of at most
+              N jobs (active only in case of HTCondor/HTBoinc platforms - default: ${nMaxJobsSubmitHTCondorDef}).
            this option can be used also for submitting incomplete_cases
    -o      define output (preferred over the definition of sixdesklevel in sixdeskenv)
                0: only error messages and basic output 
@@ -1092,6 +1092,11 @@ function dot_boinc(){
 
 function condor_sub(){
     local __lerr=0
+    if [ $# -eq 0 ] ; then
+        local __platform="htcondor"
+    else
+        local __platform="$1"
+    fi
     echo ""
     printf "=%.0s" {1..80}
     echo ""
@@ -1128,14 +1133,14 @@ function condor_sub(){
 	sixdeskmess -1 "Last job: `tail -1 ${sixdeskjobs}/${LHCDesName}.list`"
         if ${lKerberos} ; then
 	    # let's renew the kerberos token just before submitting
-	    sixdeskmess 2 "renewing kerberos token before submission to HTCondor"
+	    sixdeskmess 2 "renewing kerberos token before submission to ${__platform}"
 	    sixdeskRenewKerberosToken
         fi
         sixdeskmess -1 "condor_submit ${htcPool} ${htcName} -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub"
 	multipleTrials "answerHTCSub=\"\`condor_submit ${htcPool} ${htcName} -spool -batch-name ${batch_name} ${sixdeskjobs}/htcondor_run_six.sub \`\" " "[ \$? -eq 0 ] && [ -n \"\${answerHTCSub}\" ]" "Problem at condor_submit"
 	let __lerr+=$?
 	if [ ${__lerr} -ne 0 ] ; then
-	    sixdeskmess -1 "Something wrong with htcondor submission: submission didn't work properly - exit status: ${__lerr}"
+	    sixdeskmess -1 "Something wrong with submission to ${__platform}: submission didn't work properly - exit status: ${__lerr}"
 	    # clean
 	    while read tmpDir ; do
 		rm -f ${tmpDir}/JOB_NOT_YET_STARTED 
@@ -1147,7 +1152,7 @@ function condor_sub(){
 	    local __nSub=`echo "${answerHTCSub}" | tail -1 | awk '{print ($1)}'`
             local __nCases=`wc -l ${sixdeskjobs}/${LHCDesName}.list | awk '{print ($1)}'`
 	    if [ ${__nSub} -ne ${__nCases} ] ; then
-		sixdeskmess -1 "Something wrong with htcondor submission: I requested ${__nCases} to be submitted, and only ${__nSub} actually made it!"
+		sixdeskmess -1 "Something wrong with submission to ${__platform}: I requested ${__nCases} to be submitted, and only ${__nSub} actually made it!"
 	    fi
 	    echo ${__clusterID} >> ${sixdeskjobs}/clusterids
 	    sixdeskmess -1 "clusterID  : ${__clusterID}"
@@ -1160,7 +1165,7 @@ function condor_sub(){
 	    while read tmpDir ; do
                 local __idJob=`grep -B1 "${tmpDir}" /tmp/$LOGNAME/${__clusterID}.list 2>/dev/null | grep '^ProcId' | awk '{print ($NF)}'`
                 [ -n "${__idJob}" ] || __idJob=$((RANDOM + RANDOM * 1000000))
-		taskid="htcondor${__clusterID}.${__idJob}"
+		taskid="${__platform}${__clusterID}.${__idJob}"
 		Runnam=$(sixdeskFromJobDirToJobName ${tmpDir} ${lbackcomp})
 		updateTaskIdsCases $sixdeskjobs/jobs $sixdeskjobs/incomplete_jobs $taskid $Runnam
                 rm -f $tmpDir/JOB_NOT_YET_STARTED
@@ -1659,7 +1664,7 @@ function treatLong(){
 	        	    local __subSuccess=1
 	        	    let nQueued+=1
 	        	    if  [ $((${nQueued}%${nMaxJobsSubmitHTCondor})) -eq 0 ] ; then
-	        		condor_sub
+	        		condor_sub "${sixdeskplatform}"
 	        	    fi
 	        	elif [ "$sixdeskplatform" == "boinc" ] ; then
 	        	    dot_boinc
@@ -2222,7 +2227,7 @@ trap "printSummary; sixdeskexit  8" SIGFPE
 
 # submit any .list left behind
 if ${lFinaliseHTCondor} ; then
-    condor_sub
+    condor_sub "${sixdeskplatform}"
     if ! ${lgenerate} && ! ${lsubmit} && ! ${lcheck} && ! ${lstatus} && ! ${lcleanzip} && ! ${lfix} && ! ${lincomplete} ; then
 	# only finalise submission
 	sixdeskmess -1 "only finalisation of submission"
@@ -2376,7 +2381,7 @@ if ${lsubmit} ; then
     touch $sixdeskwork/incomplete_cases
     touch $sixdeskwork/myincomplete_cases
     touch $sixdeskwork/taskids
-    if [ "$sixdeskplatform" == "lsf" ] || [ "$sixdeskplatform" == "htcondor" ] ; then
+    if [ "$sixdeskplatform" == "lsf" ] || [[ "$sixdeskplatform" == "ht"* ]] ; then
 	touch $sixdeskjobs/jobs
 	touch $sixdeskjobs/incomplete_jobs
     elif [ "$sixdeskplatform" == "boinc" ] ; then
@@ -2533,7 +2538,7 @@ if ${lincomplete} ; then
 	let nConsidered+=1
 	let nQueued+=1
 	if  [ $((${nQueued}%${nMaxJobsSubmitHTCondor})) -eq 0 ] ; then
-	    condor_sub
+	    condor_sub "${sixdeskplatform}"
 	fi
     done < $sixdeskwork/incomplete_cases
 else
@@ -2690,9 +2695,9 @@ if ${lrestart} ; then
 fi
 
 # HTCondor: run the actual command
-if ${lsubmit} && ([ "$sixdeskplatform" == "htcondor" ] || [ "$sixdeskplatform" == "htboinc" ]) && [ $((${nQueued}%${nMaxJobsSubmitHTCondor})) -ne 0 ] ; then
+if ${lsubmit} && [[ "$sixdeskplatform" == "ht"* ]] && [ $((${nQueued}%${nMaxJobsSubmitHTCondor})) -ne 0 ] ; then
     # submit the remaining jobs
-    condor_sub
+    condor_sub "${sixdeskplatform}"
 fi
 
 # megaZip, in case of boinc
