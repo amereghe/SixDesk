@@ -2411,13 +2411,24 @@ if ${lsubmit} ; then
    	           -e "s?^+JobFlavour.*?+JobFlavour = \"${HTCq}\"?g" \
    	           -e "/^+BOINC_Dev/d" \
                    -e "/^+rsc_fpops_est/d" \
+                   -e "/^+rsc_fpops_bound/d" \
+                   -e "/^+rsc_memory_bound/d" \
+                   -e "/^+rsc_disk_bound/d" \
+                   -e "/^+delay_bound/d" \
                    ${sixdeskjobs}/htcondor_run_six.sub
         elif [ "$sixdeskplatform" == "htboinc" ] ; then
             # condor file
             tempFpopsEstimate=`printf "%E" ${fpopsEstimate}`
+            tempFpopsBound=`printf "%E" ${fpopsBound}`
+            tempMemBound=`printf "%E" ${memBound}`
+            tempDiskBound=`printf "%E" ${diskBound}`
 	    sed -i -e "s?^executable.*?executable = /bin/false?g" \
                    -e "/^+JobFlavour/d" \
                    -e "s?^+rsc_fpops_est.*?+rsc_fpops_est = \"${tempFpopsEstimate}\"?g" \
+                   -e "s?^+rsc_fpops_bound.*?+rsc_fpops_bound = \"${tempFpopsBound}\"?g" \
+                   -e "s?^+rsc_memory_bound.*?+rsc_memory_bound = \"${tempMemBound}\"?g" \
+                   -e "s?^+rsc_disk_bound.*?+rsc_disk_bound = \"${tempDiskBound}\"?g" \
+                   -e "s?^+delay_bound.*?+delay_bound = \"${delayBound}\"?g" \
                    ${sixdeskjobs}/htcondor_run_six.sub
             if ${boincDev} ; then
    	        sed -i "s?^+BOINC_Dev.*?+BOINC_Dev = true?g" ${sixdeskjobs}/htcondor_run_six.sub

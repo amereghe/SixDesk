@@ -1362,8 +1362,8 @@ sixDeskSetBOINCVars(){
     # interval, the server 'gives up' on the result and generates a new result,
     # to be assigned to another client. Don't set this too low. 
     # 20 times the "normal" execution time will probably be a good value.
-    # about 30 days
-    [ -n "${delayBound}" ] || export delayBound=2400000
+    # 6 days
+    [ -n "${delayBound}" ] || export delayBound=518400
     
     # The number of redundant calculations. Set to two or more to achieve
     # redudancy.

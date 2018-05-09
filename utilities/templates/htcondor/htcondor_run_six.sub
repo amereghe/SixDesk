@@ -25,6 +25,10 @@ WhenToTransferOutput = ON_EXIT_OR_EVICT
 # htboinc specific
 +BOINC_Dev = 
 +rsc_fpops_est = 
++rsc_fpops_bound =
++rsc_memory_bound =
++rsc_disk_bound =
++delay_bound =
 #
 # queue jobs from file
 queue dirname from 
