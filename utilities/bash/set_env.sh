@@ -124,6 +124,12 @@ function consistencyChecks(){
 	sixdeskexit 9
     fi
     
+    # - sixtrack app version
+    sixDeskCheckAppVersion ${appName} ${appVer}
+    if [ $? -ne 0 ] ; then
+	sixdeskexit 11
+    fi
+    
 }
 
 function getInfoFromFort3Local(){
@@ -152,7 +158,10 @@ function getInfoFromFort3Local(){
 function setFurtherEnvs(){
     # set exes
     sixdeskSetExes
-
+    if [ $? -gt 0 ] ; then
+        sixdeskexit 19
+    fi
+    
     # scan angles:
     lReduceAngsWithAmplitude=false
     if [ -n "${reduce_angs_with_aplitude}" ] ; then
@@ -627,7 +636,11 @@ else
 	BTEXT="BNL flag active"
     fi
     NTEXT="[$sixdeskhostname]"
-    ETEXT="[$appName - ${SIXTRACKEXE}]"
+    if [ -n "${appVer}" ] ; then
+        ETEXT="[$appName - ${SIXTRACKEXE} - ${appVer}]"
+    else
+        ETEXT="[$appName - ${SIXTRACKEXE}]"
+    fi
 
     echo
     sixdeskmess -1 "STUDY          ${STEXT}"

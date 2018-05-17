@@ -29,6 +29,7 @@ WhenToTransferOutput = ON_EXIT_OR_EVICT
 +rsc_memory_bound =
 +rsc_disk_bound =
 +delay_bound =
++app_version_num =
 #
 # queue jobs from file
 queue dirname from 

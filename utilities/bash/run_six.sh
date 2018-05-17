@@ -2415,6 +2415,7 @@ if ${lsubmit} ; then
                    -e "/^+rsc_memory_bound/d" \
                    -e "/^+rsc_disk_bound/d" \
                    -e "/^+delay_bound/d" \
+                   -e "/^+app_version_num/d" \
                    ${sixdeskjobs}/htcondor_run_six.sub
         elif [ "$sixdeskplatform" == "htboinc" ] ; then
             # condor file
@@ -2430,6 +2431,11 @@ if ${lsubmit} ; then
                    -e "s?^+rsc_disk_bound.*?+rsc_disk_bound = \"${tempDiskBound}\"?g" \
                    -e "s?^+delay_bound.*?+delay_bound = \"${delayBound}\"?g" \
                    ${sixdeskjobs}/htcondor_run_six.sub
+            if [ -n "${appVer}" ] ; then
+   	        sed -i "s?^+app_version_num.*?+app_version_num = ${appVer}?g" ${sixdeskjobs}/htcondor_run_six.sub
+            else
+   	        sed -i "/^+app_version_num/d" ${sixdeskjobs}/htcondor_run_six.sub
+            fi
             if ${boincDev} ; then
    	        sed -i "s?^+BOINC_Dev.*?+BOINC_Dev = true?g" ${sixdeskjobs}/htcondor_run_six.sub
             else
