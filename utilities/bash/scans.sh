@@ -47,7 +47,11 @@ lcommand=false
 # options
 tmpCommand=""
 lPlaceHolderCheck=true
-llocalfort3=false
+lUseLocalFort3=false
+# logical flags (in scan_definitions)
+lMad=
+lSixDeskEnv=
+lLocalFort3=
 
 # get options (heading ':' to disable the verbose error handling)
 while getopts  ":cdhlmsx:" opt ; do
@@ -57,7 +61,7 @@ while getopts  ":cdhlmsx:" opt ; do
 	h)  how_to_use
 	    exit 1
 	    ;;
-        l)  llocalfort3=true ;;
+        l)  lUseLocalFort3=true ;;
 	m)  lcreatemask=true ;;
         s)  lsetstudy=true ;;
         x)  lcommand=true
@@ -139,7 +143,7 @@ fi
 # - create the studies
 if ${lsetstudy} ; then
     sixdeskmess -1 "Creating studies"
-    scan_loop set_study false ${llocalfort3}
+    scan_loop set_study false ${lUseLocalFort3}
 fi
 
 # - run an actual command available in SixDesk
@@ -154,14 +158,14 @@ if ${lcommand} ; then
     case ${desiredScript} in
         mad6t.sh | run_six.sh | set_env.sh | sixdb.sh )
             # no need to run set_env.sh for loading the study, but -d option is required
-            scan_loop "${SCRIPTDIR}/bash/${tmpCommand} -d" false ${llocalfort3}
+            scan_loop "${SCRIPTDIR}/bash/${tmpCommand} -d" false ${lUseLocalFort3}
             ;;
         run_results | run_status )
             # no need to run set_env.sh for loading the study, but study name is required
-            scan_loop "${SCRIPTDIR}/bash/${tmpCommand}" false ${llocalfort3}
+            scan_loop "${SCRIPTDIR}/bash/${tmpCommand}" false ${lUseLocalFort3}
             ;;
         *)
-            scan_loop "${SCRIPTDIR}/bash/${tmpCommand}" true ${llocalfort3}
+            scan_loop "${SCRIPTDIR}/bash/${tmpCommand}" true ${lUseLocalFort3}
             ;;
     esac
     
