@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export scansValueSeparator="%"
+
 ############################ build study/mask names #########################
 
 function make_array_with_delimiter(){
@@ -28,7 +30,7 @@ function make_mask_names_values() {
     scan_vars=(${scan_variables})
 
     local _result_names="${scan_prefix}"
-    local _result_values="%"
+    local _result_values="${scansValueSeparator}"
     local _arg
     local _x
     local _xx
@@ -53,7 +55,7 @@ function make_mask_names_values() {
 	    _new=""
 	    for _r in ${_result_values} ; do    # take all the old strings...
 		for _x in $_arg ; do
-		    _new="$_new ${_r}%${_x}"    # ...and append the new parameter
+		    _new="$_new ${_r}${scansValueSeparator}${_x}"    # ...and append the new parameter
 		done
 	    done
 	    _result_values=${_new:1}            # strip the leading space
@@ -126,7 +128,7 @@ function generate_mask_file(){
     # read the mask variable values for the particular studies
     mask_vals=${mask_values[$iStudy]:2}
     # split the string
-    IFS='%' read -a values <<< "${mask_vals}"
+    IFS="${scansValueSeparator}" read -a values <<< "${mask_vals}"
 
     # replace the individual placeholders in the tmp mask file
     local __sedCommand=""
