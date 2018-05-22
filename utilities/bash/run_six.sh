@@ -1682,9 +1682,16 @@ function treatLong(){
 	            elif ${lcheck} && [ $((${NsuccessChk}%${NrenewKerberos})) -eq 0 ] && [ ${NsuccessChk} -ne 0 ] ; then
 	                sixdeskmess 2 "renewing kerberos token: ${NsuccessChk} vs ${NrenewKerberos}"
 	                sixdeskRenewKerberosToken
-	            elif ${lsubmit} && [ $((${NsuccessSub}%${NrenewKerberos})) -eq 0 ] && [ ${NsuccessSub} -ne 0 ] ; then
-	                sixdeskmess 2 "renewing kerberos token: ${NsuccessSub} vs ${NrenewKerberos}"
-	                sixdeskRenewKerberosToken
+	            elif ${lsubmit} ; then
+                        if [ "$sixdeskplatform" == "htcondor" ] ; then
+                            local __countMeSuccess=${nQueued}
+                        else
+                            local __countMeSuccess=${NsuccessSub}
+                        fi
+                        if [ $((${__countMeSuccess}%${NrenewKerberos})) -eq 0 ] && [ ${__countMeSuccess} -ne 0 ] ; then
+	                    sixdeskmess 2 "renewing kerberos token: ${__countMeSuccess} vs ${NrenewKerberos}"
+	                    sixdeskRenewKerberosToken
+                        fi
 	            fi
                 fi
 	        
