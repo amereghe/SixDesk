@@ -9,13 +9,13 @@ function how_to_use() {
    -h      displays this help
 
    actions
+   -c      check existence of placeholders before generating the .mask files
+           effective only in case of -m action
    -m      create the mask files for all studies
    -s      set all the studies
    -x      loop the given command over all studies
 
    options
-   -c      do NOT check existence of placeholders before generating the .mask files
-           effective only in case of -m action
    -l      use fort.3.local
    -d      file containining the scan definitions. Default name: ${scanDefinitionsFileNameDef}
 
@@ -41,12 +41,12 @@ scanDefinitionsFileNameDef="scan_definitions"
 scanDefinitionsFileName=""
 
 # actions
+lPlaceHolderCheck=false
 lcreatemask=false
 lsetstudy=false
 lcommand=false
 # options
 tmpCommand=""
-lPlaceHolderCheck=true
 lUseLocalFort3=false
 # logical flags (in scan_definitions)
 lMad=
@@ -56,7 +56,7 @@ lLocalFort3=
 # get options (heading ':' to disable the verbose error handling)
 while getopts  ":cdhlmsx:" opt ; do
     case $opt in
-        c)  lPlaceHolderCheck=false ;;
+        c)  lPlaceHolderCheck=true ;;
         d)  scanDefinitionsFileName="${OPTARG}" ;;
 	h)  how_to_use
 	    exit 1
@@ -80,7 +80,7 @@ done
 shift "$(($OPTIND - 1))"
 
 # check actions
-if ! ${lcommand} && ! ${lcreatemask} && ! ${lsetstudy} ; then
+if ! ${lcommand} && ! ${lcreatemask} && ! ${lsetstudy} && ! ${lPlaceHolderCheck} ; then
     how_to_use
     echo "ERROR: no action specified"
     exit 1
@@ -130,12 +130,14 @@ get_study_names
 # actions
 # ------------------------------------------------------------------------------
 
+# - check placeholders
+if ${lPlaceHolderCheck} ; then
+    sixdeskmess -1 "Checking that all placeholders exist in mask file"
+    check_mask_for_placeholders
+fi
+    
 # - create mask files:
 if ${lcreatemask}; then
-    if ${lPlaceHolderCheck} ; then
-        sixdeskmess -1 "Checking if all placeholders are existing in mask file "
-	check_mask_for_placeholders
-    fi
     sixdeskmess -1 "Creating mask files"
     scan_loop generate_mask_file false false
 fi
