@@ -1709,7 +1709,7 @@ function treatLong(){
 	                sixdeskmess 2 "renewing kerberos token: ${NsuccessChk} vs ${NrenewKerberos}"
 	                sixdeskRenewKerberosToken
 	            elif ${lsubmit} ; then
-                        if [ "$sixdeskplatform" == "htcondor" ] ; then
+                        if [[ "${sixdeskplatform}" == "ht"* ]] ; then
                             local __countMeSuccess=${nQueued}
                         else
                             local __countMeSuccess=${NsuccessSub}
