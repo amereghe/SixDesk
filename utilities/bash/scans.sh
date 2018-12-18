@@ -9,13 +9,13 @@ function how_to_use() {
    -h      displays this help
 
    actions
+   -c      check existence of placeholders before generating the .mask files
+           effective only in case of -m action
    -m      create the mask files for all studies
    -s      set all the studies
    -x      loop the given command over all studies
 
    options
-   -c      do NOT check existence of placeholders before generating the .mask files
-           effective only in case of -m action
    -l      use fort.3.local
    -d      file containining the scan definitions. Default name: ${scanDefinitionsFileNameDef}
 
@@ -41,23 +41,27 @@ scanDefinitionsFileNameDef="scan_definitions"
 scanDefinitionsFileName=""
 
 # actions
+lPlaceHolderCheck=false
 lcreatemask=false
 lsetstudy=false
 lcommand=false
 # options
 tmpCommand=""
-lPlaceHolderCheck=true
-llocalfort3=false
+lUseLocalFort3=false
+# logical flags (in scan_definitions)
+lMad=
+lSixDeskEnv=
+lLocalFort3=
 
 # get options (heading ':' to disable the verbose error handling)
 while getopts  ":cdhlmsx:" opt ; do
     case $opt in
-        c)  lPlaceHolderCheck=false ;;
+        c)  lPlaceHolderCheck=true ;;
         d)  scanDefinitionsFileName="${OPTARG}" ;;
 	h)  how_to_use
 	    exit 1
 	    ;;
-        l)  llocalfort3=true ;;
+        l)  lUseLocalFort3=true ;;
 	m)  lcreatemask=true ;;
         s)  lsetstudy=true ;;
         x)  lcommand=true
@@ -76,7 +80,7 @@ done
 shift "$(($OPTIND - 1))"
 
 # check actions
-if ! ${lcommand} && ! ${lcreatemask} && ! ${lsetstudy} ; then
+if ! ${lcommand} && ! ${lcreatemask} && ! ${lsetstudy} && ! ${lPlaceHolderCheck} ; then
     how_to_use
     echo "ERROR: no action specified"
     exit 1
@@ -126,12 +130,14 @@ get_study_names
 # actions
 # ------------------------------------------------------------------------------
 
+# - check placeholders
+if ${lPlaceHolderCheck} ; then
+    sixdeskmess -1 "Checking that all placeholders exist in mask file"
+    check_mask_for_placeholders
+fi
+    
 # - create mask files:
 if ${lcreatemask}; then
-    if ${lPlaceHolderCheck} ; then
-        sixdeskmess -1 "Checking if all placeholders are existing in mask file "
-	check_mask_for_placeholders
-    fi
     sixdeskmess -1 "Creating mask files"
     scan_loop generate_mask_file false false
 fi
@@ -139,7 +145,7 @@ fi
 # - create the studies
 if ${lsetstudy} ; then
     sixdeskmess -1 "Creating studies"
-    scan_loop set_study false ${llocalfort3}
+    scan_loop set_study false ${lUseLocalFort3}
 fi
 
 # - run an actual command available in SixDesk
@@ -154,14 +160,14 @@ if ${lcommand} ; then
     case ${desiredScript} in
         mad6t.sh | run_six.sh | set_env.sh | sixdb.sh )
             # no need to run set_env.sh for loading the study, but -d option is required
-            scan_loop "${SCRIPTDIR}/bash/${tmpCommand} -d" false ${llocalfort3}
+            scan_loop "${SCRIPTDIR}/bash/${tmpCommand} -d" false ${lUseLocalFort3}
             ;;
         run_results | run_status )
             # no need to run set_env.sh for loading the study, but study name is required
-            scan_loop "${SCRIPTDIR}/bash/${tmpCommand}" false ${llocalfort3}
+            scan_loop "${SCRIPTDIR}/bash/${tmpCommand}" false ${lUseLocalFort3}
             ;;
         *)
-            scan_loop "${SCRIPTDIR}/bash/${tmpCommand}" true ${llocalfort3}
+            scan_loop "${SCRIPTDIR}/bash/${tmpCommand}" true ${lUseLocalFort3}
             ;;
     esac
     
