@@ -45,28 +45,6 @@ function how_to_use() {
 EOF
 }
 
-function checkDBnLines(){
-    # returns lequal
-    local __lprint=$1
-    local __lcheck=$2
-    lequal=false
-    nAll=`wc -l < ${dbAll}`
-    nInc=`wc -l < ${dbInc}`
-    nCom=`wc -l < ${dbCom}`
-    let nChk=${nInc}+${nCom}
-    if ${__lcheck} ; then
-        if [ ${nAll} -ne ${nChk} ] ; then
-            let nDiff=${nAll}-${nChk}
-            sixdeskmess -1 "different number of entries in ${dbAll} (${nAll}) and ${dbInc} (${nInc}) plus ${dbCom} (${nCom}) - diff: ${nDiff}"
-        else
-            sixdeskmess  1 "same number of entries in ${dbAll} (${nAll}) and ${dbInc} (${nInc}) plus ${dbCom} (${nCom})"
-            lequal=true
-        fi
-    elif ${__lprint} ; then
-        sixdeskmess -1 "number of entries in ${dbAll}/${dbInc}/${dbCom} ${nAll}/${nInc}/${nCom}"
-    fi
-}
-
 # A new subroutine to update mydatabase......
 update_cases()
 {
@@ -1169,8 +1147,8 @@ function downloadNewResults(){
 
             # Now we make a file completed_this_run which we will
             # use to update a parallel mycompleted_cases and myincomplete_cases
-            echo "$Runnam" >> $sixdeskwork/completed_this_run
-            echo "$Runnam ${taskid}" >> $sixdeskjobs/completed_tasks_this_run
+            # echo "$Runnam" >> $sixdeskwork/completed_this_run
+            # echo "$Runnam ${taskid}" >> $sixdeskjobs/completed_tasks_this_run
             #Eric here we should now delete other redundant tasks
             #mess="Taskids were x$taskids""x"
             #taskids=`echo "$taskids" | sed -e's? '$taskid' ? ?'`
@@ -1593,7 +1571,7 @@ fi
   ###sixdesklock
 #MACRO mylock
 
-update_cases
+# update_cases
 
 #MACRO myunlock $sixdeskwork
   ###sixdesklockdir=$sixdeskwork
@@ -1642,7 +1620,7 @@ if ${lProceedRunRes} ; then
     # download results and save them in track tree
     downloadNewResults $sixdeskboincdir/results $sixdesktasklist ""
     # update the my* DB
-    update_cases
+    # update_cases
 else
     nFoundNewResults=`ls -1 $sixdeskboincdir/results/${workspace}_${LHCDesName}__\*_1_sixvf_boinc\* 2> /dev/null | wc -l `
     if [ ${nFoundNewResults} -gt 0 ] ; then
@@ -1743,7 +1721,7 @@ if ${lProceedRunRes} ; then
             # download results and save them in track tree
             downloadNewResults ${tmpExtractDir} $sixdesktasklist "_0"
             # update the my* DB
-            update_cases
+            # update_cases
         
             if [ $? -eq 0 ] ; then
                 # mv in processed only brand new results
@@ -1798,8 +1776,8 @@ fi
 #MACRO mylock
 
 # update the my* DB
-update_cases
-rm -f $tmp
+# update_cases
+[ ! -e ${tmp} ] || rm -f $tmp
 
 #MACRO myunlock $sixdeskwork
 ###sixdesklockdir=$sixdeskwork
